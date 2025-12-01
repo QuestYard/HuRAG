@@ -3,17 +3,17 @@ name = "HuRAG"
 version = "1.0.0"
 description = "HuRAG 1.0, A TH-GraphRAG Application From QuestYard."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "hurag",
-    "embedding-svr",
-    "kvcache-svr",
+    "embedding-service",
+    "kvcache-service",
 ]
 
 [tool.uv.sources]
 hurag = { workspace = true }
-embedding-svr = { workspace = true }
-kvcache-svr = { workspace = true }
+embedding-service = { workspace = true }
+kvcache-service = { workspace = true }
 
 [tool.uv.workspace]
 members = ["hurag", "services/*"]
@@ -23,4 +23,7 @@ requires = ["uv_build>=0.9.13,<0.10.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = []
+dev = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.7",
+]

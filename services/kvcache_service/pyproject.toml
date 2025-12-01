@@ -1,0 +1,12 @@
+[project]
+name = "kvcache-service"
+version = "1.0.0"
+description = "KV Cache microservice for HuRAG"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
+
