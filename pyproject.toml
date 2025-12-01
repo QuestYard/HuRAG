@@ -1,10 +1,11 @@
 [project]
 name = "HuRAG"
 version = "0.1.0"
-description = "HuRAG 1.0, A TH-GraphRAG Application From QuestYard."
+description = "HuRAG, A TH-GraphRAG Application From QuestYard."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiofiles>=25.1.0",
     "aiomysql>=0.3.2",
     "fastapi>=0.123.0",
     "gunicorn>=23.0.0",
