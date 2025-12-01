@@ -1,0 +1,26 @@
+[project]
+name = "HuRAG"
+version = "1.0.0"
+description = "HuRAG 1.0, A TH-GraphRAG Application From QuestYard."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "hurag",
+    "embedding-svr",
+    "kvcache-svr",
+]
+
+[tool.uv.sources]
+hurag = { workspace = true }
+embedding-svr = { workspace = true }
+kvcache-svr = { workspace = true }
+
+[tool.uv.workspace]
+members = ["hurag", "services/*"]
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = []
