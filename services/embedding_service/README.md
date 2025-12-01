@@ -1,2 +1,0 @@
-# Embedding Service for HuRAG
-

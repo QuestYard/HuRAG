@@ -1,2 +1,0 @@
-# KVCache Service for HuRAG
-
