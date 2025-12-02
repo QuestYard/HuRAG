@@ -665,7 +665,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.123.0"
+version = "0.123.4"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -673,9 +673,9 @@ dependencies = [
     { name = "starlette" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/76/c7/d3956d7c2da2b66188eacc8db0919635b28313a30334dd78cba4c366caf0/fastapi-0.123.0.tar.gz", hash = "sha256:1410678b3c44418245eec85088b15140d894074b86e66061017e2b492c09b138" }
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/e4/70/b856e5db716c4d84cc9d7f69e7dba0f3f900e0deee01336a458f60add3d7/fastapi-0.123.4.tar.gz", hash = "sha256:c2d0ac82f3534c8e35692fda67e2412ac60bad846bb903a65cd8145a65741474" }
 wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/17/17/62c82beab6536ea72576f90b84a3dbe6bcceb88d3d46afc4d05c376f0231/fastapi-0.123.0-py3-none-any.whl", hash = "sha256:cb56e69e874afa897bd3416c8a3dbfdae1730d0a308d4c63303f3f4b44136ae4" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/bc/e9/1c266c3c6aeaab86b5f7b2d7bd3e3789ddc6780c0a4236d24d92814628f1/fastapi-0.123.4-py3-none-any.whl", hash = "sha256:fc2b5cbc10fa05f4f22d87ef7ebc8993b5110ffd9850c08e1fc35a0da37f492e" },
 ]
 
 [[package]]
@@ -930,6 +930,7 @@ dependencies = [
     { name = "openai" },
     { name = "pymilvus" },
     { name = "pymilvus-model" },
+    { name = "pyyaml" },
     { name = "typer" },
     { name = "uuid6" },
     { name = "uvicorn" },
@@ -954,6 +955,7 @@ requires-dist = [
     { name = "openai", specifier = ">=2.8.1" },
     { name = "pymilvus", specifier = ">=2.6.4" },
     { name = "pymilvus-model", specifier = ">=0.3.2" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "typer", specifier = ">=0.20.0" },
     { name = "uuid6", specifier = ">=2025.0.1" },
     { name = "uvicorn", specifier = ">=0.38.0" },
