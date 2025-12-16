@@ -1,0 +1,49 @@
+# 自定义配置项，可选项不提供值则使用系统默认值。
+# 若要提供自定义配置，请在对应配置项后填写，字符串使用双引号
+
+# Milvus 向量数据库
+milvus:
+  uri:                # 默认 "http://localhost:19530"
+  token:              # 必配项，格式为 "用户名:用户密码"，无默认值
+  db_name:            # 必配项，Milvus 数据库名称，无默认值
+
+# MariaDB/MySQL 关系型数据库
+mariadb:
+  host:               # 默认 "localhost"
+  port:               # 默认 3306
+  user:               # 必配项，无默认值
+  password:           # 必配项，无默认值
+  database:           # 必配项，MySQL/MairaDB 数据库名称，无默认值
+
+# 日志文件
+log:
+  log_in_file:        # bool，是否启用文件日志，默认 False
+  max_bytes:          # 整型，单个日志文件最大字节长度，默认 10 MB
+  backup_count:       # 整型，保留日志文件数量，默认 5
+
+# 应用相关配置
+app:
+  org_path:           # 机构全路径，如 "/总部/大区/分公司"，默认"未知机构"
+
+# 检索召回相关配置
+retrieval:
+  top_k:              # 最大召回数，默认 10
+  top_a:              # 图谱关联搜索最大召回数，默认 50
+  top_s:              # 向量混合搜索最大召回数，默认 20
+  rrf_k:              # 混合搜索算法 RRF_Ranker 系数，默认 60
+  top_g:              # 图搜索最大召回数，默认 20
+  max_depth:          # 图搜索算法最大深度，默认 1
+  max_comms:          # 图搜索算法最大社区数，默认 3
+  max_nodes:          # 图搜索算法最大返回节点数，默认 1000
+
+# LLM 配置，在 .env 中配置与模型名称对应的模型访问参数配置
+llm:
+  chat_main:          # 必配项，主力 LLM 名称，无默认值
+  chat_back:          # 备用 LLM 名称，默认同 chat_main
+  embedding:          # HuRAG EmbeddingService，默认 "http://localhost:8765"
+
+# API Server 配置
+api:
+  host:               # API server 监听地址，默认 0.0.0.0
+  port:               # API server 监听端口，默认 5000
+  
