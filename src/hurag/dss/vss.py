@@ -1,6 +1,4 @@
 import warnings
-
-from aiomysql import connect
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,
