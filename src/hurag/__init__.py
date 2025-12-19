@@ -1,6 +1,7 @@
 __version__ = "0.1.0"
 __author__ = "Libin, QuestYard HuRAG Team"
 __description__ = "SDK, CLI and API for HuRAG"
+__url__ = "https://github.com/QuestYard/HuRAG"
 
 import yaml
 from pathlib import Path

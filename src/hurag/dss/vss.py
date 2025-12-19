@@ -79,56 +79,56 @@ async def query(
         )
     return results
 
-# def search(
-#     collection_name: str,
-#     vecs: dict,
-#     scope: list|None=None,
-#     top_k: int=50,
-#     rrf_k: float=100,
-# )-> dict[str, float]:
-#     """
-#     Perform hybrid search on collection 'collection_name'.
-# 
-#     Arguments:
-#         collection_name: str -- the collection to search inside of. must have
-#                 two fields named 'dense_vec' and 'sparse_vec'
-#         vecs: the dict of query embeddings, as
-#                 { "dense": dense_vector, "sparse": sparse_vector }
-#         scope: the list of ids that restricting the search scope, None if to
-#                 search in the whole collection.
-#         top_k: default to 50
-#         rrf_k: default to 100
-# 
-#     Return:
-#         {id1: score1, id2: score2, ..., id_top_k: score_top_k}
-#     """
-#     expr = "id IN {ids}" if scope else None
-#     expr_params = {"ids": scope} if scope else None
-#     dense_request = AnnSearchRequest(
-#         data=vecs["dense"],
-#         anns_field="dense_vec",
-#         limit=top_k*2,
-#         expr=expr,
-#         expr_params=expr_params,
-#         param={"metric_type": "COSINE"}
-#     )
-#     sparse_request = AnnSearchRequest(
-#         data=vecs["sparse"],
-#         anns_field="sparse_vec",
-#         limit=top_k*2,
-#         expr=expr,
-#         expr_params=expr_params,
-#         param={"metric_type": "IP"}
-#     )
-#     ranker = RRFRanker(rrf_k)
-#     with connect() as client:
-#         res = client.hybrid_search(
-#             collection_name=collection_name,
-#             reqs=[dense_request, sparse_request],
-#             ranker=ranker,
-#             limit = top_k,
-#             output_fields=["id"],
-#         )
-#     return {x["id"]: x["distance"] for x in res[0]}
-# 
-# 
+async def search(
+    collection_name: str,
+    vecs: dict,
+    scope: list|None=None,
+    top_k: int=50,
+    rrf_k: float=100,
+)-> dict[str, float]:
+    """
+    Perform hybrid search on collection 'collection_name'.
+
+    Arguments:
+        collection_name: str -- the collection to search inside of. must have
+                two fields named 'dense_vec' and 'sparse_vec'
+        vecs: the dict of query embeddings, as
+                { "dense": dense_vector, "sparse": sparse_vector }
+        scope: the list of ids that restricting the search scope, None if to
+                search in the whole collection.
+        top_k: default to 50
+        rrf_k: default to 100
+
+    Return:
+        {id1: score1, id2: score2, ..., id_top_k: score_top_k}
+    """
+    expr = "id IN {ids}" if scope else None
+    expr_params = {"ids": scope} if scope else None
+    dense_request = AnnSearchRequest(
+        data=vecs["dense"],
+        anns_field="dense_vec",
+        limit=top_k*2,
+        expr=expr,
+        expr_params=expr_params,
+        param={"metric_type": "COSINE"}
+    )
+    sparse_request = AnnSearchRequest(
+        data=vecs["sparse"],
+        anns_field="sparse_vec",
+        limit=top_k*2,
+        expr=expr,
+        expr_params=expr_params,
+        param={"metric_type": "IP"}
+    )
+    ranker = RRFRanker(rrf_k)
+    async with client() as cli:
+        res = await cli.hybrid_search(
+            collection_name=collection_name,
+            reqs=[dense_request, sparse_request],
+            ranker=ranker,
+            limit = top_k,
+            output_fields=["id"],
+        )
+    return {x["id"]: x["distance"] for x in res[0]}
+
+

@@ -98,40 +98,40 @@ CREATE TABLE documents (
     INDEX idx_valid_from (valid_from),
     INDEX idx_valid_to (valid_to),
     INDEX idx_pub_path (pub_path)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE segments (
     id UUID PRIMARY KEY,
     document_id UUID NOT NULL,
     seq_no INT NOT NULL,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE chunks (
     id UUID PRIMARY KEY,
     segment_id UUID NOT NULL,
     seq_no INT NOT NULL,
     text VARCHAR(1000) NOT NULL,
     FOREIGN KEY (segment_id) REFERENCES segments(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE doc_domain (
     document_id UUID NOT NULL,
     domain VARCHAR(50) NOT NULL,
     PRIMARY KEY (document_id, domain),
     KEY idx_domain (domain),
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE entities (
     id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     type VARCHAR(50) NOT NULL,
     description VARCHAR(500)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE entity_cite (
     entity_id UUID NOT NULL,
     segment_id UUID NOT NULL,
     PRIMARY KEY (entity_id, segment_id),
     FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
     FOREIGN KEY (segment_id) REFERENCES segments(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE relations (
     id UUID PRIMARY KEY,
     source_id UUID NOT NULL,
@@ -142,25 +142,26 @@ CREATE TABLE relations (
     UNIQUE KEY uniq_relation (source_id, target_id, type),
     FOREIGN KEY (source_id) REFERENCES entities(id) ON DELETE CASCADE,
     FOREIGN KEY (target_id) REFERENCES entities(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE relation_cite (
     relation_id UUID NOT NULL,
     segment_id UUID NOT NULL,
     PRIMARY KEY (relation_id, segment_id),
     FOREIGN KEY (relation_id) REFERENCES relations(id) ON DELETE CASCADE,
     FOREIGN KEY (segment_id) REFERENCES segments(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE communities (
     id INT PRIMARY KEY,
     summary VARCHAR(1000) NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE community_entity (
     community_id INT NOT NULL,
     entity_id UUID NOT NULL,
     PRIMARY KEY (community_id, entity_id),
     FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE,
     FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
-);"""
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
 
 INIT_VSS_PARAMS = [
     {
