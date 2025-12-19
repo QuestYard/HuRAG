@@ -1,10 +1,12 @@
 import asyncio
 import typer
 
-from . import HURAG_EPILOG, show_msg, with_spinner
+from . import (
+    HURAG_EPILOG,
+    show_msg,
+    with_async_spinner,
+)
 from .. import logger
-from ..dss import init_ds
-from ..dss.rss import close_pool
 
 app = typer.Typer(
     help = "QuestYard HuRAG CLI - KnowledgeBase Management Tools",
@@ -22,19 +24,20 @@ def init():
         show_msg("用户取消初始化操作", style="info")
         return
 
-    @with_spinner(style="info")
-    def _init():
+    @with_async_spinner(text="初始化知识库中...", style="info")
+    async def _init():
+        from ..dss import init_ds
+        from ..dss.rss import close_pool
         try:
-            asyncio.run(init_ds())
-            logger.info("知识库初始化完成")
+            await init_ds()
             show_msg("HuRAG 知识库初始化完成", style="info")
         except Exception as e:
             logger.error(f"知识库初始化失败: {e}")
             show_msg("HuRAG 知识库初始化失败: {e}", style="error", err=e)
         finally:
-            asyncio.run(close_pool())
+            await close_pool()
 
-    _init()
+    asyncio.run(_init())
 
 @app.command("info", epilog=HURAG_EPILOG)
 def info():

@@ -1,16 +1,9 @@
 from functools import wraps
+from typing import Literal, Callable
 from rich.console import Console
 from rich.theme import Theme
-from rich.spinner import Spinner
-from rich.live import Live
 
-from typing import Literal, Callable
-
-from .. import (
-    __version__,
-    __author__,
-    __url__,
-)
+from .. import __version__, __author__, __url__
 
 HURAG_EPILOG = f"""
 HuRAG {__version__}, {__author__}, 2025-2026.
@@ -40,9 +33,9 @@ def show_msg(
         while tb.tb_next:
             tb = tb.tb_next
         frame = tb.tb_frame
-        console.print(f">>> File: {frame.f_code.co_filename}") # , style="path")
-        console.print(f">>> Line: {tb.tb_lineno}") # , style="success")
-        console.print(f">>> Func: {frame.f_code.co_name}") # , style="success")
+        console.print(f">>> File: {frame.f_code.co_filename}")
+        console.print(f">>> Line: {tb.tb_lineno}")
+        console.print(f">>> Func: {frame.f_code.co_name}")
 
 def with_spinner(
     func: Callable | None = None,
@@ -69,8 +62,7 @@ def with_spinner(
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        spinner = Spinner("dots", text=text, style=style)
-        with Live(spinner, console=console, refresh_per_second=12):
+        with console.status(text, spinner_style=style):
             result = func(*args, **kwargs)
         if print_result:
             show_msg(f"Finished: {result}", style=style)
@@ -78,4 +70,33 @@ def with_spinner(
 
     return wrapper
 
+def with_async_spinner(
+    func: Callable | None = None,
+    *,
+    text: str = "running...",
+    style: str = "bold gray",
+    print_result: bool = False,
+):
+    """
+    Decorator: display a sinpper while the decorated async function is running.
+
+    Arguments:
+        text: spinner prompt text
+        style: rich style
+        print_result: print return message
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            with console.status(text, spinner_style=style):
+                result = await func(*args, **kwargs)
+                if print_result:
+                    show_msg(f"Finished: {result}", style=style)
+                return result
+        return wrapper
+
+    if func is not None:
+        return decorator(func)
+
+    return decorator
 

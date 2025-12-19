@@ -66,7 +66,7 @@ fmt = logging.Formatter(
 )
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(fmt)
-console_handler.setLevel(logging.INFO)
+console_handler.setLevel(logging.WARNING)
 logger.addHandler(console_handler)
 
 # -- Shortcuts --
