@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.scripts]
-hurag-kb = "hurag.cli.kb_manager:app"
+hurag = "hurag.cli.kb_manager:app"
 
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]

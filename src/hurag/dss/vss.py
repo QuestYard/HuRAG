@@ -10,13 +10,13 @@ from functools import wraps
 from pymilvus import (
     AsyncMilvusClient,
     AnnSearchRequest,
-    MilvusClient,
     RRFRanker,
-    DataType,
 )
-from typing import Callable
+from typing import Callable, Any, Coroutine, TypeVar
 
 from .. import conf
+
+T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 @asynccontextmanager
 async def client():
@@ -32,27 +32,30 @@ async def client():
         _cli and await _cli.close()
 
 def with_vdb(
-    func: Callable | None = None,
+    func: T | None = None,
     *,
     client_name: str = "client",
-) -> Callable:
+) -> Callable[..., Any]:
     """Decorator to provide a VSS client to the decorated function."""
-    if func is None:
-        return lambda f: with_vdb(f, client_name=client_name)
-
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        _cli = AsyncMilvusClient(
-            uri = conf.milvus.uri,
-            token = conf.milvus.token,
-            db_name = conf.milvus.db_name,
-        )
-        kwargs[client_name] = _cli
-        ret = await func(*args, **kwargs)
-        _cli and await _cli.close()
-        return ret
-
-    return wrapper
+    # if func is None:
+        # return lambda f: with_vdb(f, client_name=client_name)
+    def decorator(func: T) -> T:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            _cli = AsyncMilvusClient(
+                uri = conf.milvus.uri,
+                token = conf.milvus.token,
+                db_name = conf.milvus.db_name,
+            )
+            kwargs[client_name] = _cli
+            ret = await func(*args, **kwargs)
+            _cli and await _cli.close()
+            return ret
+        return wrapper
+    
+    if func is not None:
+        return decorator(func)
+    return decorator
 
 async def upsert(collection: str, data: list[dict]):
     async with client() as cli:

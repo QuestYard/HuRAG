@@ -60,7 +60,7 @@ import logging
 
 logger = logging.getLogger("hurag")
 logger.propagate = False
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 fmt = logging.Formatter(
     "%(asctime)s [%(name)s] %(levelname)s - %(message)s"
 )
@@ -68,6 +68,36 @@ console_handler = logging.StreamHandler()
 console_handler.setFormatter(fmt)
 console_handler.setLevel(logging.WARNING)
 logger.addHandler(console_handler)
+if conf.log.log_in_file:
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(
+        filename=Path.cwd()/"hurag.log",
+        maxBytes=conf.log.max_bytes,
+        backupCount=conf.log.backup_count,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(fmt)
+    file_handler.setLevel(logging.DEBUG)
+    logger.addHandler(file_handler)
+
+def change_console_log_handler(handler: logging.Handler):
+    """Change the console log handler."""
+    global logger
+    current_handlers = logger.handlers[:]
+    for h in current_handlers:
+        if not isinstance(h, logging.FileHandler):
+            logger.removeHandler(h)
+    handler.setFormatter(console_handler.formatter)
+    logger.addHandler(handler)
+
+def reset_console_log_handler():
+    """Reset the console log handler to default."""
+    global logger
+    current_handlers = logger.handlers[:]
+    for h in current_handlers:
+        if not isinstance(h, logging.FileHandler):
+            logger.removeHandler(h)
+    logger.addHandler(console_handler)
 
 # -- Shortcuts --
 

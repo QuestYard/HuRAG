@@ -1,9 +1,18 @@
 from functools import wraps
-from typing import Literal, Callable
+from typing import Any, Literal, Callable, Coroutine, TypeVar
 from rich.console import Console
 from rich.theme import Theme
+from rich.logging import RichHandler
 
-from .. import __version__, __author__, __url__
+from .. import (
+    __version__,
+    __author__,
+    __url__,
+    change_console_log_handler,
+    reset_console_log_handler,
+)
+
+T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 HURAG_EPILOG = f"""
 HuRAG {__version__}, {__author__}, 2025-2026.
@@ -20,6 +29,15 @@ PREDEFINED_COLORS = {
 }
 
 console = Console(theme=Theme(PREDEFINED_COLORS))
+
+rich_handler = RichHandler(
+    level="INFO",
+    console=console,
+    show_level=False,
+    show_time=False,
+    rich_tracebacks=True,
+    tracebacks_show_locals=True,
+)
 
 def show_msg(
     msg: str,
@@ -38,12 +56,12 @@ def show_msg(
         console.print(f">>> Func: {frame.f_code.co_name}")
 
 def with_spinner(
-    func: Callable | None = None,
+    func: T | None = None,
     *,
     text: str = "running...",
     style: str = "bold gray",
     print_result: bool = False,
-):
+)-> Callable[..., Any]:
     """
     Decorator: display a sinpper while the decorated function is running.
 
@@ -52,31 +70,29 @@ def with_spinner(
         style: rich style
         print_result: print return message
     """
-    if func is None:
-        return lambda f: with_spinner(
-            f,
-            text = text,
-            style = style,
-            print_result = print_result,
-        )
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        with console.status(text, spinner_style=style):
-            result = func(*args, **kwargs)
-        if print_result:
-            show_msg(f"Finished: {result}", style=style)
-        return result
-
-    return wrapper
+    def decorator(func: T)-> T:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            change_console_log_handler(rich_handler)
+            with console.status(text, spinner_style=style):
+                result = func(*args, **kwargs)
+            if print_result:
+                show_msg(f"Finished: {result}", style=style)
+            reset_console_log_handler()
+            return result
+        return wrapper
+    
+    if func is not None:
+        return decorator(func)
+    return decorator
 
 def with_async_spinner(
-    func: Callable | None = None,
+    func: T | None = None,
     *,
     text: str = "running...",
     style: str = "bold gray",
     print_result: bool = False,
-):
+)-> Callable[..., Any]:
     """
     Decorator: display a sinpper while the decorated async function is running.
 
@@ -85,18 +101,19 @@ def with_async_spinner(
         style: rich style
         print_result: print return message
     """
-    def decorator(func):
+    def decorator(func: T)-> T:
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            change_console_log_handler(rich_handler)
             with console.status(text, spinner_style=style):
                 result = await func(*args, **kwargs)
-                if print_result:
-                    show_msg(f"Finished: {result}", style=style)
-                return result
+            if print_result:
+                show_msg(f"Finished: {result}", style=style)
+            reset_console_log_handler()
+            return result
         return wrapper
 
     if func is not None:
         return decorator(func)
-
     return decorator
 

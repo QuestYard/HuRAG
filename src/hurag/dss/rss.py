@@ -1,9 +1,11 @@
 import aiomysql
 import asyncio
 from functools import wraps
-from typing import Callable
+from typing import Any, Callable, Coroutine, TypeVar
 
-from .. import conf, logger
+from .. import conf
+
+T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 _pool: aiomysql.Pool | None = None
 _pool_lock: asyncio.Lock | None = None
@@ -121,38 +123,40 @@ def with_rdb(
     Returns:
         The decorated function.
     """
-    if func is None:
-        return lambda f: with_rdb(
-            f,
-            connection_name = connection_name,
-            cursor_name = cursor_name,
-            dict_cursor = dict_cursor,
-            ss_cursor = ss_cursor,
-        )
-
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        pool = await get_pool()
-        connection = await pool.acquire()
-        if dict_cursor:
-            if ss_cursor:
-                cursor = await connection.cursor(aiomysql.SSDictCursor)
+#     if func is None:
+#         return lambda f: with_rdb(
+#             f,
+#             connection_name = connection_name,
+#             cursor_name = cursor_name,
+#             dict_cursor = dict_cursor,
+#             ss_cursor = ss_cursor,
+#         )
+    def decorator(func: T)-> T:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            pool = await get_pool()
+            connection = await pool.acquire()
+            if dict_cursor:
+                if ss_cursor:
+                    cursor = await connection.cursor(aiomysql.SSDictCursor)
+                else:
+                    cursor = await connection.cursor(aiomysql.DictCursor)
             else:
-                cursor = await connection.cursor(aiomysql.DictCursor)
-        else:
-            if ss_cursor:
-                cursor = await connection.cursor(aiomysql.SSCursor)
-            else:
-                cursor = await connection.cursor()
-        kwargs[connection_name] = connection
-        kwargs[cursor_name] = cursor
-        ret = await func(*args, **kwargs)
-        await cursor.close()
-        pool.release(connection)
-
-        return ret
-
-    return wrapper
+                if ss_cursor:
+                    cursor = await connection.cursor(aiomysql.SSCursor)
+                else:
+                    cursor = await connection.cursor()
+            kwargs[connection_name] = connection
+            kwargs[cursor_name] = cursor
+            ret = await func(*args, **kwargs)
+            await cursor.close()
+            pool.release(connection)
+            return ret
+        return wrapper
+    
+    if func is not None:
+        return decorator(func)
+    return decorator
 
 async def query(statement: str, data: tuple=())-> list[tuple]:
     """
