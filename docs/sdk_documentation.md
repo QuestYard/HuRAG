@@ -85,3 +85,8 @@ TODO: Add more details about GSS usage.
 
 ## Knowledge Base Management
 
+TODO: Add more details about Knowledge Base Management usage.
+
+## Corpus Management
+
+TODO: Add more details about Corpus Management usage.

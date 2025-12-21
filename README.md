@@ -6,7 +6,11 @@ HuRAG是一个专注于法律法规解释的RAG应用，它能基于文档的时
 
 HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应用于具有复杂分支结构的大型组织中。
 
+### Concepts
 
+- **组织机构树（Organization Tree）**: HuRAG使用组织机构树来表示用户所属的组织结构。每个用户在组织机构树中有一个位置，这个位置决定了用户可以访问和检索哪些文档。参考：[组织机构树说明](docs/organization_tree_design.md)
+
+- **知识文档（Documents）**: HuRAG中的知识文档包含文本内容和元数据属性，如发布时间、发布机构等。知识文档在入库前需要进行格式转换、格式化、标注、加载等处理。参考：[知识文档说明](docs/document_attributes_design.md)
 
 ### Key Features
 
