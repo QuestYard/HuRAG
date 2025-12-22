@@ -20,7 +20,7 @@ def doc_convert(src_file: str, tgt_file: str | None, enc: bool)-> str:
         md = MarkItDown(enable_plugins=False)
         result = md.convert(src).markdown
 
-    with open(tgt, "w", encoding="utf-8") as f:
+    with open(tgt, "w", encoding="utf-8", newline="\n") as f:
         f.write(result)
     return tgt.as_posix()
 
@@ -104,53 +104,74 @@ def _fetch_v1_meta(file: Path)-> dict:
                 meta[k] = v.strip()
     return meta
 
-def corpus_split(path: str)-> tuple:
+async def corpus_split(path: str)-> tuple:
     """
     Split documents with layout of 'text' or 'regu' in the given corpus.
     """
+    import json
+    import asyncio
+    from .splitters import (
+        plain_text_splitter,
+        regulation_splitter,
+        markdown_splitter,
+    )
     # check for corpus.json
-    _console = console()
     folder = Path(path).expanduser().resolve()
-    if not folder.exists() or not folder.is_dir():
-        return (2, f"{path} 不存在或不是目录")
     corpus = folder / "corpus.json"
-    if not corpus.exists() or not corpus.is_file():
-        return (2, f"标注文件 '{corpus}' 不存在")
     # load corpus.json, loop for 'text' and 'regu' documents
-    try:
-        with open(corpus, "r", encoding="utf-8") as f:
-            docs = json.load(f)
-    except Exception as e:
-        return (2, f"标注文件读取失败: {e}")
-    count = [0, 0, 0]
+    with open(corpus, "r", encoding="utf-8") as f:
+        docs = json.load(f)
+    count = [0, 0, 0] # success, skipped, failed
+    
+    # Prepare tasks for documents that need splitting
+    tasks_to_run = []
     for doc in docs:
-        _console.print(f"{doc['filename']} ", end="")
         if doc["layout"] not in ["text", "regu"]:
-            _console.print(" needn't splitting, skipped.")
+            # needn't splitting, skip
             count[1] += 1
             continue
         src = folder / doc["filename"]
         if not src.exists() or not src.is_file():
-            _console.print("not exists, skipped.")
+            # not exists, skip
             count[1] += 1
             continue
+        
+        # Determine which splitter to use
         match doc["layout"]:
             case "regu":
-                ret = regulation_splitter(src, src.with_suffix(".idx"))
+                splitter_func = regulation_splitter
             case "text" if src.suffix.lower() == ".txt":
-                ret = plain_text_splitter(src, src.with_suffix(".idx"))
+                splitter_func = plain_text_splitter
             case "text" if src.suffix.lower() == ".md":
-                ret = markdown_splitter(src, src.with_suffix(".idx"))
+                splitter_func = markdown_splitter
             case _:
-                ret = plain_text_splitter(src, src.with_suffix(".idx"))
-        if ret[0] == 0:
-            _console.print("splitted okay.")
-            count[0] += 1
-        else:
-            _console.print("[red]splitting failed![/]")
-            _console.print(f"[red]>>>{ret[1]}[/]")
-            count[2] += 1
+                splitter_func = plain_text_splitter
+        
+        tasks_to_run.append((splitter_func, src, src.with_suffix(".idx")))
+    
+    # Execute tasks using TaskGroup
+    async def run_splitter_task(splitter_func, src, tgt):
+        try:
+            ret = await splitter_func(src, tgt)
+            return True, ret
+        except Exception as e:
+            return False, str(e)
+    
+    if tasks_to_run:
+        async with asyncio.TaskGroup() as tg:
+            tasks = []
+            for splitter_func, src, tgt in tasks_to_run:
+                task = tg.create_task(
+                    run_splitter_task(splitter_func, src, tgt)
+                )
+                tasks.append(task)
+            
+        # Wait for all tasks to complete and collect results
+        for task in tasks:
+            success, error = task.result()
+            if success:
+                count[0] += 1
+            else:
+                count[2] += 1
 
-    return (0, (f"文档分割完成. 分割 {count[0]} 篇, 忽略 {count[1]} 篇, "
-                f"失败 {count[2]} 篇, 共计处理 {sum(count)} 篇."))
-
+    return tuple(count)

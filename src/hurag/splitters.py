@@ -35,7 +35,7 @@ async def plain_text_splitter(
     )
     texts = text_splitter.split_text(content)
     # save to target file, append a newline to each segment.
-    async with aiofiles.open(tgt, "w", encoding="utf-8") as f:
+    async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
         await f.write(opt["chunk"]["seg_delimiter"])
         await f.write(("\n"+opt["chunk"]["seg_delimiter"]).join(texts).strip())
         await f.write("\n")
@@ -88,7 +88,7 @@ async def markdown_splitter(
         separators=opt["chunk"]["separators"]
     )
     # save to target file, append a newline to each segment.
-    async with aiofiles.open(tgt, "w", encoding="utf-8") as f:
+    async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
         for seg in segs:
             await f.write(opt["chunk"]["seg_delimiter"])
             if len(seg) < 500:
@@ -120,7 +120,6 @@ async def regulation_splitter(
         tgt = Path(tgt)
     async with aiofiles.open(src, "r", encoding="utf-8") as f:
         _text = [re.sub(r"\s", " ", l).strip() async for l in f if l.strip()]
-    # TODO
     p_vol = re.compile(r"^第\s*[一二三四五六七八九十零百千]+\s*编")
     p_sub = re.compile(r"^第\s*[一二三四五六七八九十零百千]+\s*分编")
     p_cha = re.compile(r"^第\s*[一二三四五六七八九十零百千]+\s*章")
@@ -174,19 +173,17 @@ async def regulation_splitter(
     _segs.append(_seg)
 
     # save to target file
-    try:
-        with open(tgt, "w", encoding="utf-8") as f:
-            f.write(opt["chunk"]["seg_delimiter"])
-            _text = []
-            for seg in _segs:
-                _text.append(
-                    opt["chunk"]["delimiter"].join(
-                        _chks[seg["start"]:seg["end"]]
-                    )
+    async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
+        await f.write(opt["chunk"]["seg_delimiter"])
+        _text = []
+        for seg in _segs:
+            _text.append(
+                opt["chunk"]["delimiter"].join(
+                    _chks[seg["start"]:seg["end"]]
                 )
-            print(opt["chunk"]["seg_delimiter"].join(_text).strip(), file=f)
-    except Exception as e:
-        return (2, f"Failed writting '{tgt.expanduser().resolve()}': {e}")
+            )
+        await f.write(opt["chunk"]["seg_delimiter"].join(_text).strip())
+        await f.write("\n")
 
-    return (0, f"Splitted and saved into {tgt}")
+    return tgt.as_posix()
 

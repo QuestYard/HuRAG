@@ -106,6 +106,7 @@ def split(
 
     文档的拆分结果会被写入一个与源文件同名、后缀为 '.idx' 的文本文件中。例如源文件 'example.txt' 的拆分结果会被写入 'example.idx' 文件中。
     """
-    @with_spinner(text=f"文档分割进行中...", style="info")
+    #@with_spinner(text=f"文档分割进行中...", style="info")
+    pass
     # ret_msg(split(path))
 
