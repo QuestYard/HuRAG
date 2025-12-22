@@ -42,7 +42,7 @@ def convert(
     """
     @with_spinner(text="文件转换中...", style="info")
     def _convert():
-        from ..corpora.documents import doc_convert
+        from ..documents import doc_convert
         try:
             tgt = doc_convert(src_file, output_file, encoding_only)
             return {
@@ -61,16 +61,51 @@ def convert(
     show_msg(**result)
 
 @app.command("markup", epilog=HURAG_EPILOG)
-def corpus_markup(
+def markup(
     path: str = typer.Argument(..., help="需要标注的文集所在目录")
 ):
     """
     在指定的目录下检查 TXT, CSV, Markdown 文件，收集文档元数据并创建文集标注。
     
-    文集标注文件名称为 corpus.json ，如果标注文件已存在，则会被覆盖。HuRAG 1.0 的文档元数据信息会被自动继承并写入标注文件中。
+    文集标注文件名称为 corpus.json ，如果标注文件已存在，则会被覆盖。HuRAG-pre 使用的文档元数据信息会被自动继承并写入标注文件中。
 
-    自动预标注仅生成部分元数据字段，且并不保证完全准确，预标注完成后应当手动补充和修改标注文件，完全准确后即可进行文档内容分割（hurag corpus split）。
+    自动预标注仅生成部分元数据字段，且并不保证完全准确，预标注完成后应当手动补充和修改标注文件，完全准确后即可进行文档内容分割（corpus split）。
     """
-    pass
-    #ret_msg(markup(path))
+    @with_spinner(text=f"预标注进行中...", style="info")
+    def _markup():
+        from ..documents import corpus_markup
+        try:
+            markups = corpus_markup(path)
+            return {
+                "msg": f"文集 {path} 预标注完成，共标注 {len(markups)} 份文档",
+                "style": "success" if markups else "warning",
+                "err": None,
+            }
+        except Exception as e:
+            return {
+                "msg": f"文集 {path} 预标注失败：{e}",
+                "style": "error",
+                "err": e,
+            }
+
+    result = _markup()
+    show_msg(**result)
+
+@app.command("split", epilog=HURAG_EPILOG)
+def split(
+    path: str = typer.Argument(..., help="需要拆分的文集所在目录")
+):
+    """
+    根据文集标注文件，查找并分割文集中 `layout` 为 'text' 或 'regu' 布局的文档。其他布局包括 'manual', 'v1_doc' 和 8 种 CSV 表格布局不会进行分割。
+
+    'text' 布局的 TXT 文件会被递归拆分为 size = 500, overlap = 100 的小块。
+
+    'text' 布局的 Markdown 文件会先按标题拆分为若干段落，然后将每个段落拆分为 size = 500, overlap = 0 的小块。
+
+    'regu' 布局的文件会以条文和附件为单位进行拆分，每段一条条文或一个附件，段内按照长度进一步拆分为 size = 500, overlap = 0 的小块。
+
+    文档的拆分结果会被写入一个与源文件同名、后缀为 '.idx' 的文本文件中。例如源文件 'example.txt' 的拆分结果会被写入 'example.idx' 文件中。
+    """
+    @with_spinner(text=f"文档分割进行中...", style="info")
+    # ret_msg(split(path))
 

@@ -6,6 +6,19 @@ __url__ = "https://github.com/QuestYard/HuRAG"
 import yaml
 from pathlib import Path
 
+# -- Global Options --
+
+OPTIONS = {}
+
+OPTIONS["chunk"] = {
+    "delimiter": "|||||",
+    "seg_delimiter": "=====",
+    "separators": [r"\n\n", r"\n", r"(?<=[。！？；])", r" "],
+}
+
+OPTIONS["kg_extraction_examples"] = 1   # suggested max 3
+OPTIONS["kg_max_gleanings"] = 1         # suggested max 3
+
 # -- Global Variables --
 
 conf = None
