@@ -155,10 +155,7 @@ async def regulation_splitter(
                 _chks.append(_chk)
                 _seg["end"] = len(_chks)
                 _segs.append(_seg)
-            _seg = {
-                    "start": len(_chks),
-                    "end": -1,
-            }
+            _seg = {"start": len(_chks), "end": -1}
             _chk = _vol + _sub + _cha + _sec + line + "\n"
         else:
             if len(_chk) + len(line) < 500:
@@ -177,11 +174,7 @@ async def regulation_splitter(
         await f.write(opt["chunk"]["seg_delimiter"])
         _text = []
         for seg in _segs:
-            _text.append(
-                opt["chunk"]["delimiter"].join(
-                    _chks[seg["start"]:seg["end"]]
-                )
-            )
+            _text.append(opt["chunk"]["delimiter"].join(_chks[seg["start"]:seg["end"]]))
         await f.write(opt["chunk"]["seg_delimiter"].join(_text).strip())
         await f.write("\n")
 

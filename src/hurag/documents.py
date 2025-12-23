@@ -8,6 +8,19 @@ from pathlib import Path
 from . import logger
 
 def doc_convert(src_file: str, tgt_file: str | None, enc: bool)-> str:
+    """
+    Convert document to UTF-8 encoded text or Markdown.
+
+    Args:
+        src_file (str): Path to the source file.
+        tgt_file (str | None): Path to the target file. If None, a default
+            target file will be created based on the source file name.
+        enc (bool): If True, convert from GBK to UTF-8 text. If False,
+            convert src_file to Markdown.
+
+    Returns:
+        str: Path to the converted target file.
+    """
     src = Path(src_file).expanduser().resolve()
     if tgt_file is None:
         if enc:
@@ -32,6 +45,19 @@ def doc_convert(src_file: str, tgt_file: str | None, enc: bool)-> str:
     return tgt.as_posix()
 
 def corpus_markup(path: str)-> list[dict]:
+    """
+    Generate corpus.json markup file for documents in the given folder.
+    1. Scan the folder for .txt, .csv, .md files.
+    2. For each file, create a markup entry with metadata.
+    3. Save all markup entries to corpus.json in the folder.
+    4. Return the list of markup entries.
+
+    Args:
+        path (str): Path to the folder containing documents.
+
+    Returns:
+        list[dict]: List of markup entries for the documents.
+    """
     import json
     from datetime import datetime
     from . import conf
@@ -46,10 +72,7 @@ def corpus_markup(path: str)-> list[dict]:
 
         markup = {
             "filename": file.name,
-            "title": (
-                file.stem if file.stem.endswith("》")
-                else "《" + file.stem + "》"
-            ),
+            "title": file.stem if file.stem.endswith("》") else f"《{file.stem}》",
             "sn": None,
             "date": "",
             "valid_from": "",
@@ -91,11 +114,21 @@ def corpus_markup(path: str)-> list[dict]:
             f,
             indent=4,
             ensure_ascii=False,
-            default=lambda x: f"{x:%Y-%m-%d}" if isinstance(x, datetime) else x
+            default = lambda x: f"{x:%Y-%m-%d}" if isinstance(x, datetime) else x
         )
     return markups
 
 def _fetch_v1_meta(file: Path)-> dict:
+    """
+    Fetch metadata from a HuRAG-pre document's .meta file.
+    If no metadata fetched, return empty dict.
+
+    Args:
+        file (Path): Path to the document file.
+
+    Returns:
+        dict: Metadata dictionary.
+    """
     ext = ".meta" if file.suffix.lower() == ".csv" else file.suffix
     meta = {}
     with open(file.with_suffix(ext), "r", encoding="utf-8") as f:
@@ -114,6 +147,12 @@ def _fetch_v1_meta(file: Path)-> dict:
 async def corpus_split(path: str)-> tuple:
     """
     Split documents with layout of 'text' or 'regu' in the given corpus.
+
+    Args:
+        path (str): Path to the folder containing corpus.json and documents.
+
+    Returns:
+        tuple: A tuple containing counts of (success, skipped, failed) splits.
     """
     import json
     import asyncio
@@ -170,9 +209,7 @@ async def corpus_split(path: str)-> tuple:
         async with asyncio.TaskGroup() as tg:
             tasks = []
             for splitter_func, src, tgt in tasks_to_run:
-                task = tg.create_task(
-                    run_splitter_task(splitter_func, src, tgt)
-                )
+                task = tg.create_task(run_splitter_task(splitter_func, src, tgt))
                 tasks.append(task)
             
         # Wait for all tasks to complete and collect results
@@ -188,9 +225,19 @@ async def corpus_split(path: str)-> tuple:
     return tuple(count)
 
 def corpus_load(path: Path)-> list[Document]:
+    """
+    Load documents in the given folder into a list of Document objects.
+
+    Args:
+        path (Path): Path to the folder containing corpus.json and documents.
+
+    Returns:
+        list[Document]: List of loaded Document objects.
+    """
     import json
     import concurrent.futures
     from .schemas import Document
+
     with open(path / "corpus.json", "r", encoding="utf-8") as f:
         markups = json.load(f)
     docs = []

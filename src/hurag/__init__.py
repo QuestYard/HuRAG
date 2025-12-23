@@ -74,9 +74,7 @@ import logging
 logger = logging.getLogger("hurag")
 logger.propagate = False
 logger.setLevel(logging.DEBUG)
-fmt = logging.Formatter(
-    "%(asctime)s [%(name)s] %(levelname)s - %(message)s"
-)
+fmt = logging.Formatter("%(asctime)s [%(name)s] %(levelname)s - %(message)s")
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(fmt)
 console_handler.setLevel(logging.WARNING)
@@ -115,6 +113,9 @@ def reset_console_log_handler():
 # -- Shortcuts --
 
 __all__ = [
+    "OPTIONS",
     "conf",
     "logger",
+    "change_console_log_handler",
+    "reset_console_log_handler",
 ]
