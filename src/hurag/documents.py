@@ -1,4 +1,11 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .schemas import Document
+
 from pathlib import Path
+from . import logger
 
 def doc_convert(src_file: str, tgt_file: str | None, enc: bool)-> str:
     src = Path(src_file).expanduser().resolve()
@@ -128,11 +135,13 @@ async def corpus_split(path: str)-> tuple:
     for doc in docs:
         if doc["layout"] not in ["text", "regu"]:
             # needn't splitting, skip
+            logger.info(f"{doc['filename']}: no need to split, skipped.")
             count[1] += 1
             continue
         src = folder / doc["filename"]
         if not src.exists() or not src.is_file():
             # not exists, skip
+            logger.info(f"{doc['filename']}: not exists, skipped.")
             count[1] += 1
             continue
         
@@ -170,8 +179,35 @@ async def corpus_split(path: str)-> tuple:
         for task in tasks:
             success, error = task.result()
             if success:
+                logger.info(f"{error}: splitted okay.")
                 count[0] += 1
             else:
+                logger.info(f"Splitting failed: {error}")
                 count[2] += 1
 
     return tuple(count)
+
+def corpus_load(path: Path)-> list[Document]:
+    import json
+    import concurrent.futures
+    from .schemas import Document
+    with open(path / "corpus.json", "r", encoding="utf-8") as f:
+        markups = json.load(f)
+    docs = []
+    with concurrent.futures.ThreadPoolExecutor() as ex:
+        future_to_title = {
+            ex.submit(
+                Document().read,
+                path,
+                markup
+            ): markup["title"] for markup in markups
+        }
+        for future in concurrent.futures.as_completed(future_to_title):
+            title = future_to_title[future]
+            try:
+                docs.append(future.result())
+                logger.info(f"{title} loaded.")
+            except Exception as e:
+                logger.warning(f"Failed loading {title}: {e}")
+    return docs
+

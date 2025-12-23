@@ -65,7 +65,11 @@ def info():
         )
         from rich.table import Table
         from . import console
-        table = Table(title="知识库统计信息", title_style="bold italic", box=None)
+        table = Table(
+            title="知识库统计信息",
+            title_style="bold italic",
+            box=None
+        )
         table.add_column(
             "类别",
             width=24,
@@ -184,3 +188,13 @@ def list(
         await rss.close_pool()
 
     asyncio.run(_list())
+
+@app.command("load", epilog=HURAG_EPILOG)
+def init():
+    """
+    读取已经标注和分割完毕的文档进入知识库。
+
+    注意：仅完成向量化入库，不提取知识图谱，图谱管理请使用 kgraph 命令。
+    """
+    pass
+
