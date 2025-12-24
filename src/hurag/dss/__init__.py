@@ -43,9 +43,8 @@ async def init_ds(rdb_connection, rdb_cursor, vdb_client):
     try:
         async with asyncio.TaskGroup() as tg:
             tasks = [
-                tg.create_task(
-                    _create_collection(vdb_client, **p)
-                ) for p in INIT_VSS_PARAMS
+                tg.create_task(_create_collection(vdb_client, **p))
+                for p in INIT_VSS_PARAMS
             ]
         logger.info("The vdb is initialized.")
     except ExceptionGroup as eg:

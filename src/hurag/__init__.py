@@ -33,12 +33,12 @@ try:
         conf = yaml.safe_load(f)
     conf = dict_to_namespace(conf)
     if (
-        conf.milvus.token is None or
-        conf.milvus.db_name is None or
-        conf.mariadb.user is None or
-        conf.mariadb.password is None or
-        conf.mariadb.database is None or
-        conf.llm.chat_main is None
+        conf.milvus.token is None
+        or conf.milvus.db_name is None
+        or conf.mariadb.user is None
+        or conf.mariadb.password is None
+        or conf.mariadb.database is None
+        or conf.llm.chat_main is None
     ):
         raise ValueError(
             "Missing required configurations: milvus.token, milvus.db_name, "
@@ -82,7 +82,7 @@ logger.addHandler(console_handler)
 if conf.log.log_in_file:
     from logging.handlers import RotatingFileHandler
     file_handler = RotatingFileHandler(
-        filename=Path.cwd()/"hurag.log",
+        filename=Path.cwd() / "hurag.log",
         maxBytes=conf.log.max_bytes,
         backupCount=conf.log.backup_count,
         encoding="utf-8",
@@ -119,3 +119,4 @@ __all__ = [
     "change_console_log_handler",
     "reset_console_log_handler",
 ]
+

@@ -2,7 +2,7 @@ import warnings
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,
-    module="google.protobuf.runtime_version"
+    module="google.protobuf.runtime_version",
 )
 
 from contextlib import asynccontextmanager
@@ -23,9 +23,9 @@ async def client():
     _cli = None
     try:
         _cli = AsyncMilvusClient(
-            uri = conf.milvus.uri,
-            token = conf.milvus.token,
-            db_name = conf.milvus.db_name,
+            uri=conf.milvus.uri,
+            token=conf.milvus.token,
+            db_name=conf.milvus.db_name,
         )
         yield _cli
     finally:
@@ -43,9 +43,9 @@ def with_vdb(
         @wraps(func)
         async def wrapper(*args, **kwargs):
             _cli = AsyncMilvusClient(
-                uri = conf.milvus.uri,
-                token = conf.milvus.token,
-                db_name = conf.milvus.db_name,
+                uri=conf.milvus.uri,
+                token=conf.milvus.token,
+                db_name=conf.milvus.db_name,
             )
             kwargs[client_name] = _cli
             ret = await func(*args, **kwargs)
@@ -75,9 +75,9 @@ async def query(
 ):
     async with client() as cli:
         results = await cli.query(
-            collection_name = collection_name,
-            filter = filter,
-            output_fields = output_fields,
+            collection_name=collection_name,
+            filter=filter,
+            output_fields=output_fields,
             **kwargs,
         )
     return results
@@ -85,10 +85,10 @@ async def query(
 async def search(
     collection_name: str,
     vecs: dict,
-    scope: list|None=None,
-    top_k: int=50,
-    rrf_k: float=100,
-)-> dict[str, float]:
+    scope: list | None = None,
+    top_k: int = 50,
+    rrf_k: float = 100,
+) -> dict[str, float]:
     """
     Perform hybrid search on collection 'collection_name'.
 
@@ -113,7 +113,7 @@ async def search(
         limit=top_k*2,
         expr=expr,
         expr_params=expr_params,
-        param={"metric_type": "COSINE"}
+        param={"metric_type": "COSINE"},
     )
     sparse_request = AnnSearchRequest(
         data=vecs["sparse"],
@@ -121,7 +121,7 @@ async def search(
         limit=top_k*2,
         expr=expr,
         expr_params=expr_params,
-        param={"metric_type": "IP"}
+        param={"metric_type": "IP"},
     )
     ranker = RRFRanker(rrf_k)
     async with client() as cli:
@@ -133,5 +133,4 @@ async def search(
             output_fields=["id"],
         )
     return {x["id"]: x["distance"] for x in res[0]}
-
 

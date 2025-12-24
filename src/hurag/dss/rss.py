@@ -10,13 +10,13 @@ T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 _pool: aiomysql.Pool | None = None
 _pool_lock: asyncio.Lock | None = None
 
-async def _get_lock()-> asyncio.Lock:
+async def _get_lock() -> asyncio.Lock:
     global _pool_lock
     if _pool_lock is None:
         _pool_lock = asyncio.Lock()
     return _pool_lock
 
-async def get_pool()-> aiomysql.Pool:
+async def get_pool() -> aiomysql.Pool:
     """Get or create the database connection pool."""
     global _pool
 
@@ -51,7 +51,7 @@ def with_rdb(
     cursor_name: str = "cursor",
     dict_cursor: bool = False,
     ss_cursor: bool = False,
-)-> Callable:
+) -> Callable:
     """
     Decorator for injection of rss connection and cursor.
 
@@ -123,14 +123,6 @@ def with_rdb(
     Returns:
         The decorated function.
     """
-#     if func is None:
-#         return lambda f: with_rdb(
-#             f,
-#             connection_name = connection_name,
-#             cursor_name = cursor_name,
-#             dict_cursor = dict_cursor,
-#             ss_cursor = ss_cursor,
-#         )
     def decorator(func: T)-> T:
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -158,7 +150,7 @@ def with_rdb(
         return decorator(func)
     return decorator
 
-async def query(statement: str, data: tuple=())-> list[tuple]:
+async def query(statement: str, data: tuple = ()) -> list[tuple]:
     """
     Execute a SQL query statement (SELECT) and return all results.
 
@@ -177,7 +169,7 @@ async def query(statement: str, data: tuple=())-> list[tuple]:
         ret = await cur.fetchall()
         return list(ret)
 
-async def dml(statement: str, data: tuple | list[tuple] | None=())-> int:
+async def dml(statement: str, data: tuple | list[tuple] | None = ()) -> int:
     """
     Execute a DML statement (INSERT, UPDATE, DELETE).
     
@@ -208,7 +200,7 @@ async def dml(statement: str, data: tuple | list[tuple] | None=())-> int:
 async def transact(
     statements: list[str],
     data: list[tuple | list[tuple] | None] | None = None,
-)-> int:
+) -> int:
     """
     Execute multiple DML statements in a transaction.
     Args:

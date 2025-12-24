@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 from pathlib import Path
 from . import logger
 
-def doc_convert(src_file: str, tgt_file: str | None, enc: bool)-> str:
+def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
     """
     Convert document to UTF-8 encoded text or Markdown.
 
@@ -44,7 +44,7 @@ def doc_convert(src_file: str, tgt_file: str | None, enc: bool)-> str:
         f.write(result)
     return tgt.as_posix()
 
-def corpus_markup(path: str)-> list[dict]:
+def corpus_markup(path: str) -> list[dict]:
     """
     Generate corpus.json markup file for documents in the given folder.
     1. Scan the folder for .txt, .csv, .md files.
@@ -85,9 +85,9 @@ def corpus_markup(path: str)-> list[dict]:
         }
         # load metadata if v1 doc
         if file.suffix.lower() != ".md":
-            # maybe a HuRAG-pre document
+            # maybe a HuRAG-pre document, try to get v1_metadata
             meta = _fetch_v1_meta(file)
-            # update markup
+            # update markup if any v1_metadata exists
             if "title" in meta:
                 markup["title"] = meta["title"]
             if "sn" in meta:
@@ -96,15 +96,15 @@ def corpus_markup(path: str)-> list[dict]:
                 markup["date"] = datetime.strptime(meta["date"], "%Y-%m-%d")
                 markup["valid_from"] = markup["date"]
             if "expired" in meta:
-                markup["valid_to"] = datetime.strptime(
-                    meta["expired"],
-                    "%Y-%m-%d",
-                ) if meta["expired"] else None
+                markup["valid_to"] = (
+                    datetime.strptime(meta["expired"], "%Y-%m-%d")
+                    if meta["expired"]
+                    else None
+                )
             if "authors" in meta:
                 markup["authors"] = meta["authors"] or None
             if meta and file.suffix.lower() != ".csv":
-                # actually a HuRAG-pre document
-                markup["layout"] = "v1_doc"
+                markup["layout"] = "v1_doc"     # actually a HuRAG-pre document
         markups.append(markup)
     # write markup file
     markup_file = folder / "corpus.json"
@@ -114,11 +114,11 @@ def corpus_markup(path: str)-> list[dict]:
             f,
             indent=4,
             ensure_ascii=False,
-            default = lambda x: f"{x:%Y-%m-%d}" if isinstance(x, datetime) else x
+            default=lambda x: f"{x:%Y-%m-%d}" if isinstance(x, datetime) else x
         )
     return markups
 
-def _fetch_v1_meta(file: Path)-> dict:
+def _fetch_v1_meta(file: Path) -> dict:
     """
     Fetch metadata from a HuRAG-pre document's .meta file.
     If no metadata fetched, return empty dict.
@@ -144,7 +144,7 @@ def _fetch_v1_meta(file: Path)-> dict:
                 meta[k] = v.strip()
     return meta
 
-async def corpus_split(path: str)-> tuple:
+async def corpus_split(path: str) -> tuple:
     """
     Split documents with layout of 'text' or 'regu' in the given corpus.
 
@@ -224,7 +224,7 @@ async def corpus_split(path: str)-> tuple:
 
     return tuple(count)
 
-def corpus_load(path: Path)-> list[Document]:
+def corpus_load(path: Path) -> list[Document]:
     """
     Load documents in the given folder into a list of Document objects.
 
@@ -246,8 +246,9 @@ def corpus_load(path: Path)-> list[Document]:
             ex.submit(
                 Document().read,
                 path,
-                markup
-            ): markup["title"] for markup in markups
+                markup,
+            ): markup["title"]
+            for markup in markups
         }
         for future in concurrent.futures.as_completed(future_to_title):
             title = future_to_title[future]

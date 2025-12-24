@@ -24,16 +24,16 @@ def convert(
         None,
         "--output-file",
         "-o",
-        help="输出文件名，默认使用源文件名。"
+        help="输出文件名，默认使用源文件名。",
     ),
     encoding_only: bool = typer.Option(
         False,
         "--encoding-only",
         "-e",
-        help= (
+        help=(
             "仅转换文字编码，将 TXT, CSV, HTML, XML, JSON, MD 等文本型文件"
             "转为 UTF-8 编码，而非转换为 Markdown 文件。"
-        )
+        ),
     )
 ):
     """
@@ -143,5 +143,4 @@ def split(
 
     result = asyncio.run(_split())
     show_msg(**result)
-
 

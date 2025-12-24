@@ -43,7 +43,7 @@ def show_msg(
     msg: str,
     style: Literal["info", "warning", "error", "success", "path"] | None = None,
     err: Exception | None = None,
-)-> None:
+) -> None:
     """Show message along with exception traceback on the console."""
     console.print(msg, style=style if style in PREDEFINED_COLORS else None)
     if err is not None:
@@ -61,7 +61,7 @@ def with_spinner(
     text: str = "running...",
     style: str = "bold gray",
     print_result: bool = False,
-)-> Callable[..., Any]:
+) -> Callable[..., Any]:
     """
     Decorator: display a sinpper while the decorated function is running.
 
@@ -70,7 +70,7 @@ def with_spinner(
         style: rich style
         print_result: print return message
     """
-    def decorator(func: T)-> T:
+    def decorator(func: T) -> T:
         @wraps(func)
         def wrapper(*args, **kwargs):
             change_console_log_handler(rich_handler)
@@ -92,7 +92,7 @@ def with_async_spinner(
     text: str = "running...",
     style: str = "bold gray",
     print_result: bool = False,
-)-> Callable[..., Any]:
+) -> Callable[..., Any]:
     """
     Decorator: display a sinpper while the decorated async function is running.
 
@@ -101,7 +101,7 @@ def with_async_spinner(
         style: rich style
         print_result: print return message
     """
-    def decorator(func: T)-> T:
+    def decorator(func: T) -> T:
         @wraps(func)
         async def wrapper(*args, **kwargs):
             change_console_log_handler(rich_handler)

@@ -9,10 +9,10 @@ from datetime import datetime
 
 @dataclass
 class Chunk:
-    id: str=field(default=None)
-    seg_id: str=field(default=None, compare=False, repr=False)
-    text: str=field(default=None, compare=False, repr=False)
-    seq_no: int=field(default=0, compare=False, repr=False)
+    id: str = field(default=None)
+    seg_id: str = field(default=None, compare=False, repr=False)
+    text: str = field(default=None, compare=False, repr=False)
+    seq_no: int = field(default=0, compare=False, repr=False)
 
     def __repr__(self):
         return (
@@ -23,10 +23,10 @@ class Chunk:
 
 @dataclass
 class Segment:
-    id: str=field(default=None)
-    doc_id: str=field(default=None, compare=False, repr=False)
-    seq_no: int=field(default=0, compare=False, repr=False)
-    chunks: list[Chunk]=field(default_factory=list, compare=False, repr=False)
+    id: str = field(default=None)
+    doc_id: str = field(default=None, compare=False, repr=False)
+    seq_no: int = field(default=0, compare=False, repr=False)
+    chunks: list[Chunk] = field(default_factory=list, compare=False, repr=False)
 
     def __repr__(self):
         return (
@@ -36,33 +36,32 @@ class Segment:
         )
 
     @property
-    def text(self):
+    def text(self) -> str:
         return "".join([chk.text for chk in self.chunks])
 
 @dataclass
 class Document:
-    id: str=field(default=None)
-    title: str=field(default=None, compare=False)
-    sn: str=field(default=None, compare=False)
-    date: datetime=field(default=None, compare=False, repr=False)
-    valid_from: datetime=field(default=None, compare=False, repr=False)
-    valid_to: datetime=field(default=None, compare=False, repr=False)
-    replaces: str=field(default=None, compare=False, repr=False)  # title
-    pub_path: str=field(default=None, compare=False)
-    localizes: str=field(default=None, compare=False, repr=False) # title
-    authors: str=field(default=None, compare=False, repr=False)
-    segments: list[Segment]=field(
-        default_factory=list,
-        compare=False,
-        repr=False
-    )
-    kg_built: bool=field(default=False, compare=False, repr=False)
+    id: str = field(default=None)
+    title: str = field(default=None, compare=False)
+    sn: str = field(default=None, compare=False)
+    date: datetime = field(default=None, compare=False, repr=False)
+    valid_from: datetime = field(default=None, compare=False, repr=False)
+    valid_to: datetime = field(default=None, compare=False, repr=False)
+    replaces: str = field(default=None, compare=False, repr=False)  # title
+    pub_path: str = field(default=None, compare=False)
+    localizes: str = field(default=None, compare=False, repr=False) # title
+    authors: str = field(default=None, compare=False, repr=False)
+    segments: list[Segment] = field(default_factory=list, compare=False, repr=False)
+    kg_built: bool = field(default=False, compare=False, repr=False)
 
     @property
     def fulltext(self):
         return "".join([seg.text for seg in self.segments])
 
-    def read(self, path: Path, markup: dict)-> Self:
+    def read(self, path: Path, markup: dict) -> Self:
+        """
+        Read metadat and content from the document given by path and markup.
+        """
         path = path / markup["filename"]
         if markup["layout"] in ["text", "regu", "manual"]:
             path = path.with_suffix(".idx")
@@ -92,17 +91,19 @@ class Document:
 
     def _read_text(self, file):
         from .. import OPTIONS as opt
+
         with open(file, "r", encoding="utf-8", newline="\n") as f:
             st_list = f.read().split(opt["chunk"]["seg_delimiter"])[1:]
         for si, st in enumerate(st_list):
             seg = Segment(seq_no=si)
             ct_list = st.split(opt["chunk"]["delimiter"])
             for ci, ct in enumerate(ct_list):
-                seg.chunks.append(Chunk(text = ct, seq_no = ci))
+                seg.chunks.append(Chunk(text=ct, seq_no=ci))
             self.segments.append(seg)
 
     def _read_csv(self, file, layout):
         import csv
+
         with open(file, "r", encoding="utf-8", newline="") as f:
             reader = csv.reader(f)
             x = []
@@ -162,5 +163,4 @@ class Document:
                 seg.chunks.append(chk)
                 self.segments.append(seg)
                 si += 1
-
 
