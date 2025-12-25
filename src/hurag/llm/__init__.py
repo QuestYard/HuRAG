@@ -1,12 +1,15 @@
 from functools import wraps
-from typing import Callable, Any
+from typing import Any, Callable, Coroutine, TypeVar
 
 from embedding_service.async_embedding_client import AsyncEmbeddingClient
 from .. import conf, logger
 
+T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
+
 def with_embedding_client(
-    base_url: str | None = None,
+    func: Callable | None = None,
     *,
+    base_url: str | None = None,
     timeout: float = 300.0,
     client_name: str = "embedder",
 ) -> Callable[..., Any]:
@@ -24,6 +27,19 @@ def with_embedding_client(
     Returns:
         Callable[..., Any]: The decorated function with an embedding client injected.
     """
-    ...
-
+    def decorator(func: T)-> T:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            async with AsyncEmbeddingClient(
+                base_url = base_url or f"{conf.llm.embedding}",
+                timeout = timeout,
+            ) as embedding_client:
+                kwargs[client_name] = embedding_client
+                ret = await func(*args, **kwargs)
+            return ret
+        return wrapper
+    
+    if func is not None:
+        return decorator(func)
+    return decorator
 
