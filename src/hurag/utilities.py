@@ -19,3 +19,8 @@ def dict_to_namespace(data):
         # Return all other types (strings, integers, etc.) unchanged
         return data
 
+def generate_id() -> str:
+    from uuid6 import uuid7
+
+    return str(uuid7())
+
