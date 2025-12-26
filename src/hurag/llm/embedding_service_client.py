@@ -1,5 +1,6 @@
 from functools import wraps
 from typing import Any, Callable, Coroutine, TypeVar
+import inspect
 
 from embedding_service.async_embedding_client import AsyncEmbeddingClient
 from .. import conf
@@ -28,15 +29,26 @@ def with_es_client(
         Callable[..., Any]: The decorated function with an embedding client injected.
     """
     def decorator(func: T)-> T:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            async with AsyncEmbeddingClient(
-                base_url = base_url or f"{conf.llm.embedding}",
-                timeout = timeout,
-            ) as embedding_client:
-                kwargs[client_name] = embedding_client
-                ret = await func(*args, **kwargs)
-            return ret
+        if inspect.isasyncgenfunction(func):
+            @wraps(func)
+            async def wrapper(*args, **kwargs):
+                async with AsyncEmbeddingClient(
+                    base_url = base_url or f"{conf.llm.embedding}",
+                    timeout = timeout,
+                ) as embedding_client:
+                    kwargs[client_name] = embedding_client
+                    async for item in func(*args, **kwargs):
+                        yield item
+        else:
+            @wraps(func)
+            async def wrapper(*args, **kwargs):
+                async with AsyncEmbeddingClient(
+                    base_url = base_url or f"{conf.llm.embedding}",
+                    timeout = timeout,
+                ) as embedding_client:
+                    kwargs[client_name] = embedding_client
+                    ret = await func(*args, **kwargs)
+                return ret
         return wrapper
     
     if func is not None:
