@@ -1,13 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal
 
 if TYPE_CHECKING:
     from embedding_service.async_embedding_client import AsyncEmbeddingClient
     from embedding_service.schemas import EmbeddingPayloadMeta
-    from .schemas import Document
+    from ..schemas import Document
 
-from .llm import with_es_client
-from . import logger
+from . import with_es_client
+from .. import logger
 
 @with_es_client
 async def embed_query(
@@ -28,6 +28,7 @@ async def embed_documents(
     docs: Document | list[Document],
     *,
     batch_type: int = 1,
+    return_sparse: bool = True,
     esclient: AsyncEmbeddingClient | None = None,
 ) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
     from itertools import islice
@@ -40,7 +41,7 @@ async def embed_documents(
             for chk in seg.chunks
         ]
         try:
-            results = await esclient.embed(chunks, return_sparse=True)
+            results = await esclient.embed(chunks, return_sparse=return_sparse)
             yield results
         except Exception as e:
             logger.error(f"Failed embedding documents: {e}")
@@ -49,7 +50,7 @@ async def embed_documents(
         for doc in docs:
             chunks = [chk.text for seg in doc.segments for chk in seg.chunks]
             try:
-                results = await esclient.embed(chunks, return_sparse=True)
+                results = await esclient.embed(chunks, return_sparse=return_sparse)
                 yield results
             except Exception as e:
                 logger.error(f"Failed embedding documents: {e}")
@@ -61,13 +62,29 @@ async def embed_documents(
             for seg in doc.segments
             for chk in seg.chunks
         )
-        while batch_chunks := list(islice(all_chunks, batch_type)):
+        while batch := list(islice(all_chunks, batch_type)):
             try:
-                results = await esclient.embed(batch_chunks, return_sparse=True)
+                results = await esclient.embed(batch, return_sparse=return_sparse)
                 yield results
             except Exception as e:
                 logger.error(f"Failed embedding documents: {e}")
                 raise
+
+@with_es_client
+async def embed_keywords(
+    keywords: dict[Literal["low_level_keywords", "high_level_keywords"], list[str]],
+    *,
+    return_sparse: bool = True,
+    esclient: AsyncEmbeddingClient | None = None,
+):
+    try:
+        return await esclient.embed(
+            keywords["low_level_keywords"] + keywords["high_level_keywords"],
+            return_sparse=return_sparse,
+        )
+    except Exception as e:
+        logger.error(f"Failed embedding keywords: {e}")
+        raise
 
 
 # import os
@@ -119,47 +136,6 @@ async def embed_documents(
 #         key=lambda x: x[1],
 #         reverse=True
 #     )
-# 
-# async def embed_query(query: str):
-#     from .kernel import ef
-#     return await ef(query)
-# 
-# async def embed_keywords(keywords: dict[str, list[str]]):
-#     from .kernel import ef
-#     return await ef(
-#         keywords["low_level_keywords"] + keywords["high_level_keywords"]
-#     )
-# 
-# def _chunks_batch_generator(docs, batch_size):
-#     batch = []
-#     for doc in docs:
-#         for seg in doc.segments:
-#             for chk in seg.chunks:
-#                 batch.append(chk)
-#                 if len(batch) == batch_size:
-#                     yield batch
-#                     batch = []
-#     if batch:
-#         yield batch
-# 
-# async def embed_documents(docs: list, batch_size: int=1024):
-#     from .kernel import ef
-# 
-#     async def _embed(chunks):
-#         vecs = await ef([chk.text for chk in chunks])
-#         for i, chk in enumerate(chunks):
-#             chk.dense_vec = vecs["dense"][i]
-#             chk.sparse_vec = vecs["sparse"][[i]]
-# 
-#     _batches = _chunks_batch_generator(docs, batch_size)
-#     total = 0
-#     for batch in _batches:
-#         total += len(batch)
-#         await _embed(batch)
-# 
-#     logger().info(f"{total} chunks embedded.")
-# 
-#     return docs
 # 
 # def _kg_elements_batch_generator(g, batch_size):
 #     batch = { "elements": [], "texts": [] }

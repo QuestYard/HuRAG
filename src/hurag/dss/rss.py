@@ -2,6 +2,7 @@ import aiomysql
 import asyncio
 from functools import wraps
 from typing import Any, Callable, Coroutine, TypeVar
+from contextlib import asynccontextmanager
 
 from .. import conf
 
@@ -43,6 +44,14 @@ async def close_pool():
         _pool.close()
         await _pool.wait_closed()
         _pool = None
+
+@asynccontextmanager
+async def lifespan():
+    """Context manager to handle database pool lifecycle."""
+    try:
+        yield
+    finally:
+        await close_pool()
 
 def with_rdb(
     func: Callable | None = None,

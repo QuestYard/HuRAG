@@ -34,7 +34,7 @@ async def init_ds(rdb_connection, rdb_cursor, vdb_client):
         logger.info("The rdb is initialized.")
     except Exception as e:
         await rdb_connection.rollback()
-        logger.warning(f"Error while initializing the rdb: {e}")
+        logger.error(f"Error while initializing the rdb: {e}")
         raise e
 
     # 2. Initialize vdb

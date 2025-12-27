@@ -43,9 +43,15 @@ hurag list [--keyword <keyword>] [--order <title|date|org>]
 - `--keyword <keyword>`: 可选参数，简写 `-k`，按关键字过滤文档标题，不提供则列出所有文档。
 - `--order <title|date|org>`: 可选参数，简写 `-o`，指定排序方式，可选值为 `title`（标题）、`date`（日期）或 `org`（发布机构），默认为按标题排序。
 
-### Load Documents into Knowledge Base
+### Store Documents into Knowledge Base
 
-TODO: constructing, coming soon...
+使用以下命令将文档存入知识库：
+
+```bash
+hurag store <path>
+```
+
+- `<path>`: 必需参数，指定包含待入库文档的文集目录路径。
 
 ## Corpus Management
 

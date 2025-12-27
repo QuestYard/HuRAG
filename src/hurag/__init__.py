@@ -38,11 +38,11 @@ try:
         or conf.mariadb.user is None
         or conf.mariadb.password is None
         or conf.mariadb.database is None
-        or conf.llm.chat_main is None
+        or conf.llm.generation is None
     ):
         raise ValueError(
             "Missing required configurations: milvus.token, milvus.db_name, "
-            "mariadb.user, mariadb.password, mariadb.database, llm.chat_main "
+            "mariadb.user, mariadb.password, mariadb.database, llm.generation "
             "must be provided."
         )
     conf.milvus.uri = conf.milvus.uri or "http://localhost:19530"
@@ -60,7 +60,7 @@ try:
     conf.retrieval.max_depth = conf.retrieval.max_depth or 1
     conf.retrieval.max_comms = conf.retrieval.max_comms or 3
     conf.retrieval.max_nodes = conf.retrieval.max_nodes or 1000
-    conf.llm.chat_back = conf.llm.chat_back or conf.llm.chat_main
+    conf.llm.extraction = conf.llm.extraction or conf.llm.generation
     conf.llm.embedding = conf.llm.embedding or "http://localhost:8765"
     conf.api.host = conf.api.host or "0.0.0.0"
     conf.api.port = conf.api.port or 5000

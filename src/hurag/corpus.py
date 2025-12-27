@@ -174,13 +174,13 @@ async def corpus_split(path: str) -> tuple:
     for doc in docs:
         if doc["layout"] not in ["text", "regu"]:
             # needn't splitting, skip
-            logger.info(f"{doc['filename']}: no need to split, skipped.")
+            logger.warning(f"{doc['filename']}: no need to split, skipped.")
             count[1] += 1
             continue
         src = folder / doc["filename"]
         if not src.exists() or not src.is_file():
             # not exists, skip
-            logger.info(f"{doc['filename']}: not exists, skipped.")
+            logger.warning(f"{doc['filename']}: not exists, skipped.")
             count[1] += 1
             continue
         
@@ -216,46 +216,67 @@ async def corpus_split(path: str) -> tuple:
         for task in tasks:
             success, error = task.result()
             if success:
-                logger.info(f"{error}: splitted okay.")
                 count[0] += 1
             else:
-                logger.info(f"Splitting failed: {error}")
+                logger.warning(f"Error and skipped: {error}")
                 count[2] += 1
 
     return tuple(count)
 
-def corpus_load(path: Path) -> list[Document]:
+async def corpus_load(
+    path: Path,
+    exclude_kb_docs: bool = False,
+) -> list[Document]:
     """
     Load documents in the given folder into a list of Document objects.
 
     Args:
-        path (Path): Path to the folder containing corpus.json and documents.
+        path (Path):
+            Path to the folder containing corpus.json and documents.
+        exclude_kb_docs (bool):
+            Whether to exclude documents already in the knowledge base.
 
     Returns:
         list[Document]: List of loaded Document objects.
     """
     import json
     import concurrent.futures
+    import asyncio
     from .schemas import Document
 
     with open(path / "corpus.json", "r", encoding="utf-8") as f:
         markups = json.load(f)
+    if exclude_kb_docs:
+        from .dss import rss
+        docs_in_kb = {
+            x[0] for x in await rss.query("SELECT title FROM documents")
+        }
+        markups = [
+            m for m in markups if m["title"] not in docs_in_kb
+        ]
+    
+    loop = asyncio.get_running_loop()
     docs = []
-    with concurrent.futures.ThreadPoolExecutor() as ex:
-        future_to_title = {
-            ex.submit(
+    
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        tasks = [
+            loop.run_in_executor(
+                pool,
                 Document().read,
                 path,
-                markup,
-            ): markup["title"]
+                markup
+            )
             for markup in markups
-        }
-        for future in concurrent.futures.as_completed(future_to_title):
-            title = future_to_title[future]
-            try:
-                docs.append(future.result())
-                logger.info(f"{title} loaded.")
-            except Exception as e:
-                logger.warning(f"Failed loading {title}: {e}")
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                title = markups[i]["title"]
+                logger.warning(f"Failed loading {title} and skipped: {result}")
+            else:
+                docs.append(result)
+                
     return docs
 

@@ -1,6 +1,10 @@
-from typing import Literal
+from __future__ import annotations
+from typing import Any, Literal, TYPE_CHECKING
 
-async def stat(close_pool_when_exit: bool = False) -> tuple:
+if TYPE_CHECKING:
+    from .schemas import Document
+
+async def stat() -> tuple:
     from .dss import rss
     stat = await rss.query(
         """
@@ -17,15 +21,11 @@ async def stat(close_pool_when_exit: bool = False) -> tuple:
         SELECT COUNT(*), '知识社区数:' AS catalog FROM segments
         """
     )
-    if close_pool_when_exit:
-        await rss.close_pool()
-
     return stat
 
 async def list_documents(
     keyword: str | None = None,
     order: Literal["title", "date", "org"] = "title",
-    close_pool_when_exit: bool = False,
 ) -> tuple:
     from .dss import rss
 
@@ -60,8 +60,22 @@ async def list_documents(
         """
     docs = await rss.query(sql, kw_param)
 
-    if close_pool_when_exit:
-        await rss.close_pool()
-
     return docs
 
+async def indexing_documents(
+    docs: list[Document],
+    embeddings: dict[Literal["dense_vecs", "sparse_vecs"], Any],
+) -> list[Document]:
+    """
+    Indexing documents into the knowledge base with provided embeddings.
+
+    Args:
+        docs (list[Document]):
+            List of Document objects to be indexed.
+        embeddings (dict):
+            A dictionary containing 'dense_vecs' and 'sparse_vecs' for indexing.
+
+    Returns:
+        list[Document]: List of successfully indexed Document objects.
+    """
+    ...

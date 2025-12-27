@@ -38,8 +38,8 @@ retrieval:
 
 # LLM 配置，在 .env 中配置与模型名称对应的模型访问参数配置
 llm:
-  chat_main:          # 必配项，主力 LLM 名称，无默认值
-  chat_back:          # 备用 LLM 名称，默认同 chat_main
+  generation:         # 必配项，用于生成问答，建议采用高性能大尺寸LLM
+  extraction:         # 必配项，用于知识提取，可以采用中等尺寸LLM
   embedding:          # HuRAG EmbeddingService，默认 "http://localhost:8765"
 
 # API Server 配置
