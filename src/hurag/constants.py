@@ -72,7 +72,6 @@ DROP TABLE IF EXISTS relations;
 DROP TABLE IF EXISTS entities;
 DROP TABLE IF EXISTS chunks;
 DROP TABLE IF EXISTS segments;
-DROP TABLE IF EXISTS doc_domain;
 DROP TABLE IF EXISTS documents;
 CREATE TABLE documents (
     id UUID PRIMARY KEY,
@@ -102,13 +101,6 @@ CREATE TABLE chunks (
     seq_no INT NOT NULL,
     text VARCHAR(1000) NOT NULL,
     FOREIGN KEY (segment_id) REFERENCES segments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-CREATE TABLE doc_domain (
-    document_id UUID NOT NULL,
-    domain VARCHAR(50) NOT NULL,
-    PRIMARY KEY (document_id, domain),
-    KEY idx_domain (domain),
-    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE entities (
     id UUID PRIMARY KEY,

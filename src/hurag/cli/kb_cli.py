@@ -167,10 +167,38 @@ async def store(
 
     show_msg(f"向量化待入库文档...", style="info")
     from ..llm.embedder import embed_documents
-    
-    with typer.progressbar(docs, label="向量化进度") as progress:
-        for doc in progress:
-            typer.echo(f"  正在向量化: {doc.title}")
-            # 这里调用向量化函数
-            async for embeddings in embed_documents(doc, batch_type=1):
-                pass  # embeddings 已被处理
+    from rich.progress import (
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        BarColumn,
+        TaskProgressColumn,
+        TimeRemainingColumn,
+        MofNCompleteColumn,
+    )
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeRemainingColumn(elapsed_when_finished=True),
+            MofNCompleteColumn()
+        ) as progress:
+            task = progress.add_task("文档文本向量化", total=len(docs))
+            embeddings = []
+            async for vecs, _ in embed_documents(docs, batch_type=1):
+                embeddings.append(vecs)
+                progress.update(task, advance=1)
+        show_msg(f"{len(embeddings)} 份文档向量化完成", style="info")
+    except Exception as e:
+        show_msg(f"文档向量化失败: {e}", style="error", err=e)
+
+    show_msg("文档内容保存入数据库...", style="info")
+    from ..knowledge_base import indexing_documents
+    try:
+        ds, ss, cs = await indexing_documents(docs, embeddings)
+        show_msg(f"{ds} 份文档，共 {ss} 知识段、{cs} 文本块入库完成", style="info")
+    except Exception as e:
+        show_msg(f"文档内容保存入库失败: {e}", style="error", err=e)
+

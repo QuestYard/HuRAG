@@ -31,7 +31,7 @@ PREDEFINED_COLORS = {
 console = Console(theme=Theme(PREDEFINED_COLORS))
 
 rich_handler = RichHandler(
-    level="INFO",
+    level="WARNING",
     console=console,
     show_level=False,
     show_time=False,
