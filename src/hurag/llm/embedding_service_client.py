@@ -10,7 +10,7 @@ T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 def with_es_client(
     func: Callable | None = None,
     *,
-    base_url: str | None = None,
+    base_url: str,
     timeout: float = 300.0,
     client_name: str = "esclient",
 ) -> Callable[..., Any]:
@@ -18,8 +18,8 @@ def with_es_client(
     Decorator to inject an embedding client into the decorated function.
 
     Args:
-        base_url (str | None):
-            The base URL of the embedding service. If None, get one from configuration.
+        base_url (str):
+            Required. The base URL of the embedding service.
         timeout (float): 
             Timeout for embedding requests. Default is 300.0 seconds.
         client_name (str):
