@@ -16,6 +16,22 @@ async def embed_query(
     return_sparse: bool = True,
     esclient: AsyncEmbeddingClient | None = None,
 ) -> tuple[dict[str, Any], EmbeddingPayloadMeta]:
+    """
+    Embed a query or a list of queries into vector representations.
+    
+    Args:
+        query: A single query string or a list of query strings to be embedded.
+        return_sparse: Whether to return sparse vectors along with dense vectors.
+            Default is True.
+        esclient: An instance of AsyncEmbeddingClient. This is provided
+            automatically by the decorator.
+            
+    Returns:
+        A tuple containing:
+            - A dictionary with keys "dense_vecs" and "sparse_vecs" containing the
+              corresponding vector representations.
+            - An EmbeddingPayloadMeta object with metadata about the embeddings.
+    """
     try:
         results = await esclient.embed(query, return_sparse=return_sparse)
         return results
@@ -31,6 +47,27 @@ async def embed_documents(
     return_sparse: bool = True,
     esclient: AsyncEmbeddingClient | None = None,
 ) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
+    """
+    Embed documents into vector representations in batches.
+    
+    Args:
+        docs: A single Document object or a list of Document objects to be
+            embedded.
+        batch_type: The type of batching to use for embedding.
+            - 0: all-in-one (embed all chunks from all documents in one batch)
+            - 1: doc-by-doc (embed chunks from each document separately)
+            - >1: chunk-by-chunk with chunk_size = batch_type
+        return_sparse: Whether to return sparse vectors along with dense vectors.
+            Default is True.
+        esclient: An instance of AsyncEmbeddingClient. This is provided
+            automatically by the decorator.
+            
+    Yields:
+        A tuple containing:
+            - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
+                the corresponding vector representations for the batch.
+            - An EmbeddingPayloadMeta object with metadata about the embeddings.
+    """
     from itertools import islice
 
     if batch_type == 0: # all-in-one
@@ -76,7 +113,25 @@ async def embed_keywords(
     *,
     return_sparse: bool = True,
     esclient: AsyncEmbeddingClient | None = None,
-):
+) -> tuple[dict[str, Any], EmbeddingPayloadMeta]:
+    """
+    Embed keywords into vector representations.
+    
+    Args:
+        keywords: A dictionary with keys "low_level_keywords" and
+            "high_level_keywords", each containing a list of keyword strings
+            to be embedded.
+        return_sparse: Whether to return sparse vectors along with dense vectors.
+            Default is True.
+        esclient: An instance of AsyncEmbeddingClient. This is provided
+            automatically by the decorator.
+            
+    Returns:
+        A tuple containing:
+            - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
+              the corresponding vector representations.
+            - An EmbeddingPayloadMeta object with metadata about the embeddings.
+    """
     try:
         return await esclient.embed(
             keywords["low_level_keywords"] + keywords["high_level_keywords"],
