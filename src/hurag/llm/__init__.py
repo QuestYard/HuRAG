@@ -4,10 +4,15 @@ from .embedder import (
     embed_query,
     embed_keywords,
 )
+from .llm_common_tools import (
+    build_messages,
+    extract_response,
+    extract_chunk,
+)
 from .openai_client import (
     create_client,
-    build_messages,
     chat,
+    with_oa_client,
 )
 
 __all__ = [
@@ -15,8 +20,11 @@ __all__ = [
     "embed_documents",
     "embed_query",
     "embed_keywords",
-    "create_client",
     "build_messages",
+    "extract_chunk",
+    "extract_response",
+    "create_client",
     "chat",
+    "with_oa_client",
 ]
 

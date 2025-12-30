@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import (
-    AsyncGenerator,
     Callable,
     Coroutine,
     TypeVar,
@@ -10,10 +9,11 @@ from typing import (
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
+    from openai.types.chat import ChatCompletion
 
-import asyncio
 from functools import wraps
-from openai.types.chat import ChatCompletionChunk
+
+from . import build_messages
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
@@ -32,28 +32,6 @@ def create_client(
         max_retries=max_retries,
     )
 
-def build_messages(
-    prompt: str,
-    system_prompt: str | None = None,
-    history_messages: list[dict[str, str]] | None = None,
-) -> list[dict[str, str]]:
-    msgs: list[dict[str, str]] = []
-    if system_prompt:
-        msgs.append({"role": "system", "content": system_prompt})
-    if history_messages:
-        for m in history_messages:
-            if not isinstance(m, dict):
-                raise ValueError(
-                    "History message must be dict with 'role' and 'content'."
-                )
-            if "role" not in m or "content" not in m:
-                raise ValueError(
-                    "History message missing 'role' or 'content'."
-                )
-            msgs.append(m)
-    msgs.append({"role": "user", "content": prompt})
-    return msgs
-
 async def chat(
     model: str,
     prompt: str,
@@ -67,7 +45,7 @@ async def chat(
     temperature: float = 0.0,
     timeout: float = 60.0,
     max_retries: int = 3,
-) -> str | AsyncStream:
+) -> ChatCompletion | AsyncStream:
     """
     Non-blocking chat completion call to OpenAI API.
 
@@ -102,16 +80,68 @@ async def chat(
         should_close = True
 
     try:
-        response = await client.chat.completions.create(
-            model=model,
-            messages=build_messages(
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-            ),
-            temperature=temperature,
-        )
-        return response.choices[0].message.content
+        if stream:
+            astream = await client.chat.completions.create(
+                model=model,
+                messages=build_messages(
+                    prompt,
+                    system_prompt=system_prompt,
+                    history_messages=history_messages,
+                ),
+                temperature=temperature,
+                stream=True,
+            )
+            return astream
+        else:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=build_messages(
+                    prompt,
+                    system_prompt=system_prompt,
+                    history_messages=history_messages,
+                ),
+                temperature=temperature,
+            )
+            return response
     finally:
         if should_close:
             await client.close()
+
+def with_oa_client(
+    func: Callable | None = None,
+    *,
+    base_url: str,
+    api_key: str,
+    timeout: float = 60.0,
+    max_retries: int = 3,
+    client_name: str = "oaclient"
+) -> Callable[..., Any]:
+    """
+    Decorator to provide an AsyncOpenAI client to the decorated async function.
+    Args:
+        func: Callable | None -- the function to decorate.
+        base_url: str -- base URL for OpenAI API.
+        api_key: str -- API key for OpenAI API.
+        timeout: float -- request timeout in seconds.
+        max_retries: int -- maximum number of retries for failed requests.
+        client_name: str -- the name of the parameter to pass the client as.
+    """
+    def decorator(func: T) -> T:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            _cli = create_client(
+                base_url=base_url,
+                api_key=api_key,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
+            kwargs[client_name] = _cli
+            ret = await func(*args, **kwargs)
+            _cli and await _cli.close()
+            return ret
+        return wrapper
+    
+    if func is not None:
+        return decorator(func)
+    return decorator
+

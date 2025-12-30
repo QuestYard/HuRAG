@@ -63,7 +63,11 @@ HuRAG 使用 Milvus 作为向量数据存储，使用 MariaDB/MySQL 作为关系
 
 HuRAG SDK 提供了对大语言模型（LLM）和 QuestYard/embedding-service 提供的 Embedding/Reranker 微服务的调用封装，方便开发者在应用中集成 LLM 能力。
 
-### with_es_client 装饰器
+### Embedding Service 调用
+
+HuRAG 使用 QuestYard Embedding Service 作为文本嵌入向量和重排序文本块的服务，HuRAG SDK 在 `hurag.llm` 模块中封装了对 Embedding Service 的调用，提供了简化的接口，方便开发者获取文本的嵌入向量和进行文本块重排序。
+
+#### with_es_client 装饰器
 
 HuRAG SDK 在 `hurag.llm` 模块中提供了装饰器 `with_es_client`，封装了对 QuestYard Embedding Service 的调用，提供了获取文本嵌入向量和重排序文本块的功能。
 
@@ -77,7 +81,7 @@ async def get_text_embedding(es_client, text: str) -> list[float]:
     return embedding
 ```
 
-### 具体 embedding 方法
+#### 具体 embedding 方法
 
 HuRAG SDK 在 `hurag.llm` 模块中提供了多个具体的 Embedding 方法，封装了对 QuestYard Embedding Service 的调用，方便开发者获取文本的嵌入向量。
 
@@ -126,7 +130,166 @@ async def embed_keywords(
 
 ### OpenAI LLM 调用
 
-TODO： Add more details about OpenAI LLM usage.
+HuRAG 采用 OpenAI SDK 作为大语言模型（LLM）的调用接口，所有支持 OpenAI 接口的模型均可调用。HuRAG SDK 在 `hurag.llm` 模块中封装了对 OpenAI SDK 的调用，提供了简化的接口，方便开发者在应用中集成 LLM 能力。
+
+关于 LLM 的配置，请参考: [配置文件说明](../README.md#generate-configuration-file)
+
+#### 基础调用
+
+`hurag.llm.openai_client` 模块提供了 `chat` 函数，用于调用 LLM 模型。该函数支持非流式和流式两种调用方式。
+
+**函数签名**
+
+```python
+async def chat(
+    model: str,
+    prompt: str,
+    *,
+    system_prompt: str | None = None,
+    history_messages: list[dict[str, str]] | None = None,
+    stream: bool = False,
+    client: AsyncOpenAI | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    temperature: float = 0.0,
+    timeout: float = 60.0,
+    max_retries: int = 3,
+) -> ChatCompletion | AsyncStream:
+```
+
+**参数说明**
+
+- `model`: 模型名称。
+- `prompt`: 用户输入的提示词。
+- `system_prompt`: 可选的系统提示词。
+- `history_messages`: 可选的历史对话记录，格式为 `[{"role": "user", "content": "..."}, ...]`。
+- `stream`: 是否开启流式输出，默认为 `False`。
+- `client`: 可选的 `AsyncOpenAI` 客户端实例。如果未提供，则需提供 `base_url` 和 `api_key`。
+- `base_url`: OpenAI API 的基础 URL。
+- `api_key`: OpenAI API 的密钥。
+- `temperature`: 采样温度，默认为 0.0。
+- `timeout`: 请求超时时间（秒），默认为 60.0。
+- `max_retries`: 最大重试次数，默认为 3。
+
+注意，`client`、`base_url` 和 `api_key` 三者中必须提供 `client`，或者同时提供 `base_url` 和 `api_key`。如果提供了 `client`，则忽略 `base_url` 和 `api_key`。
+
+*提供 `client` 参数时，函数退出不会关闭客户端连接，客户端的生命周期由调用方管理。提供 `base_url` 和 `api_key` 参数时，函数内部会自动创建和关闭客户端实例。*
+
+#### 结果提取
+
+`hurag.llm.llm_common_tools` 模块提供了两个工具函数，用于从 LLM 返回的结果中提取内容：
+
+- `extract_response(response: ChatCompletion, content_only: bool = True) -> str | dict[str, str]`: 用于提取非流式调用的结果。
+- `extract_chunk(chunk: ChatCompletionChunk, previous_content: str | None = None) -> str`: 用于提取流式调用的结果块。
+
+#### 使用示例
+
+**非流式调用示例**
+
+```python
+import asyncio
+from hurag.llm.openai_client import chat
+from hurag.llm.llm_common_tools import extract_response
+
+async def main():
+    # 假设已有 base_url 和 api_key
+    response = await chat(
+        model="gpt-3.5-turbo",
+        prompt="你好，请介绍一下你自己。",
+        base_url="https://api.openai.com/v1",
+        api_key="your-api-key"
+    )
+    content = extract_response(response)
+    print(content)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**流式调用示例**
+
+```python
+import asyncio
+from hurag.llm.openai_client import chat
+from hurag.llm.llm_common_tools import extract_chunk
+
+async def main():
+    stream = await chat(
+        model="gpt-3.5-turbo",
+        prompt="讲一个关于AI的故事。",
+        stream=True,
+        base_url="https://api.openai.com/v1",
+        api_key="your-api-key"
+    )
+    
+    print("Response:")
+    async for chunk in stream:
+        # extract_chunk 返回当前 chunk 的内容增量
+        delta = extract_chunk(chunk)
+        print(delta, end="", flush=True)
+    print()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+#### 客户端装饰器
+
+`hurag.llm.openai_client` 模块还提供了 `with_oa_client` 装饰器，用于自动创建和管理 `AsyncOpenAI` 客户端实例，并将其注入到被装饰的异步函数中。这在需要频繁创建客户端或希望简化客户端生命周期管理的场景下非常有用。
+
+**函数签名**
+
+```python
+def with_oa_client(
+    func: Callable | None = None,
+    *,
+    base_url: str,
+    api_key: str,
+    timeout: float = 60.0,
+    max_retries: int = 3,
+    client_name: str = "oaclient"
+) -> Callable[..., Any]:
+```
+
+**参数说明**
+
+- `base_url`: OpenAI API 的基础 URL。
+- `api_key`: OpenAI API 的密钥。
+- `timeout`: 请求超时时间（秒），默认为 60.0。
+- `max_retries`: 最大重试次数，默认为 3。
+- `client_name`: 注入到被装饰函数中的参数名称，默认为 `"oaclient"`。
+
+**使用示例**
+
+```python
+import asyncio
+from hurag.llm.openai_client import with_oa_client, chat
+from hurag.llm.llm_common_tools import extract_response
+from openai import AsyncOpenAI
+
+# 使用装饰器自动注入 client
+# 注意：被装饰的函数需要接收 client_name 指定的参数
+@with_oa_client(
+    base_url="https://api.openai.com/v1", 
+    api_key="your-api-key", 
+    client_name="client" # 将客户端注入到名为 'client' 的参数中
+)
+async def custom_chat_task(prompt: str, client: AsyncOpenAI):
+    # 直接使用注入的 client 调用 chat 函数
+    response = await chat(
+        model="gpt-3.5-turbo",
+        prompt=prompt,
+        client=client 
+    )
+    return extract_response(response)
+
+async def main():
+    result = await custom_chat_task("简单介绍一下 Python 装饰器")
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
 
 ## 文集管理
 

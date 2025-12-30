@@ -29,7 +29,7 @@ def with_es_client(
     Returns:
         Callable[..., Any]: The decorated function with an embedding client injected.
     """
-    def decorator(func: T)-> T:
+    def decorator(func: T) -> T:
         if inspect.isasyncgenfunction(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
