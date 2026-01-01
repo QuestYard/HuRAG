@@ -14,6 +14,16 @@ from .openai_client import (
     chat,
     with_oa_client,
 )
+from .prompts import (
+    PROMPTS,
+    create_entity_extraction_prompt,
+    create_entity_gleaning_prompt,
+    create_summarize_descriptions_prompt,
+    create_community_summarize_prompt,
+    create_community_summary_aggregate_prompt,
+    create_keywords_extraction_prompt,
+    create_timing_prompt,
+)
 
 __all__ = [
     "with_es_client",
@@ -26,5 +36,13 @@ __all__ = [
     "create_client",
     "chat",
     "with_oa_client",
+    "PROMPTS",
+    "create_entity_extraction_prompt",
+    "create_entity_gleaning_prompt",
+    "create_summarize_descriptions_prompt",
+    "create_community_summarize_prompt",
+    "create_community_summary_aggregate_prompt",
+    "create_keywords_extraction_prompt",
+    "create_timing_prompt",
 ]
 

@@ -1,8 +1,20 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .schemas import Document
+    from .schemas import (
+        Document,
+        Segment,
+        Chunk,
+        Knowledge,
+        KnowledgeMetadata,
+    )
+
+from .kvcache import KVCache
+
+kn_cache = KVCache(max_size=1000, evict_ratio=0.2)
+
+# --- Document Management ---
 
 SQL_INS_DOC = [
     """
@@ -189,3 +201,250 @@ async def indexing_documents(
 
     return (ds, ss, cs)
 
+# --- Knowledge Management ---
+
+async def load_knowledge(
+    chunks: Iterable[str],
+    docs: dict[str, dict] | None = None,
+    limit: int | None = None,
+) -> dict[str, Knowledge]:
+    """
+    Load knowledge by chunk IDs.
+
+    Arguments:
+        chunks: Iterable of chunk IDs.
+        docs: Optional dictionary of document metadata.
+        limit: Optional limit on number of chunks to process.
+
+    Returns:
+        A dictionary mapping segment IDs to Knowledge objects.
+    """
+    from .dss import rss
+    from .schemas import Knowledge, KnowledgeMetadata
+
+    @rss.with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
+    async def _load_metadata(doc_ids, conn, cur):
+        sql = f"""
+            SELECT id, title, sn, pub_path, valid_from, valid_to
+            FROM documents
+            WHERE id IN ({','.join(['%s'] * len(doc_ids))})
+        """
+        await cur.execute(sql, tuple(doc_ids))
+        rows = await cur.fetchall()
+        return {row["id"]: row for row in rows}
+
+    if not chunks:
+        return {}
+
+    chk_ids = list(chunks) if limit is None else list(chunks)[:limit]
+
+    sdc = await rss.query(
+        f"""
+        SELECT s.id, d.id, c.id
+        FROM chunks c
+        JOIN segments s ON c.segment_id = s.id
+        JOIN documents d ON s.document_id = d.id
+        WHERE c.id IN ({','.join(['%s'] * len(chk_ids))})
+        """,
+        tuple(chk_ids)
+    )
+    # Reorder sdc to match chk_ids order
+    sdc_map = {row[2]: row for row in sdc}
+    sdc = [sdc_map[chk_id] for chk_id in chk_ids if chk_id in sdc_map]
+
+    doc_ids = set(did for _, did, _ in sdc)
+    if docs is None:
+        docs = await _load_metadata(doc_ids)
+
+    results = {}
+    for sid, did, cid in sdc:
+        if sid in results:
+            continue
+        if did not in docs:
+            continue
+        if kn_cache.contains(sid):
+            results[sid] = kn_cache.get(sid)
+            continue
+        content = "".join(
+            t[0] for t in await rss.query(
+                "SELECT text FROM chunks WHERE segment_id = %s ORDER BY seq_no",
+                (sid, ),
+            )
+        )
+        kn = Knowledge(
+            segment_id=sid,
+            content=content,
+            metadata=KnowledgeMetadata.from_dict(docs[did]),
+        )
+        kn_cache.put(sid, kn)
+        results[sid] = kn
+
+    return results
+
+async def load_knowledge_by_segments(
+    segments: Iterable[tuple[str, str]],
+    docs: dict[str, dict] | None = None,
+    limit: int | None = None,
+) -> dict[str, Knowledge]:
+    """
+    Load knowledge by segment IDs along with document ID that the segment belongs to.
+
+    Arguments:
+        segments: Iterable[tuple[str, str]], list of (segment_id, document_id).
+        docs: Optional dictionary of document metadata.
+        limit: Optional limit on number of segments to process.
+
+    Returns:
+        A dictionary mapping segment IDs to Knowledge objects.
+    """
+    from .dss import rss
+    from .schemas import Knowledge, KnowledgeMetadata
+
+    @rss.with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
+    async def _load_metadata(doc_ids, conn, cur):
+        sql = f"""
+            SELECT id, title, sn, pub_path, valid_from, valid_to
+            FROM documents
+            WHERE id IN ({','.join(['%s'] * len(doc_ids))})
+        """
+        await cur.execute(sql, tuple(doc_ids))
+        rows = await cur.fetchall()
+        return {row["id"]: row for row in rows}
+
+    if not segments:
+        return {}
+
+    seg_doc = list(segments) if limit is None else list(segments)[:limit]
+
+    if docs is None:
+        doc_ids = set(did for _, did in seg_doc)
+        docs = await _load_metadata(doc_ids)
+
+    results = {}
+    for sid, did in seg_doc:
+        if sid in results:
+            continue
+        if did not in docs:
+            continue
+        if kn_cache.contains(sid):
+            results[sid] = kn_cache.get(sid)
+            continue
+        content = "".join(
+            t[0] for t in await rss.query(
+                "SELECT text FROM chunks WHERE segment_id = %s ORDER BY seq_no",
+                (sid, ),
+            )
+        )
+        kn = Knowledge(
+            segment_id=sid,
+            content=content,
+            metadata=KnowledgeMetadata.from_dict(docs[did])
+        )
+        kn_cache.put(sid, kn)
+        results[sid] = kn
+
+    return results
+
+async def load_knowledge_by_segment_ids(
+    ids: Iterable[str],
+    docs: dict[str, dict] | None = None,
+    limit: int | None = None,
+) -> dict[str, Knowledge]:
+    """
+    Load knowledge by segment IDs.
+
+    Arguments:
+        ids: Iterable of segment IDs.
+        docs: Optional dictionary of document metadata.
+        limit: Optional limit on number of segments to process.
+
+    Returns:
+        A dictionary mapping segment IDs to Knowledge objects.
+    """
+    from .dss import rss
+
+    segments = await rss.query(
+        f"""
+        SELECT id, document_id FROM segments
+        WHERE id IN ({','.join(['%s'] * len(ids))})
+        """,
+        tuple(ids),
+    )
+    return await load_knowledge_by_segments(segments, docs, limit)
+
+async def load_knowledge_by_order(
+    chunks_scores: dict[str, float],
+    docs: dict[str, dict] | None = None,
+)-> dict[str, tuple[Knowledge, float]]:
+    """
+    Load knowledge by chunk IDs with their scores, keeping the order of scores.
+
+    Arguments:
+        chunks_scores: dict of chunk IDs and their scores.
+        docs: Optional dictionary of document metadata.
+
+    Returns:
+        A dictionary mapping segment IDs to tuples of (Knowledge, score):
+    """
+    from .dss import rss
+    from .schemas import Knowledge, KnowledgeMetadata
+
+    @rss.with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
+    async def _load_metadata(doc_ids, conn, cur):
+        sql = f"""
+            SELECT id, title, sn, pub_path, valid_from, valid_to
+            FROM documents
+            WHERE id IN ({','.join(['%s'] * len(doc_ids))})
+        """
+        await cur.execute(sql, tuple(doc_ids))
+        rows = await cur.fetchall()
+        return {row["id"]: row for row in rows}
+
+    if not chunks_scores:
+        return {}
+
+    sdc_scores = sorted(
+        [
+            (*x, chunks_scores[x[2]])
+            for x in await rss.query(
+                f"""
+                SELECT s.id, d.id, c.id
+                FROM chunks c
+                JOIN segments s ON c.segment_id = s.id
+                JOIN documents d ON s.document_id = d.id
+                WHERE c.id IN ({','.join(['%s'] * len(chunks_scores))})
+                """,
+                tuple(chunks_scores.keys())
+            )
+        ],
+        key = lambda x: x[3],
+        reverse = True,
+    )
+    doc_ids = set(did for _, did, _, _ in sdc_scores)
+    if docs is None:
+        docs = await _load_metadata(doc_ids)
+
+    results = {}
+    for sid, did, cid, score in sdc_scores:
+        if sid in results:
+            continue
+        if did not in docs:
+            continue
+        if kn_cache.contains(sid):
+            results[sid] = (kn_cache.get(sid), score)
+            continue
+        ctx = "".join(
+            t[0] for t in await rss.query(
+                "SELECT text FROM chunks WHERE segment_id = %s ORDER BY seq_no",
+                (sid, ),
+            )
+        )
+        kn = Knowledge(
+            segment_id=sid,
+            content=ctx,
+            metadata=KnowledgeMetadata.from_dict(docs[did])
+        )
+        kn_cache.put(sid, kn)
+        results[sid] = (kn, score)
+
+    return results

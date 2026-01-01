@@ -133,3 +133,20 @@ def async_cmd(func: T) -> Callable[..., Any]:
         return asyncio.run(_runner())
     return wrapper
 
+def print_regex_literal(regex_pattern: str, label: str | None = None) -> None:
+    """
+    Print a regex pattern as a literal string without escape character interference.
+    
+    This function outputs the regex pattern exactly as it would appear in an r-string,
+    making it easy to see the actual regex syntax without Python string escaping.
+    
+    Args:
+        regex_pattern: The regex pattern string to display
+        label: Optional label to prefix the output for clarity
+    """
+    if label:
+        console.print(f"{label}: ", style="info", end="")
+    
+    # Use repr() to show the string with proper escaping, similar to r-string behavior
+    console.print(repr(regex_pattern), style="path")
+

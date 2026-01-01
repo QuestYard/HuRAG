@@ -141,6 +141,54 @@ async def embed_keywords(
         logger.error(f"Failed embedding keywords: {e}")
         raise
 
+# def _kg_elements_batch_generator(g, batch_size):
+#     batch = { "elements": [], "texts": [] }
+#     for e in g.nodes + g.edges:
+#         batch["elements"].append(e)
+#         if isinstance(e, Entity):
+#             batch["texts"].append("## " + e.name + ":\n\n- " + e.description)
+#         else:
+#             batch["texts"].append(
+#                 "## " + e.source + " - " + e.target + ":\n\n- " + e.description
+#             )
+#         if len(batch["elements"]) == batch_size:
+#             yield batch
+#             batch["elements"].clear()
+#             batch["texts"].clear()
+#     if batch:
+#         yield batch
+# 
+# async def embed_kg_elements(g: Graph, batch_size: int=1024):
+#     from .kernel import ef
+# 
+#     _batches = _kg_elements_batch_generator(g, batch_size)
+#     for batch in _batches:
+#         vecs = await ef(batch["texts"])
+#         for i, e in enumerate(batch["elements"]):
+#             e.dense_vec = vecs["dense"][i]
+#             e.sparse_vec = vecs["sparse"][[i]]
+# 
+#     return g
+# 
+# async def embed_community_summaries(summaries: dict) -> list[dict]:
+#     from .kernel import ef
+# 
+#     table = [
+#         {
+#             "c_no": k,
+#             "summary": v[-1] if v else "null",
+#             "dense_vec": None,
+#             "sparse_vec": None,
+#         }
+#         for k, v in summaries.items()
+#     ]
+#     vecs = await ef([s["summary"] for s in table])
+#     for i, e in enumerate(table):
+#         e["dense_vec"] = vecs["dense"][i]
+#         e["sparse_vec"] = vecs["sparse"][[i]]
+# 
+#     return table
+# 
 
 # import os
 # import asyncio
@@ -191,54 +239,6 @@ async def embed_keywords(
 #         key=lambda x: x[1],
 #         reverse=True
 #     )
-# 
-# def _kg_elements_batch_generator(g, batch_size):
-#     batch = { "elements": [], "texts": [] }
-#     for e in g.nodes + g.edges:
-#         batch["elements"].append(e)
-#         if isinstance(e, Entity):
-#             batch["texts"].append("## " + e.name + ":\n\n- " + e.description)
-#         else:
-#             batch["texts"].append(
-#                 "## " + e.source + " - " + e.target + ":\n\n- " + e.description
-#             )
-#         if len(batch["elements"]) == batch_size:
-#             yield batch
-#             batch["elements"].clear()
-#             batch["texts"].clear()
-#     if batch:
-#         yield batch
-# 
-# async def embed_kg_elements(g: Graph, batch_size: int=1024):
-#     from .kernel import ef
-# 
-#     _batches = _kg_elements_batch_generator(g, batch_size)
-#     for batch in _batches:
-#         vecs = await ef(batch["texts"])
-#         for i, e in enumerate(batch["elements"]):
-#             e.dense_vec = vecs["dense"][i]
-#             e.sparse_vec = vecs["sparse"][[i]]
-# 
-#     return g
-# 
-# async def embed_community_summaries(summaries: dict) -> list[dict]:
-#     from .kernel import ef
-# 
-#     table = [
-#         {
-#             "c_no": k,
-#             "summary": v[-1] if v else "null",
-#             "dense_vec": None,
-#             "sparse_vec": None,
-#         }
-#         for k, v in summaries.items()
-#     ]
-#     vecs = await ef([s["summary"] for s in table])
-#     for i, e in enumerate(table):
-#         e["dense_vec"] = vecs["dense"][i]
-#         e["sparse_vec"] = vecs["sparse"][[i]]
-# 
-#     return table
 # 
 # @dataclass
 # class _Segment:
