@@ -12,6 +12,7 @@ from .llm_common_tools import (
 from .openai_client import (
     create_client,
     chat,
+    chat_with_retry,
     with_oa_client,
 )
 from .prompts import (
@@ -35,6 +36,7 @@ __all__ = [
     "extract_response",
     "create_client",
     "chat",
+    "chat_with_retry",
     "with_oa_client",
     "PROMPTS",
     "create_entity_extraction_prompt",

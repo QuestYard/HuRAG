@@ -5,6 +5,9 @@ __url__ = "https://github.com/QuestYard/HuRAG"
 
 import yaml
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path.cwd() / ".env")
 
 # -- Global Options --
 

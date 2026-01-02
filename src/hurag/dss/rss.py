@@ -178,6 +178,33 @@ async def query(statement: str, data: tuple = ()) -> list[tuple]:
         ret = await cur.fetchall()
         return list(ret)
 
+async def query_iter(statement: str, data: tuple = (), batch_size: int = 1000):
+    """
+    Execute a SQL query statement (SELECT) and yield results iteratively.
+    Uses a server-side cursor to avoid loading all results into memory.
+
+    Args:
+        statement:
+            The SQL query statement to be executed.
+        data:
+            The data to be used in the query statement.
+        batch_size:
+            The number of rows to fetch at a time. Default is 1000.
+
+    Yields:
+        A tuple representing a row in the query results.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.SSCursor) as cur:
+            await cur.execute(statement, data)
+            while True:
+                rows = await cur.fetchmany(batch_size)
+                if not rows:
+                    break
+                for row in rows:
+                    yield row
+
 async def dml(statement: str, data: tuple | list[tuple] | None = ()) -> int:
     """
     Execute a DML statement (INSERT, UPDATE, DELETE).

@@ -8,8 +8,7 @@ from ..utilities import (
     clean_str,
     normalize_extracted_info,
 )
-
-GRAPH_FIELD_SEP = "<SEP>"
+from ..constants import GRAPH_FIELD_SEP
 
 @dataclass
 class Entity:
@@ -176,6 +175,163 @@ class Relation:
 
         return self
 
+def _process_local_graph(
+    nodes: list[Entity],
+    edges: list[Relation],
+    blacklist: list[str] | None,
+    alias: dict[str, str] | None
+):
+    import re
+    import pandas as pd
+
+    if not blacklist:
+        BLACKLIST_REGEX = re.compile(r"(?!)")  # match nothing
+    else:
+        pattern = "|".join([f"(?:{v})" for v in blacklist])
+        BLACKLIST_REGEX = re.compile(f"^(?:{pattern})$")
+
+    entities = pd.DataFrame(
+        [
+            {
+                "id": None,
+                "name": node.name,
+                "type": node.type,
+                "description": node.description,
+                "seg_ids": node.seg_ids,
+            }
+            for node in nodes
+        ]
+    )
+    relations = pd.DataFrame(
+        [
+            {
+                "id": None,
+                "source": edge.source,
+                "target": edge.target,
+                "type": edge.type,
+                "description": edge.description,
+                "strength": edge.strength,
+                "seg_ids": edge.seg_ids,
+            }
+            for edge in edges
+        ]
+    )
+    to_drop_entities_mask = entities["name"].str.contains(
+        BLACKLIST_REGEX,
+        regex=True,
+        na=False
+    )
+    entities = entities[~to_drop_entities_mask].reset_index(drop=True)
+    ent_set = set(zip(entities["name"], entities["seg_ids"]))
+    remain_relations_mask = (
+        pd.Series(zip(relations["source"], relations["seg_ids"])).isin(ent_set)
+        &
+        pd.Series(zip(relations["target"], relations["seg_ids"])).isin(ent_set)
+    )
+    relations = relations[remain_relations_mask].reset_index(drop=True)
+    # detecting alias and replace to fullname
+    if alias:
+        entities["name"] = entities["name"].replace(alias)
+        relations["source"] = relations["source"].replace(alias)
+        relations["target"] = relations["target"].replace(alias)
+    # group and aggregate
+    entities = (
+        entities
+        .groupby("name", as_index=False)
+        .agg(
+            {
+                "id": lambda _: None,
+                "type": GRAPH_FIELD_SEP.join,
+                "description": GRAPH_FIELD_SEP.join,
+                "seg_ids": GRAPH_FIELD_SEP.join,
+            }
+        )
+    )
+    relations = (
+        relations
+        .groupby(["source", "target"], as_index=False)
+        .agg(
+            {
+                "id": lambda _: None,
+                "type": GRAPH_FIELD_SEP.join,
+                "description": GRAPH_FIELD_SEP.join,
+                "strength": "sum",
+                "seg_ids": GRAPH_FIELD_SEP.join,
+            }
+        )
+    )
+    return entities, relations
+
+async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
+    from ..dss import rss
+    pool = await rss.get_pool()
+    async with pool.acquire() as conn, conn.cursor() as cur:
+        await cur.execute(
+            """
+            CREATE TEMPORARY TABLE temp_nodes (
+                name VARCHAR(100) COLLATE utf8mb4_unicode_ci
+            );
+            """
+        )
+        await cur.executemany(
+            "INSERT INTO temp_nodes VALUES (%s)",
+            [(x.name,) for x in nodes],
+        )
+        await cur.execute(
+            """
+            SELECT id, name, type, description FROM entities
+            WHERE name IN (SELECT name FROM temp_nodes)
+            """
+        )
+        exists_nodes = {
+            node[1]: {
+                "id": node[0],
+                "name": node[1],
+                "type": node[2],
+                "description": node[3],
+            }
+            for node in cur.fetchall()
+        }
+        await cur.execute(
+            """
+            CREATE TEMPORARY TABLE temp_edges (
+                source VARCHAR(100) COLLATE utf8mb4_unicode_ci,
+                target VARCHAR(100) COLLATE utf8mb4_unicode_ci
+            );
+            """
+        )
+        await cur.executemany(
+            "INSERT INTO temp_edges (source, target) VALUES (%s, %s)",
+            [(x.source, x.target) for x in edges]
+        )
+        await cur.execute(
+            """
+            SELECT
+                r.id,
+                s.name AS source,
+                t.name AS target,
+                r.type,
+                r.description,
+                r.strength
+            FROM relations AS r
+            JOIN entities AS s ON r.source_id = s.id
+            JOIN entities AS t ON r.target_id = t.id
+            JOIN temp_edges e ON e.source = s.name AND e.target = t.name
+            """
+        )
+        exists_edges = {
+            (edge[1], edge[2]): {
+                "id": edge[0],
+                "source": edge[1],
+                "target": edge[2],
+                "type": edge[3],
+                "description": edge[4],
+                "strength": edge[5],
+            }
+            for edge in cur.fetchall()
+        }
+    return exists_nodes, exists_edges
+
 @dataclass
 class Graph:
     nodes: list[Entity] = field(default_factory=list, compare=False)
@@ -253,195 +409,57 @@ class Graph:
 
         return removed
 
-#     def resolve(self, blacklist: list[str]) -> Self:
-#         """
-#         Resolve parsed entities and relations in 3 steps:
-#         1. Remove nonsensical entities by matching entity-name blacklist.
-#         2. Remove relations without existing source or target entities.
-#         3. Group entities with same name and merge into one single entity.
-#         4. Merge with existing entities and relations in the database.
-# 
-#         This method is designed to invoke after a new graph is created by
-#         extracting and parsing elements.
-# 
-#         After resolving the nodes and edges will be cleaned and be ready for
-#         normalization, embedding and storing.
-#         """
-#         import re
-#         from ..dss import rss
-#         import pandas as pd
-#         # blacklist and orphan cleaning
-#         pattern = "|".join([f"(?:{v})" for v in blacklist])
-#         BLACKLIST_REGEX = re.compile(f"^(?:{pattern})$")
-# 
-#         _nodes = self.nodes
-#         _edges = self.edges
-#         entities = pd.DataFrame(
-#             [
-#                 {
-#                     "id": None,
-#                     "name": node.name,
-#                     "type": node.type,
-#                     "description": node.description,
-#                     "seg_ids": node.seg_ids,
-#                 }
-#                 for node in _nodes
-#             ]
-#         )
-#         relations = pd.DataFrame(
-#             [
-#                 {
-#                     "id": None,
-#                     "source": edge.source,
-#                     "target": edge.target,
-#                     "type": edge.type,
-#                     "description": edge.description,
-#                     "strength": edge.strength,
-#                     "seg_ids": edge.seg_ids,
-#                 }
-#                 for edge in _edges
-#             ]
-#         )
-#         to_drop_entities_mask = entities["name"].str.contains(
-#             BLACKLIST_REGEX,
-#             regex=True,
-#             na=False
-#         )
-#         entities = entities[~to_drop_entities_mask].reset_index(drop=True)
-#         ent_set = set(zip(entities["name"], entities["seg_ids"]))
-#         remain_relations_mask = (
-#             pd.Series(
-#                 zip(relations["source"], relations["seg_ids"])
-#             ).isin(ent_set) &
-#             pd.Series(
-#                 zip(relations["target"], relations["seg_ids"])
-#             ).isin(ent_set)
-#         )
-#         relations = relations[remain_relations_mask].reset_index(drop=True)
-#         # group and aggregate
-#         entities = (
-#             entities
-#             .groupby("name", as_index=False)
-#             .agg(
-#                 {
-#                     "id": lambda _: None,
-#                     "type": GRAPH_FIELD_SEP.join,
-#                     "description": GRAPH_FIELD_SEP.join,
-#                     "seg_ids": GRAPH_FIELD_SEP.join,
-#                 }
-#             )
-#         )
-#         relations = (
-#             relations
-#             .groupby(["source", "target"], as_index=False)
-#             .agg(
-#                 {
-#                     "id": lambda _: None,
-#                     "type": GRAPH_FIELD_SEP.join,
-#                     "description": GRAPH_FIELD_SEP.join,
-#                     "strength": "sum",
-#                     "seg_ids": GRAPH_FIELD_SEP.join,
-#                 }
-#             )
-#         )
-#         # merge with existing nodes/edges in db
-#         with (
-#             rss._pool().get_connection() as conn,
-#             conn.cursor() as cur
-#         ):
-#             cur.execute(
-#                 """
-#                 CREATE TEMPORARY TABLE temp_nodes (
-#                     name VARCHAR(100)
-#                 );
-#                 """
-#             )
-#             cur.executemany(
-#                 "INSERT INTO temp_nodes VALUES (?)",
-#                 [(x.name,) for x in self.nodes]
-#             )
-#             cur.execute(
-#                 """
-#                 SELECT id, name, type, description FROM entities
-#                 WHERE name IN (SELECT name FROM temp_nodes)
-#                 """
-#             )
-#             exists_nodes = {
-#                 node[1]: {
-#                     "id": node[0],
-#                     "name": node[1],
-#                     "type": node[2],
-#                     "description": node[3],
-#                 }
-#                 for node in cur.fetchall()
-#             }
-# 
-#             cur.execute(
-#                 """
-#                 CREATE TEMPORARY TABLE temp_edges (
-#                     source VARCHAR(100),
-#                     target VARCHAR(100)
-#                 );
-#                 """
-#             )
-#             cur.executemany(
-#                 "INSERT INTO temp_edges (source, target) VALUES (?, ?)",
-#                 [(x.source, x.target) for x in self.edges]
-#             )
-#             cur.execute(
-#                 """
-#                 SELECT
-#                     r.id,
-#                     s.name AS source,
-#                     t.name AS target,
-#                     r.type,
-#                     r.description,
-#                     r.strength
-#                 FROM relations AS r
-#                 JOIN entities AS s ON r.source_id = s.id
-#                 JOIN entities AS t ON r.target_id = t.id
-#                 JOIN temp_edges e ON e.source = s.name AND e.target = t.name
-#                 """
-#             )
-#             exists_edges = {
-#                 (edge[3], edge[4]): {
-#                     "id": edge[0],
-#                     "source": edge[3],
-#                     "target": edge[4],
-#                     "type": edge[5],
-#                     "description": edge[6],
-#                     "strength": edge[7],
-#                 }
-#                 for edge in cur.fetchall()
-#             }
-#             pass
-#         # merge, appending 'seg_ids' is not needed.
-#         for name, props in exists_nodes:
-#             idx = entities.index[entities["name"] == name][0]
-#             entities.at[idx, "id"] = props["id"]
-#             entities.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
-#             entities.at[idx, "description"] += (
-#                 GRAPH_FIELD_SEP + props["description"]
-#             )
-#         for names, props in exists_edges:
-#             idx = relations.index[
-#                 (relations["source"] == names[0]) &
-#                 (relations["target"] == names[1])][0]
-#             relations.at[idx, "id"] = props["id"]
-#             relations.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
-#             relations.at[idx, "description"] += (
-#                 GRAPH_FIELD_SEP + props["description"]
-#             )
-#             relations.at[idx, "strength"] += props["strength"]
-# 
-#         self.clear()
-#         self.nodes = [
-#             Entity(**row) for row in entities.to_dict(orient="records")
-#         ]
-#         self.edges = [
-#             Relation(**row) for row in relations.to_dict(orient="records")
-#         ]
-# 
-#         return self
-# 
-# 
+    async def resolve(
+        self,
+        blacklist: list[str] | None = None,
+        alias: dict[str, str] | None = None
+    ) -> Self:
+        """
+        Resolve parsed entities and relations in 5 steps:
+        1. Remove nonsensical entities by matching entity-name blacklist.
+        2. Remove relations without existing source or target entities.
+        3. Replace alias entities with their full names.
+        4. Group entities with same name and merge into one single entity.
+        5. Merge with existing entities and relations in the database.
+
+        This method is designed to invoke after a new graph is created by
+        extracting and parsing elements.
+
+        After resolving the nodes and edges will be cleaned and be ready for
+        normalization, embedding and storing.
+        """
+        import asyncio
+
+        (entities, relations), (exists_nodes, exists_edges) = await asyncio.gather(
+            asyncio.to_thread(
+                _process_local_graph,
+                self.nodes,
+                self.edges,
+                blacklist,
+                alias
+            ),
+            _fetch_db_graph(self.nodes, self.edges)
+        )
+        
+        # merge, appending 'seg_ids' is not needed.
+        for name, props in exists_nodes.items():
+            idx = entities.index[entities["name"] == name][0]
+            entities.at[idx, "id"] = props["id"]
+            entities.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
+            entities.at[idx, "description"] += (
+                GRAPH_FIELD_SEP + props["description"]
+            )
+        for names, props in exists_edges.items():
+            idx = relations.index[
+                (relations["source"] == names[0]) & (relations["target"] == names[1])
+            ][0]
+            relations.at[idx, "id"] = props["id"]
+            relations.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
+            relations.at[idx, "description"] += (GRAPH_FIELD_SEP + props["description"])
+            relations.at[idx, "strength"] += props["strength"]
+
+        self.clear()
+        self.nodes = [Entity(**row) for row in entities.to_dict(orient="records")]
+        self.edges = [Relation(**row) for row in relations.to_dict(orient="records")]
+
+        return self

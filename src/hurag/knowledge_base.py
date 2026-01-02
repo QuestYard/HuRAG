@@ -203,6 +203,19 @@ async def indexing_documents(
 
 # --- Knowledge Management ---
 
+from .dss import with_rdb
+
+@with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
+async def _load_metadata(doc_ids, conn, cur):
+    sql = f"""
+        SELECT id, title, sn, pub_path, valid_from, valid_to
+        FROM documents
+        WHERE id IN ({','.join(['%s'] * len(doc_ids))})
+    """
+    await cur.execute(sql, tuple(doc_ids))
+    rows = await cur.fetchall()
+    return {row["id"]: row for row in rows}
+
 async def load_knowledge(
     chunks: Iterable[str],
     docs: dict[str, dict] | None = None,
@@ -221,17 +234,6 @@ async def load_knowledge(
     """
     from .dss import rss
     from .schemas import Knowledge, KnowledgeMetadata
-
-    @rss.with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
-    async def _load_metadata(doc_ids, conn, cur):
-        sql = f"""
-            SELECT id, title, sn, pub_path, valid_from, valid_to
-            FROM documents
-            WHERE id IN ({','.join(['%s'] * len(doc_ids))})
-        """
-        await cur.execute(sql, tuple(doc_ids))
-        rows = await cur.fetchall()
-        return {row["id"]: row for row in rows}
 
     if not chunks:
         return {}
@@ -300,17 +302,6 @@ async def load_knowledge_by_segments(
     from .dss import rss
     from .schemas import Knowledge, KnowledgeMetadata
 
-    @rss.with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
-    async def _load_metadata(doc_ids, conn, cur):
-        sql = f"""
-            SELECT id, title, sn, pub_path, valid_from, valid_to
-            FROM documents
-            WHERE id IN ({','.join(['%s'] * len(doc_ids))})
-        """
-        await cur.execute(sql, tuple(doc_ids))
-        rows = await cur.fetchall()
-        return {row["id"]: row for row in rows}
-
     if not segments:
         return {}
 
@@ -338,7 +329,7 @@ async def load_knowledge_by_segments(
         kn = Knowledge(
             segment_id=sid,
             content=content,
-            metadata=KnowledgeMetadata.from_dict(docs[did])
+            metadata=KnowledgeMetadata.from_dict(docs[did]),
         )
         kn_cache.put(sid, kn)
         results[sid] = kn
@@ -389,17 +380,6 @@ async def load_knowledge_by_order(
     from .dss import rss
     from .schemas import Knowledge, KnowledgeMetadata
 
-    @rss.with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
-    async def _load_metadata(doc_ids, conn, cur):
-        sql = f"""
-            SELECT id, title, sn, pub_path, valid_from, valid_to
-            FROM documents
-            WHERE id IN ({','.join(['%s'] * len(doc_ids))})
-        """
-        await cur.execute(sql, tuple(doc_ids))
-        rows = await cur.fetchall()
-        return {row["id"]: row for row in rows}
-
     if not chunks_scores:
         return {}
 
@@ -414,7 +394,7 @@ async def load_knowledge_by_order(
                 JOIN documents d ON s.document_id = d.id
                 WHERE c.id IN ({','.join(['%s'] * len(chunks_scores))})
                 """,
-                tuple(chunks_scores.keys())
+                tuple(chunks_scores.keys()),
             )
         ],
         key = lambda x: x[3],
@@ -442,7 +422,7 @@ async def load_knowledge_by_order(
         kn = Knowledge(
             segment_id=sid,
             content=ctx,
-            metadata=KnowledgeMetadata.from_dict(docs[did])
+            metadata=KnowledgeMetadata.from_dict(docs[did]),
         )
         kn_cache.put(sid, kn)
         results[sid] = (kn, score)

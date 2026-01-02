@@ -25,6 +25,8 @@ class KGExtractionCriteria:
 
         return cls(**data)
 
+GRAPH_FIELD_SEP = "<SEP>"
+
 INIT_RSS_STATEMENTS = """
 DROP TABLE IF EXISTS community_entity;
 DROP TABLE IF EXISTS communities;
