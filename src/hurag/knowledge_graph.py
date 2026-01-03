@@ -31,8 +31,10 @@ class _Segment:
 @with_oa_client(
     base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
     api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
+    timeout=120.0,
 )
 async def extract_kg_elements(
+    document_ids: str | list[str] | None = None,
     num_extracting_workers: int = 10,
     num_gleaning_workers: int = 10,
     limit: int | None = None,
@@ -48,11 +50,16 @@ async def extract_kg_elements(
     Knowledge graph elements extracting will take a long time to complete.
 
     Args:
+        document_ids: A single document ID or a list of document IDs to
+            process. If None, process all documents with kg_built == False.
         num_extracting_workers: Number of concurrent workers for extracting.
             Default is 10.
         num_gleaning_workers: Number of concurrent workers for gleaning.
             Default is 10.
-    
+        limit: Limit the number of segments to process. If None, process all
+            segments.
+        oaclient: A placeholder for OpenAI client, will be injected by decorator.
+
     Returns:
         A list of dictionaries containing the document, segment, text and
         the raw responses from LLMs for parsing.
@@ -117,12 +124,14 @@ async def extract_kg_elements(
 
     from .dss import rss
 
-    docs = {
-        d[0]: d[1]
-        for d in await rss.query(
-            "SELECT id, title FROM documents WHERE kg_built = FALSE"
-        )
-    }
+    sql = "SELECT id, title FROM documents WHERE kg_built = FALSE"
+    params = ()
+    if document_ids:
+        if isinstance(document_ids, str):
+            document_ids = [document_ids]
+        sql += f" AND id IN ({','.join(['%s'] * len(document_ids))})"
+        params = tuple(document_ids)
+    docs = {d[0]: d[1] for d in await rss.query(sql, params)}
     if not docs:
         return []
 
@@ -173,8 +182,38 @@ async def extract_kg_elements(
     for seg in segs:
         await ex_queue.put(seg)
 
-    await ex_queue.join()
-    await gl_queue.join()
+    # Retry logic for failed extractions
+    max_retries = 3
+    for attempt in range(max_retries + 1):
+        await ex_queue.join()
+        await gl_queue.join()
+
+        failed_segs = []
+        for seg in segs:
+            # Check if history is incomplete (missing gleaning) or has empty content
+            # Expecting 4 messages: User(Ext), AI(Ext), User(Glean), AI(Glean)
+            if (
+                len(seg.history) < 4
+                or not seg.history[1].get("content")
+                or not seg.history[3].get("content")
+            ):
+                failed_segs.append(seg)
+
+        if not failed_segs:
+            break
+
+        if attempt < max_retries:
+            logger.warning(
+                f"Retrying {len(failed_segs)} segments "
+                f"(Attempt {attempt + 1}/{max_retries})"
+            )
+            for seg in failed_segs:
+                await ex_queue.put(seg)
+        else:
+            logger.error(
+                f"Failed to extract {len(failed_segs)} segments after "
+                f"{max_retries} retries."
+            )
 
     for worker in extractors:
         worker.cancel()
@@ -203,6 +242,7 @@ async def extract_kg_elements(
 @with_oa_client(
     base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
     api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
+    timeout=120.0,
 )
 async def normalize_kg_elements(
     g: Graph,

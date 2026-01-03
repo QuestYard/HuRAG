@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal
 if TYPE_CHECKING:
     from embedding_service.async_embedding_client import AsyncEmbeddingClient
     from embedding_service.schemas import EmbeddingPayloadMeta
-    from ..schemas import Document
+    from ..schemas import Document, Graph
 
 from . import with_es_client
 from .. import logger
@@ -141,34 +141,42 @@ async def embed_keywords(
         logger.error(f"Failed embedding keywords: {e}")
         raise
 
-# def _kg_elements_batch_generator(g, batch_size):
-#     batch = { "elements": [], "texts": [] }
-#     for e in g.nodes + g.edges:
-#         batch["elements"].append(e)
-#         if isinstance(e, Entity):
-#             batch["texts"].append("## " + e.name + ":\n\n- " + e.description)
-#         else:
-#             batch["texts"].append(
-#                 "## " + e.source + " - " + e.target + ":\n\n- " + e.description
-#             )
-#         if len(batch["elements"]) == batch_size:
-#             yield batch
-#             batch["elements"].clear()
-#             batch["texts"].clear()
-#     if batch:
-#         yield batch
-# 
-# async def embed_kg_elements(g: Graph, batch_size: int=1024):
-#     from .kernel import ef
-# 
-#     _batches = _kg_elements_batch_generator(g, batch_size)
-#     for batch in _batches:
-#         vecs = await ef(batch["texts"])
-#         for i, e in enumerate(batch["elements"]):
-#             e.dense_vec = vecs["dense"][i]
-#             e.sparse_vec = vecs["sparse"][[i]]
-# 
-#     return g
+# --- TODO: refactor below functions to use embed_documents() ---
+
+def _kg_elements_batch_generator(g, batch_size):
+    batch = { "elements": [], "texts": [] }
+    for e in g.nodes + g.edges:
+        batch["elements"].append(e)
+        if hasattr(e, "name"):  # node has 'name' attribute
+            batch["texts"].append("## " + e.name + ":\n\n- " + e.description)
+        else:
+            batch["texts"].append(
+                "## " + e.source + " - " + e.target + ":\n\n- " + e.description
+            )
+        if len(batch["elements"]) == batch_size:
+            yield batch
+            batch["elements"].clear()
+            batch["texts"].clear()
+    if batch:
+        yield batch
+
+@with_es_client
+async def embed_kg_elements(
+    g: Graph,
+    *,
+    batch_size: int=1024,
+    return_sparse: bool = True,
+    esclient: AsyncEmbeddingClient | None = None,
+) -> Graph:
+
+    _batches = _kg_elements_batch_generator(g, batch_size)
+    for batch in _batches:
+        vecs = await ef(batch["texts"])
+        for i, e in enumerate(batch["elements"]):
+            e.dense_vec = vecs["dense"][i]
+            e.sparse_vec = vecs["sparse"][[i]]
+
+    return g
 # 
 # async def embed_community_summaries(summaries: dict) -> list[dict]:
 #     from .kernel import ef
@@ -190,40 +198,7 @@ async def embed_keywords(
 #     return table
 # 
 
-# import os
-# import asyncio
-# import json_repair
-# 
-# from tqdm.asyncio import tqdm
-# from dataclasses import dataclass, field
-# from collections import Counter
-# from datetime import datetime
-# 
-# from .kernel import (
-#     logger,
-#     conf,
-#     log_err,
-#     async_chat,
-#     async_chat_bak,
-# )
-# from .dss import rss
-# from .prompts import (
-#     create_entity_extraction_prompt,
-#     create_entity_gleaning_prompt,
-#     create_summarize_descriptions_prompt,
-#     create_community_summarize_prompt,
-#     create_community_summary_aggregate_prompt,
-#     create_keywords_extraction_prompt,
-#     create_timing_prompt,
-# )
-# from .kg import (
-#     Entity,
-#     Relation,
-#     Graph,
-#     GRAPH_FIELD_SEP
-# )
-# from .utils import generate_id
-# 
+#
 # async def rerank_knowledges(query: str, knowledge_dict: dict):
 #     """
 #     knowledge_dict: {id: Knowledge, ...}

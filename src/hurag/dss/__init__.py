@@ -65,10 +65,48 @@ async def _create_collection(cli, name, fields, indice):
         index_params.add_index(**index)
     await cli.create_collection(name, schema=schema, index_params=index_params)
 
+@with_vdb(client_name="vdb_client")
+@with_rdb(
+    connection_name="rdb_connection",
+    cursor_name="rdb_cursor",
+)
+async def clean_graph(rdb_connection, rdb_cursor, vdb_client):
+    """Clean the knowledge graph data from both RDB and VDB.
+
+    Args:
+        rdb_connection: The RDB connection object.
+        rdb_cursor: The RDB cursor object.
+        vdb_client: The VDB client object.
+
+        All 3 arguments are injected by 'with_rdb' and 'with_vdb'.
+    """
+    try:
+        await rdb_cursor.execute("DELETE FROM community_entity;")
+        await rdb_cursor.execute("DELETE FROM communities;")
+        await rdb_cursor.execute("DELETE FROM entity_cite;")
+        await rdb_cursor.execute("DELETE FROM relation_cite;")
+        await rdb_cursor.execute("DELETE FROM relations;")
+        await rdb_cursor.execute("DELETE FROM entities;")
+        await rdb_cursor.execute("UPDATE documents SET kg_built = FALSE;")
+        await rdb_connection.commit()
+    except Exception as e:
+        await rdb_connection.rollback()
+        logger.error(f"Error while cleaning the rdb graph data: {e}")
+        raise e
+
+    try:
+        await vdb_client.delete(collection_name="nodes", filter='id != ""')
+        await vdb_client.delete(collection_name="edges", filter='id != ""')
+        await vdb_client.delete(collection_name="communities", filter='id != ""')
+        logger.info("The knowledge graph data is cleaned from both RDB and VDB.")
+    except Exception as e:
+        logger.error(f"Error while cleaning the vdb graph data: {e}")
+        raise e
 
 __all__ = [
     "with_rdb",
     "with_vdb",
     "init_ds",
+    "clean_graph",
 ]
 

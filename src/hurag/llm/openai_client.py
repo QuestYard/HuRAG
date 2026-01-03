@@ -145,7 +145,7 @@ def with_oa_client(
         return decorator(func)
     return decorator
 
-from openai import RateLimitError
+from openai import RateLimitError, APITimeoutError
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -156,7 +156,7 @@ from tenacity import (
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=2, min=4, max=60),
-    retry=retry_if_exception_type(RateLimitError),
+    retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
 )
 async def chat_with_retry(*args, **kwargs):
     # Disable internal retries of the client to avoid nested retries

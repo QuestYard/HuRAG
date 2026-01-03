@@ -88,27 +88,96 @@ async def build(
         False,
         "--force-rebuild",
         "-f",
-        help="是否全部重建，默认 False 只对尚未生成图谱的文档进行构建。"
+        help=(
+            "是否全部重建，默认 False 只对尚未生成图谱的文档进行构建。"
+            "重建将清除所有已经构建的知识图谱!"
+        ),
     ),
 ):
-    """
-    提取知识实体和实体间关系，构建知识图谱。
-    """
+    """提取知识实体和实体间关系，构建知识图谱。"""
     from pathlib import Path
+    from . import console
     from ..constants import KGExtractionCriteria
 
     path = Path.cwd() if criteria_path is None else Path(criteria_path)
     if path.is_dir():
         path = path / "kgraph.toml"
-    if not path.exists():
-        criteria = KGExtractionCriteria()
-        show_msg(
-            f"警告：无规则文件 {path.as_posix()} ，构建的图谱可能包含部分无效实体。",
-            style="warning",
-        )
-    else:
-        criteria = KGExtractionCriteria.load_criteria(path)
+    criteria = KGExtractionCriteria.load_criteria(path)
+    if not criteria.entity_aliases or not criteria.blocked_entities:
+        show_msg(f"规则文件无效，构建的图谱可能存在无效实体。", style="warning")
 
-    # TODO: build knowledge graph
+    # build knowledge graph
+    # 1.1 clean existed graph if force_rebuild = True
+    # 1.2 show documents list and choose documents, elsewise
+    if force_rebuild:
+        from ..dss import clean_graph
+        await clean_graph()
+
+    from ..knowledge_base import list_documents
+    docs = await list_documents()
+    doc_info = [
+        (f"{doc[0]}（{doc[1]}）" if doc[1] else doc[0], doc[7])
+        for doc in docs if doc[6] == 0
+    ]
+    from rich.table import Table
+    table = Table(
+        title="尚未构建知识图谱文档清单",
+        title_style="bold italic",
+        box=None
+    )
+    table.add_column(
+        "序号", header_style="underline", width=6, justify="right")
+    table.add_column(
+        "文档", header_style="underline", width=100, no_wrap=True)
+    for ind, inf in enumerate(doc_info):
+        table.add_row(f"{ind + 1}", inf[0])
+    console.print(table)
+    choices = console.input(
+        "请选择要构建图谱的文档序号，多个文档用英文逗号分隔，"
+        "连续多个文档用 n-m 表示，例如 1,3,7-12，不输入表示全选："
+    ).strip()
+    from ..utilities import str2int
+    if choices:
+        choices = choices.split(",")
+        indice = []
+        for choice in choices:
+            try:
+                indice.extend(str2int(choice)) 
+            except:
+                pass
+        indice = set(ind - 1 for ind in indice if 1 <= ind <= len(doc_info))
+        doc_info = [d for i, d in enumerate(doc_info) if i in indice]
+
+    if not doc_info:
+        console.print(f"无选中的文档，本次构建结束。")
+        return
+
+    console.print(f"1. 为下列 {len(doc_info)} 篇文档构建知识图谱：")
+    for d in doc_info:
+        console.print(d[0])
+
+    # 2. extract from LLM
+    from ..schemas import Graph
+    from ..knowledge_graph import extract_kg_elements, normalize_kg_elements
+    console.print("2. 提取实体与实体间关系")
+    resp = await extract_kg_elements([d[1] for d in doc_info])
+    # 3. Graph.from_responses
+    console.print("3. 去重并生成图谱")
+    g = Graph.from_responses(resp, alias=criteria.entity_aliases)
+    # 4. Graph.resolve
+    console.print("4. 实体关系解析归并")
+    _ = await g.resolve(blacklist=criteria.blocked_entities)
+    # 5. normalization
+    console.print("5. 实体关系描述规范化")
+    _ = await normalize_kg_elements(g)
+
+    show_msg(
+        f"已经提取形成以上文档的知识图元素，包含 {len(g.nodes)} 个知识实体、"
+        f"{(len(g.edges))} 对实体关系",
+        style="info",
+    )
+    # 6. embedding
+    console.print("6. 实体关系向量化")
+    # 7. saving to database
     ...
 

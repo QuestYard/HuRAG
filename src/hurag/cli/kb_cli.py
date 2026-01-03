@@ -129,7 +129,7 @@ async def list(
 
     for ind, inf in enumerate(doc_info):
         table.add_row(
-            f"{ind+1}",
+            f"{ind + 1}",
             inf[0],
             inf[1],
             inf[2],

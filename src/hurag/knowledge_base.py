@@ -49,7 +49,27 @@ async def stat() -> tuple:
 async def list_documents(
     keyword: str | None = None,
     order: Literal["title", "date", "org"] = "title",
-) -> tuple:
+) -> list[tuple]:
+    """
+    List documents in the knowledge base with optional keyword filtering and ordering.
+
+    Arguments:
+        keyword: Optional keyword to filter document titles.
+        order: Field to order the results by. Can be "title", "date", or "org".
+
+    Returns:
+        A list of tuples containing document information.
+
+        Elements in each tuple:
+            - title (str): Document title.
+            - sn (str | None): Document serial number.
+            - valid_from (datetime): Document valid from date.
+            - valid_to (datetime | None): Document valid to date.
+            - pub_path (str): Document publication path.
+            - segments (str): Number of segments in the document.
+            - entities (str): Number of distinct entities in the document.
+            - id (str): Document ID.
+    """
     from .dss import rss
 
     if keyword:
@@ -76,7 +96,8 @@ async def list_documents(
                 SELECT COUNT(distinct ec.entity_id) FROM entity_cite ec
                 JOIN segments s ON ec.segment_id = s.id 
                 WHERE s.document_id = d.id
-            )
+            ),
+            d.id
         FROM documents AS d
         {crieteria}
         {order_by}

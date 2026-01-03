@@ -55,7 +55,12 @@ class Entity:
             return self.id == other.id
         return self.name == other.name and self.seg_ids == other.seg_ids
 
-    def create(self, fields: list[str], segment_id: str | None = None) -> Self:
+    def create(
+        self,
+        fields: list[str],
+        segment_id: str | None = None,
+        alias: dict[str, str] | None = None,
+    ) -> Self:
         """
         Parse a single entity from an extracted string record.
 
@@ -67,6 +72,8 @@ class Entity:
         if not _name:
             return self
         _name = normalize_extracted_info(_name, is_entity=True)
+        if alias and _name in alias:
+            _name = alias[_name]
 
         _type = clean_str(fields[2]).strip('"')
         if not _type.strip() or _type.startswith('("'):
@@ -138,7 +145,12 @@ class Relation:
             and self.seg_ids == other.seg_ids
         )
 
-    def create(self, fields: list[str], segment_id: str | None = None) -> Self:
+    def create(
+        self,
+        fields: list[str],
+        segment_id: str | None = None,
+        alias: dict[str, str] | None = None,
+    ) -> Self:
         if len(fields) < 5 or '"relation"' not in fields[0]:
             return self
 
@@ -150,6 +162,11 @@ class Relation:
         _target = normalize_extracted_info(_target, is_entity=True)
         if _source == _target:
             return self
+        if alias:
+            if _source in alias:
+                _source = alias[_source]
+            if _target in alias:
+                _target = alias[_target]
         
         _description = clean_str(fields[3])
         _description = normalize_extracted_info(_description)
@@ -179,7 +196,6 @@ def _process_local_graph(
     nodes: list[Entity],
     edges: list[Relation],
     blacklist: list[str] | None,
-    alias: dict[str, str] | None
 ):
     import re
     import pandas as pd
@@ -229,11 +245,6 @@ def _process_local_graph(
         pd.Series(zip(relations["target"], relations["seg_ids"])).isin(ent_set)
     )
     relations = relations[remain_relations_mask].reset_index(drop=True)
-    # detecting alias and replace to fullname
-    if alias:
-        entities["name"] = entities["name"].replace(alias)
-        relations["source"] = relations["source"].replace(alias)
-        relations["target"] = relations["target"].replace(alias)
     # group and aggregate
     entities = (
         entities
@@ -352,7 +363,12 @@ class Graph:
             return edge
         return None
 
-    def parse_and_dedupe(self, response: str, segment_id: str) -> Self:
+    def parse_and_dedupe(
+        self,
+        response: str,
+        segment_id: str,
+        alias: dict[str, str] | None = None,
+    ) -> Self:
         """
         Parse and dedupe the extraction response of LLM to nodes and edges.
 
@@ -369,9 +385,9 @@ class Graph:
                 record = record.group(1)
                 fields = split_string_by_markers(record, RECORD_SEPS)
                 if '"entity"' in fields[0]:
-                    self.append_node(Entity().create(fields, segment_id))
+                    self.append_node(Entity().create(fields, segment_id, alias))
                 if '"relation"' in fields[0]:
-                    self.append_edge(Relation().create(fields, segment_id))
+                    self.append_edge(Relation().create(fields, segment_id, alias))
 
         return self
 
@@ -412,15 +428,13 @@ class Graph:
     async def resolve(
         self,
         blacklist: list[str] | None = None,
-        alias: dict[str, str] | None = None
     ) -> Self:
         """
         Resolve parsed entities and relations in 5 steps:
         1. Remove nonsensical entities by matching entity-name blacklist.
         2. Remove relations without existing source or target entities.
-        3. Replace alias entities with their full names.
-        4. Group entities with same name and merge into one single entity.
-        5. Merge with existing entities and relations in the database.
+        3. Group entities with same name and merge into one single entity.
+        4. Merge with existing entities and relations in the database.
 
         This method is designed to invoke after a new graph is created by
         extracting and parsing elements.
@@ -431,14 +445,8 @@ class Graph:
         import asyncio
 
         (entities, relations), (exists_nodes, exists_edges) = await asyncio.gather(
-            asyncio.to_thread(
-                _process_local_graph,
-                self.nodes,
-                self.edges,
-                blacklist,
-                alias
-            ),
-            _fetch_db_graph(self.nodes, self.edges)
+            asyncio.to_thread(_process_local_graph, self.nodes, self.edges, blacklist),
+            _fetch_db_graph(self.nodes, self.edges),
         )
         
         # merge, appending 'seg_ids' is not needed.
@@ -463,3 +471,17 @@ class Graph:
         self.edges = [Relation(**row) for row in relations.to_dict(orient="records")]
 
         return self
+
+    @classmethod
+    def from_responses(
+        cls,
+        responses: list[dict[str, str]],
+        alias: dict[str, str] | None = None,
+    ) -> Self:
+        """Create a Graph from the responses of LLM extraction."""
+        graph = cls()
+        for seg in responses:
+            graph.parse_and_dedupe(seg["extracting"], seg["segment_id"], alias)
+            graph.parse_and_dedupe(seg["gleaning"], seg["segment_id"], alias)
+
+        return graph

@@ -114,3 +114,15 @@ def normalize_extracted_info(name: str, is_entity=False) -> str:
         # name = re.sub(r"(?<=[\u4e00-\u9fa5])['\"]+", "", name)
 
     return name
+
+def str2int(inp: str) -> list[int]:
+    sp = inp.split("-")
+    if len(sp) == 1:
+        return [int(inp)]
+    elif len(sp) == 2:
+        st = int(sp[0])
+        ed = int(sp[1]) + 1
+        return list(range(st, ed))
+    else:
+        raise ValueError("invalid input")
+
