@@ -118,7 +118,7 @@ async def build(
     doc_info = [
         (f"{doc[0]}（{doc[1]}）" if doc[1] else doc[0], doc[7])
         for doc in docs if doc[6] == 0
-    ]
+    ] # doc_info := [(fullname, id), ...]
     from rich.table import Table
     table = Table(
         title="尚未构建知识图谱文档清单",
@@ -178,6 +178,41 @@ async def build(
     )
     # 6. embedding
     console.print("6. 实体关系向量化")
+    from ..llm.embedder import embed_kg_elements
+    from rich.progress import (
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        BarColumn,
+        TaskProgressColumn,
+        TimeRemainingColumn,
+        MofNCompleteColumn,
+    )
+    total_elements = len(g.nodes) + len(g.edges)
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeRemainingColumn(elapsed_when_finished=True),
+            MofNCompleteColumn()
+        ) as progress:
+            task = progress.add_task("图谱元素向量化", total=total_elements)
+            embeddings = []
+            async for vecs, _ in embed_kg_elements(g):
+                embeddings.append(vecs)
+                progress.update(task, advance=vecs["dense_vecs"].shape[0])
+    except Exception as e:
+        show_msg(f"图谱向量化失败: {e}", style="error", err=e)
     # 7. saving to database
-    ...
+    console.print("7. 保存知识图谱")
+    from ..dss import gss
+    try:
+        await gss.upsert_graph(g, embeddings, [d[1] for d in doc_info])
+        show_msg("知识图谱构建全部完成", style="success")
+    except Exception as e:
+        show_msg(f"保存知识图谱失败: {e}", style="error", err=e)
+
+
 

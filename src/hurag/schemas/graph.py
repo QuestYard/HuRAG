@@ -277,6 +277,9 @@ async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
     from ..dss import rss
     pool = await rss.get_pool()
     async with pool.acquire() as conn, conn.cursor() as cur:
+        await cur.execute("SET note_verbosity = ''")
+        await cur.execute("DROP TEMPORARY TABLE IF EXISTS temp_nodes")
+        await cur.execute("SET note_verbosity = 'basic,explain'")
         await cur.execute(
             """
             CREATE TEMPORARY TABLE temp_nodes (
@@ -301,8 +304,11 @@ async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
                 "type": node[2],
                 "description": node[3],
             }
-            for node in cur.fetchall()
+            for node in await cur.fetchall()
         }
+        await cur.execute("SET note_verbosity = ''")
+        await cur.execute("DROP TEMPORARY TABLE IF EXISTS temp_edges")
+        await cur.execute("SET note_verbosity = 'basic,explain'")
         await cur.execute(
             """
             CREATE TEMPORARY TABLE temp_edges (
@@ -339,7 +345,7 @@ async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
                 "description": edge[4],
                 "strength": edge[5],
             }
-            for edge in cur.fetchall()
+            for edge in await cur.fetchall()
         }
     return exists_nodes, exists_edges
 
@@ -451,20 +457,26 @@ class Graph:
         
         # merge, appending 'seg_ids' is not needed.
         for name, props in exists_nodes.items():
-            idx = entities.index[entities["name"] == name][0]
-            entities.at[idx, "id"] = props["id"]
-            entities.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
-            entities.at[idx, "description"] += (
-                GRAPH_FIELD_SEP + props["description"]
-            )
+            indices = entities.index[entities["name"] == name]
+            if len(indices) > 0:
+                idx = indices[0]
+                entities.at[idx, "id"] = props["id"]
+                entities.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
+                entities.at[idx, "description"] += (
+                    GRAPH_FIELD_SEP + props["description"]
+                )
         for names, props in exists_edges.items():
-            idx = relations.index[
+            indices = relations.index[
                 (relations["source"] == names[0]) & (relations["target"] == names[1])
-            ][0]
-            relations.at[idx, "id"] = props["id"]
-            relations.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
-            relations.at[idx, "description"] += (GRAPH_FIELD_SEP + props["description"])
-            relations.at[idx, "strength"] += props["strength"]
+            ]
+            if len(indices) > 0:
+                idx = indices[0]
+                relations.at[idx, "id"] = props["id"]
+                relations.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
+                relations.at[idx, "description"] += (
+                    GRAPH_FIELD_SEP + props["description"]
+                )
+                relations.at[idx, "strength"] += props["strength"]
 
         self.clear()
         self.nodes = [Entity(**row) for row in entities.to_dict(orient="records")]
@@ -485,3 +497,4 @@ class Graph:
             graph.parse_and_dedupe(seg["gleaning"], seg["segment_id"], alias)
 
         return graph
+

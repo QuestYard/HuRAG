@@ -1,2 +1,506 @@
-async def upsert_graph():
-    ...
+from __future__ import annotations
+from typing import Any, Literal, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..schemas import Graph
+
+async def upsert_graph(
+    g: Graph,
+    embeddings: list[dict[Literal["dense_vecs", "sparse_vecs"], Any]],
+    doc_ids: list[str],
+) -> None:
+    _SQL_UPSERT_GRAPH = [
+        """
+        INSERT entities (id, name, type, description) VALUES (%s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            type = VALUES(type),
+            description = VALUES(description)
+        """,
+        "INSERT IGNORE entity_cite (entity_id, segment_id) VALUES (%s, %s)",
+        """
+        INSERT relations (id, source_id, target_id, type, description, strength)
+        VALUES (%s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE
+            type = VALUES(type),
+            description = VALUES(description),
+            strength = VALUES(strength)
+        """,
+        "INSERT IGNORE relation_cite (relation_id, segment_id) VALUES (%s, %s)",
+        f"""
+        UPDATE documents SET kg_built = TRUE
+        WHERE id IN ({','.join(['%s'] * len(doc_ids))})
+        """,
+    ]
+    from .. import logger
+    from ..constants import GRAPH_FIELD_SEP
+    from . import rss, vss
+
+    # save into vdb
+    from itertools import batched, starmap
+
+    _embeddings = (
+        {"dense_vec": d, "sparse_vec": s}
+        for embedding in embeddings
+        for d, s in zip(embedding["dense_vecs"], embedding["sparse_vecs"])
+    )
+    try:
+        data = (
+            {"id": node.id, "dense_vec": None, "sparse_vec": None}
+            for node in g.nodes
+        )
+        for _raw_batch in batched(zip(data, _embeddings), 5000):
+            _batch = list(starmap(lambda x, y: x.update(y) or x, _raw_batch))
+            await vss.upsert("nodes", _batch)
+        data = (
+            {"id": edge.id, "dense_vec": None, "sparse_vec": None}
+            for edge in g.edges
+        )
+        for _raw_batch in batched(zip(data, _embeddings), 5000):
+            _batch = list(starmap(lambda x, y: x.update(y) or x, _raw_batch))
+            await vss.upsert("edges", _batch)
+    except Exception as e:
+        logger.error(f"Failed save graph element vectors into vdb: {e}")
+        raise
+
+    # save into rdb
+    node_name_id_maps = {node.name: node.id for node in g.nodes}
+    data = [
+        [(n.id, n.name, n.type, n.description) for n in g.nodes],
+        [(n.id, s) for n in g.nodes for s in set(n.seg_ids.split(GRAPH_FIELD_SEP))],
+        [
+            (
+                e.id,
+                node_name_id_maps[e.source],
+                node_name_id_maps[e.target],
+                e.type,
+                e.description,
+                e.strength,
+            )
+            for e in g.edges
+        ],
+        [(e.id, s) for e in g.edges for s in set(e.seg_ids.split(GRAPH_FIELD_SEP))],
+        tuple(doc_ids),
+    ]
+    try:
+        await rss.transact(_SQL_UPSERT_GRAPH, data)
+    except Exception as e:
+        logger.error(f"Failed save knowledge graph into rdb: {e}")
+        raise
+
+# from collections import defaultdict, Counter
+# from pymilvus import (
+#     MilvusClient,
+#     AnnSearchRequest,
+#     RRFRanker,
+#     DataType,
+# )
+# 
+# from ..kernel import logger, rf
+# from ..kg import Graph, Entity, Relation, GRAPH_FIELD_SEP
+# from ..dss import vss, rss
+# 
+# def upsert_graph(g: Graph):
+# 
+# # --- Communities ---
+# 
+# SQL_CREATE_COMMUNITY_SCHEMA = [
+#     "DROP TABLE IF EXISTS community_entity",
+#     "DROP TABLE IF EXISTS communities",
+#     """
+# CREATE TABLE communities (
+#     id INT PRIMARY KEY,
+#     summary VARCHAR(1000) NOT NULL
+# );
+#     """,
+#     """
+# CREATE TABLE community_entity (
+#     community_id INT NOT NULL,
+#     entity_id UUID NOT NULL,
+#     PRIMARY KEY (community_id, entity_id),
+#     FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE,
+#     FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
+# );
+#     """,
+# ]
+# 
+# SQL_INSERT_COMMUNITIES = [
+#     "INSERT INTO communities (id, summary) VALUES (?, ?)",
+#     "INSERT INTO community_entity (community_id, entity_id) VALUES (?, ?)"
+# ]
+# 
+# def init_communities_schema():
+#     """
+#     Drop current communities schema and recreate a new one, including rss
+#     tables `communities`, `community_entity` and vss schema `communities`.
+#     """
+#     rss.transact(SQL_CREATE_COMMUNITY_SCHEMA, [()] * 4)
+#     with vss.connect() as cli:
+#         if cli.has_collection("communities"):
+#             cli.drop_collection("communities")
+#         schema = MilvusClient.create_schema(
+#             enable_dynamic_field = False,
+#             description = "dense and sparse vectors of communities"
+#         )
+#         schema.add_field(
+#             field_name="id",
+#             datatype=DataType.INT64,
+#             is_primary=True,
+#             auto_id=False,
+#         )
+#         schema.add_field(
+#             field_name="dense_vec",
+#             datatype=DataType.FLOAT_VECTOR,
+#             dim=1024,
+#         )
+#         schema.add_field(
+#             field_name="sparse_vec",
+#             datatype=DataType.SPARSE_FLOAT_VECTOR,
+#         )
+#         index_params = cli.prepare_index_params()
+#         index_params.add_index(
+#             field_name="dense_vec",
+#             index_name="dense_idx",
+#             index_type="AUTOINDEX",
+#             metric_type="COSINE"
+#         )
+#         index_params.add_index(
+#             field_name="sparse_vec",
+#             index_name="sparse_idx",
+#             index_type="AUTOINDEX",
+#             metric_type="IP"
+#         )
+#         cli.create_collection(
+#             collection_name="communities",
+#             schema=schema,
+#             index_params=index_params
+#         )
+#     return 
+# 
+# def community_leiden(resolution=0.5):
+#     """
+#     Create undirect graph from entities and relations in database and evaluate
+#     the partitions by using Leiden algorithm.
+# 
+#     The default value of parameter 'resolution' is set to 0.5, it's under
+#     tested and it's not suggested to be larger than 1.
+# 
+#     Return an igraph.Graph object, its partitions and a dict maps entity ids
+#     to their entity names and descriptions.
+#     """
+#     import igraph as ig
+# 
+#     nodes = {
+#         n[0]: (n[1], n[2])
+#         for n in rss.query("SELECT id, name, description FROM entities")
+#     }
+#     edges = rss.query("SELECT source_id, target_id, strength FROM relations")
+#     agg = defaultdict(float)
+#     for src, tgt, w in edges:
+#         if src == tgt:
+#             continue  # ignore self-loops
+#         # always order the pair alphabetically to ensure (A,B) == (B,A)
+#         key = tuple(sorted((src, tgt)))
+#         agg[key] += w
+# 
+#     # build edge list and weights
+#     edges_with_weights = [(u, v, w) for (u, v), w in agg.items()]
+# 
+#     # create the graph, letting igraph assign vertex indices automatically
+#     g = ig.Graph.TupleList(
+#         edges_with_weights,
+#         directed=False,
+#         edge_attrs=["weight"]
+#     )
+# 
+#     # create partitions by using Leiden algorithm
+#     partitions = g.community_leiden(
+#         objective_function="modularity",
+#         resolution=resolution,
+#         weights=g.es["weight"]
+#     )
+# 
+#     return g, partitions, nodes
+# 
+# def save_communities(graph, partitions, communities):
+#     """
+#     Existing communities will be cleaned out before saving new communities.
+# 
+#     graph: the igraph.Graph object
+#     partitions: the partitions resulted from Leiden algorithm
+#     communities: the embedding table of communities
+#     """
+#     _communities = [(s["c_no"], s["summary"]) for s in communities]
+#     _community_entity = [
+#         (s["c_no"], graph.vs["name"][vid])
+#         for s in communities
+#         for vid in partitions[s["c_no"]]
+#     ]
+#     _embeddings = [
+#         {
+#             "id": s["c_no"],
+#             "dense_vec": s["dense_vec"],
+#             "sparse_vec": s["sparse_vec"],
+#         }
+#         for s in communities
+#     ]
+#     init_communities_schema()
+#     rss.transact(SQL_INSERT_COMMUNITIES, [_communities, _community_entity])
+#     with vss.connect() as cli:
+#         cli.insert(
+#             collection_name="communities",
+#             data=_embeddings,
+#         )
+# 
+#     return len(_communities), len(_community_entity)
+# 
+# def _n_hop_search(
+#     ori_nodes: dict[str, float],
+#     top_n: int=1000,
+#     hops: int=1
+# )-> set:
+#     if not ori_nodes:
+#         return set()
+#     nodes = set(ori_nodes)
+#     starts = nodes.copy()
+#     for hop in range(hops):
+#         connected = set(
+#             x[0] for x in rss.query(
+#                 f"""
+#                 WITH nodes(id) AS (VALUES {','.join(['(?)'] * len(starts))})
+#                 SELECT r.source_id FROM relations r
+#                 JOIN nodes n ON r.target_id = n.id
+#                 UNION
+#                 SELECT r.target_id FROM relations r
+#                 JOIN nodes n ON r.source_id = n.id
+#                 """,
+#                 tuple(starts)
+#             )
+#         )
+#         starts = connected.copy() - nodes
+#         nodes |= connected
+#         if len(nodes) >= top_n:
+#             break
+#     return nodes
+# 
+# async def _find_communities(
+#     query: str,
+#     vecs: dict,
+#     max_communities: int=5,
+# )-> tuple:
+#     if max_communities == 0:
+#         return None, None
+# 
+#     community_scores = vss.search(
+#         collection_name="communities",
+#         vecs={
+#             "dense": [vecs["dense"][0]],
+#             "sparse": vecs["sparse"][[0]],
+#         },
+#         top_k=12,
+#     )
+#     community_summaries = rss.query(
+#         f"""
+#         SELECT id, summary
+#         FROM communities
+#         WHERE id IN ({','.join(['?'] * len(community_scores))})
+#         """,
+#         tuple(community_scores)
+#     )
+#     rerank_scores = await rf(query, [x[1] for x in community_summaries])
+#     reranked_communities = sorted(
+#         list(zip(community_summaries, rerank_scores)),
+#         key=lambda x: x[1],
+#         reverse=True
+#     )
+#     hits = 1
+#     while (
+#         hits < max_communities and
+#         reranked_communities[hits][1] / reranked_communities[hits-1][1] > 0.5
+#     ):
+#         hits += 1
+#     hit_communities = tuple(x[0][0] for x in reranked_communities[:hits])
+#     scope = [
+#         x[0] for x in rss.query(
+#             f"""
+#             SELECT entity_id
+#             FROM community_entity
+#             WHERE community_id IN ({','.join(['?'] * hits)})
+#             """,
+#             hit_communities
+#         )
+#     ]
+#     return scope, hit_communities
+# 
+# async def associations(
+#     query: str,
+#     keywords: dict,
+#     vecs: dict,
+#     docs: dict,
+#     top_k: int=50,
+#     hops: int=1,
+#     max_communities: int=5,
+#     max_nodes: int=1000,
+# ):
+#     """
+#     Returns:
+#         [(segment_id, document_id), ...] in order of distance
+#     """
+#     # choose communities if not 0 and create node scope
+#     scope, _ = await _find_communities(query, vecs, max_communities)
+# 
+#     # cites whose distance is zero: top 3 edges and nodes
+#     n_lk = len(keywords["low_level_keywords"])
+#     n_hk = len(keywords["high_level_keywords"])
+# 
+#     zero_dist_edges = {}
+#     for i in range(n_hk + 1):
+#         vectors = {
+#             "dense": [vecs["dense"][i]],
+#             "sparse": vecs["sparse"][[i]]
+#         }
+#         zero_dist_edges.update(
+#             vss.search("edges", vecs=vectors, top_k=3)
+#         )
+#     zero_dist_edge_cites = set(
+#         rss.query(
+#             f"""
+#             SELECT rc.segment_id, s.document_id
+#             FROM relation_cite rc
+#             JOIN segments s ON s.id = rc.segment_id
+#             WHERE rc.relation_id IN ({','.join(['?'] * len(zero_dist_edges))})
+#             """,
+#             tuple(zero_dist_edges)
+#         )
+#     )
+# 
+#     zero_dist_nodes = {}
+#     for i in range(1, n_hk + n_lk + 1):
+#         vectors = {
+#             "dense": [vecs["dense"][i]],
+#             "sparse": vecs["sparse"][[i]]
+#         }
+#         zero_dist_nodes.update(
+#             vss.search("nodes", vecs=vectors, scope=scope, top_k=3)
+#         )
+#     zero_dist_node_cites = set(
+#         rss.query(
+#             f"""
+#             SELECT ec.segment_id, s.document_id
+#             FROM entity_cite ec
+#             JOIN segments s ON s.id = ec.segment_id
+#             WHERE ec.entity_id IN ({','.join(['?'] * len(zero_dist_nodes))})
+#             """,
+#             tuple(zero_dist_nodes)
+#         )
+#     ) - zero_dist_edge_cites
+# 
+#     associated_nodes = _n_hop_search(
+#         zero_dist_nodes,
+#         top_n=max_nodes,
+#         hops=hops
+#     )
+#     associated_nodes_cites = set(
+#         rss.query(
+#             f"""
+#             SELECT ec.segment_id, s.document_id
+#             FROM entity_cite ec
+#             JOIN segments s ON s.id = ec.segment_id
+#             WHERE ec.entity_id IN ({','.join(['?'] * len(associated_nodes))})
+#             """,
+#             tuple(associated_nodes)
+#         )
+#     ) - (zero_dist_edge_cites | zero_dist_node_cites)
+#     # merge in order of distance
+#     segments = [x for x in zero_dist_edge_cites if x[1] in docs]
+#     segments += [x for x in zero_dist_node_cites if x[1] in docs]
+#     segments += [x for x in associated_nodes_cites if x[1] in docs]
+# 
+#     return segments[:top_k]
+# 
+# def search(
+#     keywords: dict,
+#     vecs: dict,
+#     docs: dict,
+#     top_k: int=20,
+#     max_nodes: int=1000,
+#     hops: int=1,
+#     rrf_k: float=60,
+# )-> dict:
+#     """
+#     Arguments:
+#         keywords: {"low_level_keywords": [], "high_level_keywords": []}
+#         vecs: {"dense": semantic vectors, "sparse": lexical weights}, among
+#             which the first vector-pair refers to the query, then the high-
+#             level keywords and the low-level keywords.
+#     Return:
+#         {id1: score1, id2: score2, ..., id_top_k: score_top_k}
+#     """
+#     n_lk = len(keywords["low_level_keywords"])
+#     n_hk = len(keywords["high_level_keywords"])
+# 
+#     # one-hop search for nodes, for all keywords, ll and hl
+#     zero_hop_nodes = {}
+#     # zero_hop_nodes := {node_id: score, ...}
+#     for i in range(1, n_hk + n_lk + 1):
+#         vectors = {
+#             "dense": [vecs["dense"][i]],
+#             "sparse": vecs["sparse"][[i]]
+#         }
+#         zero_hop_nodes.update(vss.search("nodes", vecs=vectors, top_k=3))
+#     nodes = _n_hop_search(zero_hop_nodes, top_n=max_nodes, hops=hops)
+# 
+#     # search edges, for the query itself and hl keywords
+#     hit_edges = {}
+#     for i in range(n_hk + 1):
+#         vectors = {
+#             "dense": [vecs["dense"][i]],
+#             "sparse": vecs["sparse"][[i]]
+#         }
+#         hit_edges.update(vss.search("edges", vecs=vectors, top_k=3))
+#     edges = set(hit_edges)
+# 
+#     # found cited segments and merge
+#     node_cites = [] if not nodes else rss.query(
+#         f"""
+#         SELECT sc.segment_id, s.document_id
+#         FROM entity_cite sc
+#         JOIN segments s ON s.id = sc.segment_id
+#         WHERE sc.entity_id IN ({','.join(['?'] * len(nodes))})
+#         """,
+#         tuple(nodes)
+#     )
+#     edge_cites = [] if not edges else rss.query(
+#         f"""
+#         SELECT rc.segment_id, s.document_id
+#         FROM relation_cite rc
+#         JOIN segments s ON s.id = rc.segment_id
+#         WHERE rc.relation_id IN ({','.join(['?'] * len(edges))})
+#         """,
+#         tuple(edges)
+#     )
+#     segments = set(x for x in edge_cites + node_cites if x[1] in docs)
+#     # semantic search in chunks of these segments
+#     chunks = [
+#         x[0] for x in rss.query(
+#             f"""
+#             WITH segs(id) AS (VALUES {','.join(['(?)'] * len(segments))})
+#             SELECT c.id FROM chunks c
+#             JOIN segs s ON c.segment_id = s.id
+#             """,
+#             tuple(s[0] for s in segments)
+#         )
+#     ]
+#     graph_search_results = vss.search(
+#         collection_name="chunks",
+#         scope=chunks,
+#         vecs={
+#             "dense": [vecs["dense"][0]],
+#             "sparse": vecs["sparse"][[0]],
+#         },
+#         top_k=top_k,
+#         rrf_k=rrf_k,
+#     )
+# 
+#     return graph_search_results
+# 
+# 
+# 
