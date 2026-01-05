@@ -151,6 +151,9 @@ class Relation:
         segment_id: str | None = None,
         alias: dict[str, str] | None = None,
     ) -> Self:
+        """
+        Parse a single relation from an extracted string record.
+        """
         if len(fields) < 5 or '"relation"' not in fields[0]:
             return self
 
@@ -380,6 +383,14 @@ class Graph:
 
         Nodes with same name and segment, edges with same source, target and
         segment will be dropped.
+
+        Args:
+            response: The raw string response from LLM extraction.
+            segment_id: The segment id where the response is extracted from.
+            alias: An optional mapping from extracted names to normalized names.
+
+        Returns:
+            The Graph itself after parsing and deduplication.
         """
         import re
         from ..llm import PROMPTS
@@ -398,6 +409,12 @@ class Graph:
         return self
 
     def clear(self)-> Self:
+        """
+        Clear all nodes, edges, and fingerprints from the graph.
+
+        Returns:
+            The Graph itself after clearing.
+        """
         self._fps.clear()
         self.nodes.clear()
         self.edges.clear()
@@ -409,7 +426,8 @@ class Graph:
         1. Remove edges without source or target nodes.
         2. Remove nodes without edges connected to.
 
-        Return the removed nodes and edges in a new Graph:
+        Returns:
+            The removed nodes and edges in a new Graph.
         """
         removed = Graph()
         node_names = set((n.name for n in self.nodes))
@@ -447,6 +465,13 @@ class Graph:
 
         After resolving the nodes and edges will be cleaned and be ready for
         normalization, embedding and storing.
+
+        Args:
+            blacklist: An optional list of regex patterns for blacklisting
+                entity names.
+
+        Returns:
+            The resolved Graph itself.
         """
         import asyncio
 

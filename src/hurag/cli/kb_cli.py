@@ -44,7 +44,11 @@ async def info():
     查看后台知识库信息。
     """
     from ..knowledge_base import stat
-    stat = await stat()
+    try:
+        stat = await stat()
+    except Exception:
+        show_msg("数据库尚未初始化，请先用 hurag init 初始化数据库", style="error")
+        return
 
     from rich.table import Table
     from . import console
@@ -91,10 +95,15 @@ async def list(
     列出后台知识库中的文档列表及文档相关信息。
     """
     from ..knowledge_base import list_documents
-    docs = await list_documents(
-        keyword=keyword,
-        order=order,
-    )
+    try:
+        docs = await list_documents(
+            keyword=keyword,
+            order=order,
+        )
+    except Exception:
+        show_msg("数据库尚未初始化，请先用 hurag init 初始化数据库", style="error")
+        return
+
     from rich.table import Table
     from . import console
     doc_info = [

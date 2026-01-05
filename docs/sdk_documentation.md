@@ -302,3 +302,24 @@ SDK 详情请参考: [文集管理 SDK 文档](sdk_docs/corpus_management_sdk.md
 Knowledge Base Management (知识库管理) 是 HuRAG SDK 的核心功能模块，提供了对知识库的创建、更新、查询和删除等操作。知识库管理模块封装在 `hurag.knowledge_base` 模块中，方便开发者进行知识库相关的操作。
 
 SDK 详情请参考: [知识库管理 SDK 文档](sdk_docs/knowledge_base_sdk.md)
+
+## 知识图谱管理
+
+Knowledge Graph Management (知识图谱管理) 是 HuRAG SDK 的核心功能模块，提供了对知识图谱的创建、更新、查询和删除等操作。知识图谱管理模块封装在 `hurag.knowledge_graph` 模块中，方便开发者进行知识图谱相关的操作。
+
+HuRAG 知识图谱管理模块支持从文本中抽取实体和关系，构建知识图谱，聚类生成知识社区，并提供了知识图谱的存储和检索功能。
+
+### 图谱提取规则
+
+HuRAG 支持通过配置文件 `kgraph.toml` 自定义知识图谱的提取规则，以提高图谱质量。规则由 `hurag.constants.KGExtractionCriteria` 类定义和加载。
+
+主要包含以下三类规则：
+
+1.  **blocked_entities (屏蔽实体)**: 定义一组正则表达式列表。在实体抽取过程中，匹配这些正则表达式的实体将被过滤掉，不会进入知识图谱。这通常用于屏蔽无意义的通用词汇（如“本文”、“相关部门”等）或特定格式的噪声数据。
+2.  **blocked_segments (屏蔽片段)**: 定义一组字符串列表。包含这些字符串的文本片段（Segment）将不会参与知识图谱的构建。这常用于屏蔽法律法规中的“附则”等包含大量元数据但对知识关联贡献较小的部分。
+3.  **entity_aliases (实体别名)**: 定义一个键值对映射（字典）。用于将实体的不同称呼（别名、简称）统一映射到标准名称。例如，将“招投标法”映射为“中华人民共和国招标投标法”。这有助于消除歧义，合并相同实体。
+
+默认情况下，系统会在当前工作目录下查找 `kgraph.toml` 文件加载这些规则。
+
+SDK 详情请参考: [知识图谱管理 SDK 文档](sdk_docs/knowledge_graph_sdk.md)
+

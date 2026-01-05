@@ -70,7 +70,7 @@ async def _create_collection(cli, name, fields, indice):
     connection_name="rdb_connection",
     cursor_name="rdb_cursor",
 )
-async def clean_graph(rdb_connection, rdb_cursor, vdb_client):
+async def clear_graph(rdb_connection, rdb_cursor, vdb_client):
     """Clean the knowledge graph data from both RDB and VDB.
 
     Args:

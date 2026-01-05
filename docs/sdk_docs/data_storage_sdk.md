@@ -122,6 +122,8 @@ async def info():
 
 *警告：该函数会删除所有现有数据，包括所有文档和知识图谱，仅在首次部署或重置数据存储时使用。*
 
+`hurag.dss` 模块的 `clear_graph` 函数可以清除知识图谱相关的数据，包括 MariaDB 中的实体和关系数据，以及 Milvus 中的向量数据。
+
 ## 向量存储服务模块
 
 `hurag.dss.vss` 模块封装了对 Milvus 向量数据库的操作，提供了对向量数据的存储、检索和管理功能。开发者可以通过该模块中的接口函数方便地进行向量数据的操作。
@@ -350,4 +352,33 @@ total_affected = await transact(stmts, data)
 
 `hurag.dss.gss` 模块封装了对图数据的存储和管理功能，基于 Milvus 和 MariaDB/MySQL 实现。开发者可以通过该模块中的接口函数方便地进行图数据的操作。
 
-TODO: Add more details about GSS usage.
+### upsert_graph
+
+`upsert_graph` 函数用于将知识图谱（节点和边）及其向量表示存储到关系型数据库（RDB）和向量数据库（VDB）中。
+
+**参数说明：**
+
+- `g` (Graph): 知识图谱对象，包含节点和边。
+- `embeddings` (list[dict]): 图谱中节点和边的向量表示列表。列表中的每个元素应包含 `dense_vecs` 和 `sparse_vecs`。
+- `doc_ids` (list[str]): 贡献该图谱的文档 ID 列表。
+
+**功能描述：**
+
+1.  **向量存储**：将节点和边的向量表示存入向量数据库（VDB）。
+2.  **关系存储**：将节点（实体）、边（关系）及其引用信息存入关系型数据库（RDB）。
+3.  **状态更新**：更新文档表，标记这些文档的知识图谱已构建。
+4.  **字段截断**：在存入 RDB 时，会自动对以下字段进行截断以符合数据库限制：
+    - 节点名称 (`name`): 最大 100 字符
+    - 节点描述 (`description`): 最大 500 字符
+    - 边描述 (`description`): 最大 500 字符
+
+**使用示例：**
+
+```python
+from hurag.dss.gss import upsert_graph
+
+# 假设已有 graph 对象 g, embeddings 列表, 和 doc_ids
+await upsert_graph(g, embeddings, doc_ids)
+```
+
+TODO: 补充更多图数据存储服务的接口说明和使用示例。

@@ -164,3 +164,45 @@ class Document:
                 self.segments.append(seg)
                 si += 1
 
+    @classmethod
+    async def from_db(
+        ids: str | list[str] | None = None,
+        titles: str | list[str] | None = None,
+        return_embeddings: bool = False,
+    ) -> tuple[list[Self], list[dict] | None]:
+        """
+        Load documents from database by ids and titles.
+
+        All provided ids and titles will be used to load document from database,
+        if both None, will return empty list.
+
+        Args:
+            ids: IDs of the documents to load.
+            titles: titles of the documents to load.
+            return_embeddings: whether to return the embeddings.
+
+        Return:
+            A tuple contains the loaded documents and their embeddings.
+                - List of loaded documents, empty if no document is loaded,
+                - List of embeddings, empty if return_embeddings is False or no
+                    document is loaded.
+        """
+        docs = []
+        embs = []
+
+        ids = set(ids) if ids else None
+        titles = set(titles) if titles else None
+
+        if not ids and not titles:
+            return (docs, embs)
+
+        from ..dss import rss
+        from aiomysql import DictCursor
+        pool = await rss.get_pool()
+        async with pool.acquire() as conn, conn.cursor(DictCursor) as cur:
+            cond_id = f"id IN ({','.join(['%s'] * len(ids))})" if ids else ""
+            cond_tt = f"title IN ({','.join(['%s'] * len(titles))})" if titles else ""
+            sql = f"SELECT * FROM documents WHERE "
+            # TODO: continue here
+            ...
+

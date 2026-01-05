@@ -110,8 +110,8 @@ async def build(
     # 1.1 clean existed graph if force_rebuild = True
     # 1.2 show documents list and choose documents, elsewise
     if force_rebuild:
-        from ..dss import clean_graph
-        await clean_graph()
+        from ..dss import clear_graph
+        await clear_graph()
 
     from ..knowledge_base import list_documents
     docs = await list_documents()

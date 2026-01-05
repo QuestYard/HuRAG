@@ -9,6 +9,17 @@ async def upsert_graph(
     embeddings: list[dict[Literal["dense_vecs", "sparse_vecs"], Any]],
     doc_ids: list[str],
 ) -> None:
+    """
+    Upsert the knowledge graph into rdb and vdb.
+
+    Arguments:
+        g: the knowledge graph object
+        embeddings: the list of embeddings for all nodes and edges in the graph
+        doc_ids: the list of document ids whose segments contributed to the graph
+
+    Return:
+        None
+    """
     _SQL_UPSERT_GRAPH = [
         """
         INSERT entities (id, name, type, description) VALUES (%s, %s, %s, %s)
@@ -64,7 +75,15 @@ async def upsert_graph(
     # save into rdb
     node_name_id_maps = {node.name: node.id for node in g.nodes}
     data = [
-        [(n.id, n.name, n.type, n.description) for n in g.nodes],
+        [
+            (
+                n.id,
+                n.name[:100] if n.name else n.name,
+                n.type,
+                n.description[:500] if n.description else n.description,
+            )
+            for n in g.nodes
+        ],
         [(n.id, s) for n in g.nodes for s in set(n.seg_ids.split(GRAPH_FIELD_SEP))],
         [
             (
@@ -72,7 +91,7 @@ async def upsert_graph(
                 node_name_id_maps[e.source],
                 node_name_id_maps[e.target],
                 e.type,
-                e.description,
+                e.description[:500] if e.description else e.description,
                 e.strength,
             )
             for e in g.edges
@@ -82,6 +101,10 @@ async def upsert_graph(
     ]
     try:
         await rss.transact(_SQL_UPSERT_GRAPH, data)
+        logger.info(
+            f"Knowledge graph created for {len(doc_ids)} documents, "
+            f"including {len(g.nodes)} entities and {len(g.edges)} relations."
+        )
     except Exception as e:
         logger.error(f"Failed save knowledge graph into rdb: {e}")
         raise

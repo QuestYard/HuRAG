@@ -41,7 +41,7 @@ async def stat() -> tuple:
         UNION ALL
         SELECT COUNT(*), '知识图谱实体关系数:' AS catalog FROM relations
         UNION ALL
-        SELECT COUNT(*), '知识社区数:' AS catalog FROM segments
+        SELECT COUNT(*), '知识社区数:' AS catalog FROM communities
         """
     )
     return stat
