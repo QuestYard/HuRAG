@@ -523,3 +523,100 @@ class Graph:
 
         return graph
 
+    @classmethod
+    async def from_db(
+        cls,
+        ids: str | list[str] | None = None,
+        titles: str | list[str] | None = None,
+    ) -> Self:
+        """
+        Load the entire graph from database by document IDs and titles.
+
+        Both IDs and titles are used to load graph from database together.
+        If only one of them is given, load graph by that only.
+
+        Args:
+            ids: IDs of the documents used for constructing the graph.
+            titles: titles of the documents used for constructing the graph.
+
+        Return:
+            A Graph containing elments constructed from the documents.
+        """
+        ids = ids or []
+        if isinstance(ids, str):
+            ids = [ids]
+        titles = titles or []
+        if isinstance(titles, str):
+            titles = [titles]
+
+        if not ids and not titles:
+            return cls()
+
+        from ..dss import rss
+        pool = await rss.get_pool()
+        async with pool.acquire() as conn, conn.cursor() as cur:
+            # locate document IDs
+            select = "SELECT id FROM documents WHERE "
+            cond_id = f"id IN ({','.join(['%s'] * len(ids))})" if ids else ""
+            cond_tt = f"title IN ({','.join(['%s'] * len(titles))})" if titles else ""
+            sql = f"{select}{' OR '.join(filter(None, [cond_id, cond_tt]))}"
+            await cur.execute(sql, ids + titles)
+            rows = await cur.fetchall()
+            doc_ids = tuple(row[0] for row in rows)
+            # load entities
+            await cur.execute(
+                f"""
+                SELECT e.id, e.name, e.type, e.description, ec.segment_id
+                FROM entities e
+                JOIN entity_cite ec ON e.id = ec.entity_id
+                JOIN segments s ON ec.segment_id = s.id
+                WHERE s.document_id IN ({','.join(['%s'] * len(doc_ids))})
+                """,
+                doc_ids,
+            )
+            nodes = {}
+            node_rows = await cur.fetchall()
+            for row in node_rows:
+                if row[0] not in nodes:
+                    nodes[row[0]] = Entity(
+                        id=row[0],
+                        name=row[1],
+                        type=row[2],
+                        description=row[3],
+                        seg_ids=row[4],
+                    )
+                else:
+                    nodes[row[0]].seg_ids += (GRAPH_FIELD_SEP + row[4])
+            # load relations
+            await cur.execute(
+                f"""
+                SELECT r.id, se.name AS source, te.name AS target,
+                       r.type, r.description, r.strength, rc.segment_id
+                FROM relations r
+                JOIN relation_cite rc ON r.id = rc.relation_id
+                JOIN entities se ON r.source_id = se.id
+                JOIN entities te ON r.target_id = te.id
+                JOIN segments s ON rc.segment_id = s.id
+                WHERE s.document_id IN ({','.join(['%s'] * len(doc_ids))})
+                """,
+                doc_ids,
+            )
+            edges = {}
+            edge_rows = await cur.fetchall()
+            for row in edge_rows:
+                if row[0] not in edges:
+                    edges[row[0]] = Relation(
+                        id=row[0],
+                        source=row[1],
+                        target=row[2],
+                        type=row[3],
+                        description=row[4],
+                        strength=row[5],
+                        seg_ids=row[6],
+                    )
+                else:
+                    edges[row[0]].seg_ids += (GRAPH_FIELD_SEP + row[6])
+        return cls(
+            nodes=list(nodes.values()),
+            edges=list(edges.values()),
+        )

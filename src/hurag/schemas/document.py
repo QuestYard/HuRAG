@@ -166,43 +166,74 @@ class Document:
 
     @classmethod
     async def from_db(
+        cls,
         ids: str | list[str] | None = None,
         titles: str | list[str] | None = None,
-        return_embeddings: bool = False,
-    ) -> tuple[list[Self], list[dict] | None]:
+    ) -> list[Self]:
         """
-        Load documents from database by ids and titles.
+        Load documents from database by IDs and titles.
 
-        All provided ids and titles will be used to load document from database,
-        if both None, will return empty list.
+        Both IDs and titles are used to load documents from database together.
+        If only one of them is given, load documents by that only.
 
         Args:
             ids: IDs of the documents to load.
             titles: titles of the documents to load.
-            return_embeddings: whether to return the embeddings.
 
         Return:
-            A tuple contains the loaded documents and their embeddings.
-                - List of loaded documents, empty if no document is loaded,
-                - List of embeddings, empty if return_embeddings is False or no
-                    document is loaded.
+            A list of loaded documents
         """
-        docs = []
-        embs = []
+        doc_map = {}
+        seg_map = {}
+        chunks = []
 
-        ids = set(ids) if ids else None
-        titles = set(titles) if titles else None
+        ids = ids or []
+        if isinstance(ids, str):
+            ids = [ids]
+        titles = titles or []
+        if isinstance(titles, str):
+            titles = [titles]
 
         if not ids and not titles:
-            return (docs, embs)
+            return []
 
         from ..dss import rss
         from aiomysql import DictCursor
         pool = await rss.get_pool()
         async with pool.acquire() as conn, conn.cursor(DictCursor) as cur:
+            select = "SELECT * FROM documents WHERE "
             cond_id = f"id IN ({','.join(['%s'] * len(ids))})" if ids else ""
             cond_tt = f"title IN ({','.join(['%s'] * len(titles))})" if titles else ""
-            sql = f"SELECT * FROM documents WHERE "
-            # TODO: continue here
-            ...
+            sql = f"{select}{' OR '.join(filter(None, [cond_id, cond_tt]))}"
+            await cur.execute(sql, ids + titles)
+            rows = await cur.fetchall()
+            doc_map = {row["id"]: cls(**row) for row in rows}
+            # load segments and chunks
+            doc_ids = tuple(doc_map)
+            sql_seg = f"""
+            SELECT id, document_id as doc_id, seq_no
+            FROM segments
+            WHERE document_id IN ({','.join(['%s'] * len(doc_ids))})
+            ORDER BY doc_id, seq_no
+            """
+            await cur.execute(sql_seg, doc_ids)
+            seg_rows = await cur.fetchall()
+            seg_map = {row["id"]: Segment(**row) for row in seg_rows}
+            seg_ids = tuple(seg_map)
+            sql_chk = f"""
+            SELECT id, segment_id as seg_id, text, seq_no
+            FROM chunks
+            WHERE segment_id IN ({','.join(['%s'] * len(seg_ids))})
+            ORDER BY seg_id, seq_no
+            """
+            await cur.execute(sql_chk, seg_ids)
+            chk_rows = await cur.fetchall()
+            chunks = [Chunk(**row) for row in chk_rows]
+            # assemble documents
+            for chk in chunks:
+                seg_map[chk.seg_id].chunks.append(chk)
+            for seg in seg_map.values():
+                doc_map[seg.doc_id].segments.append(seg)
+
+        return list(doc_map.values())
 

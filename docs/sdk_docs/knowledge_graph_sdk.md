@@ -53,7 +53,6 @@
 
 **主要方法：**
 
-- `from_responses(responses, alias)`: 类方法，从 LLM 的提取结果列表创建 Graph 对象。
 - `parse_and_dedupe(response, segment_id, alias)`: 解析 LLM 响应字符串，提取实体和关系并添加到图中（自动去重）。
 - `resolve(blacklist)`: 异步方法，对图谱进行解析和清洗：
     1.  根据黑名单过滤实体。
@@ -62,6 +61,8 @@
     4.  与数据库中已存在的图谱数据进行合并。
 - `remove_orphans()`: 移除没有边连接的孤立节点和没有端点的悬空边。
 - `clear()`: 清空图谱中的所有节点和边。
+- `from_responses(responses, alias)`: 类方法，从 LLM 的提取结果列表创建 Graph 对象。
+- `from_db(ids, titles)`: 类方法，从数据库加载由 `ids` 和 `titles` 共同指定的文档构建而成的知识图谱。
 
 ## Knowledge Graph Management (`hurag.knowledge_graph`)
 

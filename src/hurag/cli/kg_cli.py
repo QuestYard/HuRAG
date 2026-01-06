@@ -205,6 +205,8 @@ async def build(
                 progress.update(task, advance=vecs["dense_vecs"].shape[0])
     except Exception as e:
         show_msg(f"图谱向量化失败: {e}", style="error", err=e)
+        show_msg("知识图谱构建未完成", style="error")
+        return
     # 7. saving to database
     console.print("7. 保存知识图谱")
     from ..dss import gss
@@ -213,6 +215,4 @@ async def build(
         show_msg("知识图谱构建全部完成", style="success")
     except Exception as e:
         show_msg(f"保存知识图谱失败: {e}", style="error", err=e)
-
-
-
+        show_msg("知识图谱构建未完成，建议下次使用 -f 参数重建", style="error")
