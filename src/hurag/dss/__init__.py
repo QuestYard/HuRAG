@@ -107,6 +107,6 @@ __all__ = [
     "with_rdb",
     "with_vdb",
     "init_ds",
-    "clean_graph",
+    "clear_graph",
 ]
 

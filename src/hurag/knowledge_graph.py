@@ -3,12 +3,15 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .schemas import Graph
+    import igraph as ig
 
 from . import logger, conf
 from .llm import (
     create_entity_extraction_prompt,
     create_entity_gleaning_prompt,
     create_summarize_descriptions_prompt,
+    create_community_summarize_prompt,
+    create_community_summary_aggregate_prompt,
     with_oa_client,
     chat_with_retry,
     extract_response,
@@ -18,7 +21,7 @@ from .constants import GRAPH_FIELD_SEP
 
 import os
 from dataclasses import dataclass, field
-from collections import Counter
+from collections import Counter, defaultdict
 
 @dataclass
 class _Segment:
@@ -328,3 +331,187 @@ async def normalize_kg_elements(
     gathered = await asyncio.gather(*workers, return_exceptions=True)
 
     return g
+
+async def community_leiden(resolution=0.5):
+    """
+    Create undirect graph from entities and relations in database and evaluate
+    the partitions by using Leiden algorithm.
+
+    The default value of parameter 'resolution' is set to 0.5, it's under
+    tested and it's not suggested to be larger than 1.
+
+    Return an igraph.Graph object, its partitions and a dict maps entity ids
+    to their entity names and descriptions.
+
+    Arguments:
+        resolution: float, the resolution parameter for Leiden algorithm
+
+    Return:
+        g: igraph.Graph object
+        partitions: the partitions resulted from Leiden algorithm
+        nodes: dict, maps entity ids to (name, description)
+    """
+    import igraph as ig
+    from .dss import rss
+
+    nodes = {
+        n[0]: (n[1], n[2])
+        for n in await rss.query("SELECT id, name, description FROM entities")
+    }
+    edges = await rss.query("SELECT source_id, target_id, strength FROM relations")
+    # aggregate edges so the graph is undirected
+    agg = defaultdict(float)
+    for src, tgt, w in edges:
+        if src == tgt:
+            continue  # ignore self-loops
+        # always order the pair alphabetically to ensure (A,B) == (B,A)
+        key = tuple(sorted((src, tgt)))
+        agg[key] += w
+
+    # build edge list and weights
+    edges_with_weights = [(u, v, w) for (u, v), w in agg.items()]
+
+    # create the graph, letting igraph assign vertex indices automatically
+    g = ig.Graph.TupleList(
+        edges_with_weights,
+        directed=False,
+        edge_attrs=["weight"]
+    )
+
+    # create partitions by using Leiden algorithm
+    partitions = g.community_leiden(
+        objective_function="modularity",
+        resolution=resolution,
+        weights=g.es["weight"]
+    )
+
+    return g, partitions, nodes
+
+@with_oa_client(
+    base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
+    api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
+    timeout=120.0,
+)
+async def summarize_communities(
+    graph: ig.Graph,
+    partitions: ig.clustering.VertexClustering,
+    nodes: dict[str, tuple[str, str]],
+    batch_size: int = 90,
+    min_size: int = 10,
+    num_workers: int = 20,
+    oaclient = None,
+) -> dict[int, str]:
+    """
+    Summarize each community in the graph by using LLM.
+
+    Arguments:
+        graph: an igraph.Graph object
+        partitions: partitions resulted from igraph.community_leiden()
+        nodes: entities information dict { id: (name, description), ... }
+
+    Return:
+        a dict of community summaries { community_no: summary, ... }
+    """
+    import asyncio
+    from tqdm.asyncio import tqdm
+
+    model = os.getenv(f"{conf.llm.extraction}_MODEL")
+
+    def _nodes_batch_generator(community):
+        size = len(community)
+        for start in range(0, size, batch_size):
+            if size - start < batch_size + min_size:
+                yield community[start:]
+                break
+            else:
+                yield community[start : start + batch_size]
+
+    async def _summarize_worker():
+        while True:
+            batch = await summarize_queue.get()
+            if batch is None:
+                summarize_queue.task_done()
+                return
+            try:
+                ids = tuple(graph.vs["name"][i] for i in batch["vs"])
+                pmt = create_community_summarize_prompt(
+                    [{"name": nodes[x][0], "description": nodes[x][1]} for x in ids]
+                )
+                _resp = await chat_with_retry(model, pmt, client=oaclient)
+                summaries[batch["c_no"]].append(extract_response(_resp))
+                summarize_pbar.update(1)
+            except Exception as e:
+                logger().error(f"generate community summary error: {e!r}")
+            finally:
+                summarize_queue.task_done()
+
+    async def _aggregate_worker():
+        while True:
+            item = await aggregate_queue.get()
+            if item is None:
+                aggregate_queue.task_done()
+                return
+            if len(item[1]) <= 1:
+                aggregate_pbar.update(1)
+                aggregate_queue.task_done()
+                continue
+            try:
+                pmt = create_community_summary_aggregate_prompt(item[1])
+                _resp = await chat_with_retry(model, pmt, client=oaclient)
+                item[1].append(extract_response(_resp))
+                aggregate_pbar.update(1)
+            except Exception as e:
+                logger().error(f"aggregate community summary error: {e!r}")
+            finally:
+                aggregate_queue.task_done()
+
+    num_batches = list(
+        map(
+            lambda x: (len(x) // batch_size) + (len(x) % batch_size >= min_size),
+            partitions,
+        )
+    )
+    summarize_queue = asyncio.Queue()
+    summarize_workers = [
+        asyncio.create_task(_summarize_worker()) for _ in range(num_workers)
+    ]
+    summaries = {}
+    summarize_pbar = tqdm(
+        total=sum(num_batches),
+        ncols=80,
+        desc="Summarizing",
+        position=0
+    )
+    for c_no, c in enumerate(partitions):
+        if len(c) < min_size:
+            continue
+        summaries[c_no] = []
+        batches = _nodes_batch_generator(c)
+        for b in batches:
+            await summarize_queue.put({ "c_no": c_no, "vs": b })
+    await summarize_queue.join()
+    for worker in summarize_workers:
+        worker.cancel()
+    gathered = await asyncio.gather(*summarize_workers, return_exceptions=True)
+    summarize_pbar.close()
+
+    aggregate_queue = asyncio.Queue()
+    aggregate_workers = [
+        asyncio.create_task(_aggregate_worker()) for _ in range(num_workers)
+    ]
+    aggregate_pbar = tqdm(
+        total=len(summaries),
+        ncols=80,
+        desc="Aggregating",
+        position=1
+    )
+    for item in summaries.items():
+        await aggregate_queue.put(item)
+    await aggregate_queue.join()
+    for worker in aggregate_workers:
+        worker.cancel()
+    gathered = await asyncio.gather(*aggregate_workers, return_exceptions=True)
+    aggregate_pbar.close()
+
+    return summaries
+

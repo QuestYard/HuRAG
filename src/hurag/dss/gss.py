@@ -109,6 +109,9 @@ async def upsert_graph(
         logger.error(f"Failed save knowledge graph into rdb: {e}")
         raise
 
+
+
+
 # from collections import defaultdict, Counter
 # from pymilvus import (
 #     MilvusClient,
@@ -121,127 +124,12 @@ async def upsert_graph(
 # from ..kg import Graph, Entity, Relation, GRAPH_FIELD_SEP
 # from ..dss import vss, rss
 # 
-# def upsert_graph(g: Graph):
-# 
 # # --- Communities ---
-# 
-# SQL_CREATE_COMMUNITY_SCHEMA = [
-#     "DROP TABLE IF EXISTS community_entity",
-#     "DROP TABLE IF EXISTS communities",
-#     """
-# CREATE TABLE communities (
-#     id INT PRIMARY KEY,
-#     summary VARCHAR(1000) NOT NULL
-# );
-#     """,
-#     """
-# CREATE TABLE community_entity (
-#     community_id INT NOT NULL,
-#     entity_id UUID NOT NULL,
-#     PRIMARY KEY (community_id, entity_id),
-#     FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE,
-#     FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
-# );
-#     """,
-# ]
 # 
 # SQL_INSERT_COMMUNITIES = [
 #     "INSERT INTO communities (id, summary) VALUES (?, ?)",
 #     "INSERT INTO community_entity (community_id, entity_id) VALUES (?, ?)"
 # ]
-# 
-# def init_communities_schema():
-#     """
-#     Drop current communities schema and recreate a new one, including rss
-#     tables `communities`, `community_entity` and vss schema `communities`.
-#     """
-#     rss.transact(SQL_CREATE_COMMUNITY_SCHEMA, [()] * 4)
-#     with vss.connect() as cli:
-#         if cli.has_collection("communities"):
-#             cli.drop_collection("communities")
-#         schema = MilvusClient.create_schema(
-#             enable_dynamic_field = False,
-#             description = "dense and sparse vectors of communities"
-#         )
-#         schema.add_field(
-#             field_name="id",
-#             datatype=DataType.INT64,
-#             is_primary=True,
-#             auto_id=False,
-#         )
-#         schema.add_field(
-#             field_name="dense_vec",
-#             datatype=DataType.FLOAT_VECTOR,
-#             dim=1024,
-#         )
-#         schema.add_field(
-#             field_name="sparse_vec",
-#             datatype=DataType.SPARSE_FLOAT_VECTOR,
-#         )
-#         index_params = cli.prepare_index_params()
-#         index_params.add_index(
-#             field_name="dense_vec",
-#             index_name="dense_idx",
-#             index_type="AUTOINDEX",
-#             metric_type="COSINE"
-#         )
-#         index_params.add_index(
-#             field_name="sparse_vec",
-#             index_name="sparse_idx",
-#             index_type="AUTOINDEX",
-#             metric_type="IP"
-#         )
-#         cli.create_collection(
-#             collection_name="communities",
-#             schema=schema,
-#             index_params=index_params
-#         )
-#     return 
-# 
-# def community_leiden(resolution=0.5):
-#     """
-#     Create undirect graph from entities and relations in database and evaluate
-#     the partitions by using Leiden algorithm.
-# 
-#     The default value of parameter 'resolution' is set to 0.5, it's under
-#     tested and it's not suggested to be larger than 1.
-# 
-#     Return an igraph.Graph object, its partitions and a dict maps entity ids
-#     to their entity names and descriptions.
-#     """
-#     import igraph as ig
-# 
-#     nodes = {
-#         n[0]: (n[1], n[2])
-#         for n in rss.query("SELECT id, name, description FROM entities")
-#     }
-#     edges = rss.query("SELECT source_id, target_id, strength FROM relations")
-#     agg = defaultdict(float)
-#     for src, tgt, w in edges:
-#         if src == tgt:
-#             continue  # ignore self-loops
-#         # always order the pair alphabetically to ensure (A,B) == (B,A)
-#         key = tuple(sorted((src, tgt)))
-#         agg[key] += w
-# 
-#     # build edge list and weights
-#     edges_with_weights = [(u, v, w) for (u, v), w in agg.items()]
-# 
-#     # create the graph, letting igraph assign vertex indices automatically
-#     g = ig.Graph.TupleList(
-#         edges_with_weights,
-#         directed=False,
-#         edge_attrs=["weight"]
-#     )
-# 
-#     # create partitions by using Leiden algorithm
-#     partitions = g.community_leiden(
-#         objective_function="modularity",
-#         resolution=resolution,
-#         weights=g.es["weight"]
-#     )
-# 
-#     return g, partitions, nodes
 # 
 # def save_communities(graph, partitions, communities):
 #     """
