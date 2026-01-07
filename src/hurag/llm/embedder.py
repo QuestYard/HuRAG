@@ -202,10 +202,9 @@ async def embed_community_summaries(
             automatically by the decorator.
             
     Returns:
-        A tuple containing:
-            - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
-              the corresponding vector representations.
-            - An EmbeddingPayloadMeta object with metadata about the embeddings.
+        A list of dictionaries with keys "c_no", "summary", "dense_vecs" and
+        "sparse_vecs" containing the communities and their corresponding vector
+        representations.
     """
     table = [
         {
@@ -221,7 +220,6 @@ async def embed_community_summaries(
     for i, e in enumerate(table):
         e["dense_vec"] = vecs["dense_vecs"][i]
         e["sparse_vec"] = vecs["sparse_vecs"][i]
-        # e["sparse_vec"] = vecs["sparse"][[i]]
 
     return table
 
