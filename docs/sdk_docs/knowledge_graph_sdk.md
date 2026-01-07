@@ -125,3 +125,62 @@ async def normalize_kg_elements(
 **返回值：**
 
 返回标准化后的 `Graph` 对象。
+
+### community_leiden
+
+`community_leiden` 函数用于根据知识图谱中的实体和关系创建无向图，并使用 Leiden 算法进行社区发现。
+
+```python
+async def community_leiden(
+    resolution: float = 0.5
+) -> tuple[ig.Graph, ig.clustering.VertexClustering, dict[str, tuple[str, str]]]
+```
+
+**功能描述：**
+
+该函数从数据库中读取实体和关系，构建 `igraph.Graph` 对象（无向图），然后应用 Leiden 算法对图节点进行聚类，从而发现社区结构。
+
+**参数说明：**
+
+- `resolution`: `float` 类型，Leiden 算法的分辨率参数，默认值为 0.5。不建议大于 1。
+
+**返回值：**
+
+返回一个元组，包含以下三个元素：
+1. `g`: `igraph.Graph` 对象，表示构建的无向图。
+2. `partitions`: `igraph.clustering.VertexClustering` 对象，Leiden 算法生成的社区划分结果。
+3. `nodes`: 一个字典，将实体 ID 映射到其名称和描述 `(name, description)`。
+
+### summarize_communities
+
+`summarize_communities` 函数利用 LLM 对发现的每个社区进行摘要生成。
+
+```python
+async def summarize_communities(
+    graph: ig.Graph,
+    partitions: ig.clustering.VertexClustering,
+    nodes: dict[str, tuple[str, str]],
+    batch_size: int = 90,
+    min_size: int = 10,
+    num_workers: int = 20,
+    oaclient = None,
+) -> dict[int, list[str]]
+```
+
+**功能描述：**
+
+该函数遍历每个社区，利用社区内的节点信息（名称和描述），使用 LLM 生成社区摘要。对于较大的社区，会进行分批处理，并在最后进行汇总。
+
+**参数说明：**
+
+- `graph`: `igraph.Graph` 对象，知识图谱。
+- `partitions`: `igraph.clustering.VertexClustering` 对象，社区划分结果。
+- `nodes`: 包含实体信息的字典 `{ id: (name, description), ... }`。
+- `batch_size`: 每批处理的节点数量，默认为 90。
+- `min_size`: 社区的最小节点数，小于此值的社区将被跳过，默认为 10。
+- `num_workers`: 摘要生成的并发工作协程数，默认为 20。
+
+**返回值：**
+
+返回一个字典，键为社区编号，值为该社区的摘要列表 `[summary, ...]`（可能包含多级摘要，最后一项为最终汇总摘要）。
+

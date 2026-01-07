@@ -52,11 +52,7 @@ async def criteria(
 
     show_msg("实体别名-名称对映规则，别名实体将被更名为正式名称：", style="info")
     console.print()
-    table = Table(
-            # title="实体别名-名称对映规则，采用别名的实体将被更名为正式名称：",
-            # title_style="bold italic",
-        box=None,
-    )
+    table = Table(box=None)
     table.add_column(
         "别名",
         width=40,
@@ -216,3 +212,82 @@ async def build(
     except Exception as e:
         show_msg(f"保存知识图谱失败: {e}", style="error", err=e)
         show_msg("知识图谱构建未完成，建议下次使用 -f 参数重建", style="error")
+
+@app.command("create-communities", epilog=HURAG_EPILOG)
+@async_cmd
+async def create_communities(
+    resolution: float = typer.Option(
+        0.5,
+        "--resolution-gamma",
+        "-r",
+        help="Leiden算法聚类参数，数值越大聚类越细，建议介于0.5至1.0之间。"
+    ),
+    min_size: int = typer.Option(
+        10,
+        "--min-size",
+        "-m",
+        help="社区中实体数量下限，少于此限的分区不视为有效社区。"
+    ),
+):
+    """根据已有的知识图谱，采用 Leiden 算法构建知识社区。"""
+    from . import console
+    from ..knowledge_graph import community_leiden, summarize_communities
+    from ..llm import embed_community_summaries
+    from ..dss import gss
+
+    try:
+        console.print("1. 聚类生成社区")
+        g, p, n= await community_leiden(resolution=resolution)
+        console.print("2. 生成社区摘要")
+        summarise = await summarize_communities(g, p, n, min_size=min_size)
+        console.print("3. 社区向量化")
+        emb = await embed_community_summaries(summarise)
+        console.print("4. 保存知识社区")
+        c, e = await gss.save_communities(g, p, emb)
+        show_msg(
+            f"知识社区构建完毕，共生成有效社区 {c} 个，覆盖知识实体 {e} 个。",
+            style="success",
+        )
+    except Exception as e:
+        show_msg(f"构建知识社区失败: {e}", style="error")
+
+@app.command("communities", epilog=HURAG_EPILOG)
+@async_cmd
+async def communities():
+    """列出当前所有知识社区。"""
+    from . import console
+    from rich.table import Table
+    from ..dss import rss
+
+    rows = await rss.query(
+        """
+        SELECT c.id , c.summary, COUNT(ce.entity_id) AS cnt
+        FROM communities c
+        JOIN community_entity ce ON c.id = ce.community_id
+        GROUP BY c.id
+        ORDER BY cnt DESC
+        """
+    )
+    table = Table(box=None)
+    table.add_column(
+        "社区ID",
+        width=8,
+        justify="center",
+        header_style="bold underline",
+    )
+    table.add_column(
+        "社区摘要",
+        width=160,
+        justify="left",
+        header_style="bold underline",
+    )
+    table.add_column(
+        "实体数",
+        width=10,
+        justify="right",
+        header_style="bold underline",
+    )
+    for cid, csum, ecnt in rows:
+        table.add_row(f"{cid}", csum, f"{ecnt}")
+    console.print(table)
+

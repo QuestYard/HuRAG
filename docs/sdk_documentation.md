@@ -116,6 +116,23 @@ async def embed_keywords(
     return_sparse: bool = True,
     esclient: AsyncEmbeddingClient | None = None,
 ) -> tuple[dict[str, Any], EmbeddingPayloadMeta]:
+
+@with_es_client
+async def embed_kg_elements(
+    g: Graph,
+    *,
+    return_sparse: bool = True,
+    batch_size: int=1024,
+    esclient: AsyncEmbeddingClient | None = None,
+) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
+
+@with_es_client
+async def embed_community_summaries(
+    summaries: dict[int, list[str]],
+    *,
+    return_sparse: bool = True,
+    esclient: AsyncEmbeddingClient | None = None,
+) -> list[dict[str, Any]]:
 ```
 
 **参数说明**

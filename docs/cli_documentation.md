@@ -158,3 +158,37 @@ hurag kgraph build [OPTIONS]
 7.  **向量化 (Embedding)**: 计算图谱中所有节点和边的向量表示。
 8.  **保存 (Saving)**: 将构建好的图谱数据（结构数据和向量数据）保存到数据库中，并更新文档状态。
 
+### kgraph create-communities
+
+`kgraph create-communities` 命令基于已构建的知识图谱，通过 Leiden 算法发现知识社区。
+
+```bash
+hurag kgraph create-communities [OPTIONS]
+```
+
+**选项：**
+
+- `--resolution-gamma, -r <float>`: Leiden 算法的分辨率参数（resolution gamma）。该值决定了聚类的粒度，数值越大，生成的社区越小且越密集。建议值在 0.5 到 1.0 之间。默认值为 0.5。
+- `--min-size, -m <int>`: 社区最小实体数量限制。少于此数量的社区将被视为无效社区并丢弃。默认值为 10。
+
+**执行流程：**
+
+1.  **聚类生成社区**: 使用 Leiden 算法对已有的知识图谱实体和关系进行聚类。
+2.  **生成社区摘要**: 针对每个发现的社区，调用 LLM 生成社区的文本摘要。
+3.  **社区向量化**: 对生成的社区摘要进行向量化处理。
+4.  **保存知识社区**: 将社区结构、摘要及对应的向量数据保存到数据库中。
+
+### kgraph communities
+
+`kgraph communities` 命令用于列出当前系统中已经构建的所有知识社区。
+
+```bash
+hurag kgraph communities
+```
+
+该命令会显示一个包含以下信息的列表：
+- **社区ID**: 社区的唯一标识符。
+- **社区摘要**: 社区内容的简要描述。
+- **实体数**: 该社区包含的知识实体数量。
+
+

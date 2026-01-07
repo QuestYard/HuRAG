@@ -4,6 +4,7 @@ from .embedder import (
     embed_query,
     embed_keywords,
     embed_kg_elements,
+    embed_community_summaries,
 )
 from .llm_common_tools import (
     build_messages,
@@ -33,6 +34,7 @@ __all__ = [
     "embed_query",
     "embed_keywords",
     "embed_kg_elements",
+    "embed_community_summaries",
     "build_messages",
     "extract_chunk",
     "extract_response",

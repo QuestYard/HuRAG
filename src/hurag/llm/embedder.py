@@ -149,6 +149,25 @@ async def embed_kg_elements(
     batch_size: int=1024,
     esclient: AsyncEmbeddingClient | None = None,
 ) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
+    """
+    Embed knowledge graph elements (nodes and edges) into vector representations
+    in batches.
+
+    Args:
+        g: A Graph object containing the knowledge graph elements to be embedded.
+        return_sparse: Whether to return sparse vectors along with dense vectors.
+            Default is True.
+        batch_size: The number of graph elements to include in each embedding batch.
+            Default is 1024.
+        esclient: An instance of AsyncEmbeddingClient. This is provided
+            automatically by the decorator.
+
+    Yields:
+        A tuple containing:
+            - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
+              the corresponding vector representations for the batch.
+            - An EmbeddingPayloadMeta object with metadata about the embeddings.
+    """
     from itertools import chain, batched
 
     for batch in batched(chain(g.nodes, g.edges), batch_size):
@@ -165,26 +184,47 @@ async def embed_kg_elements(
             logger.error(f"Failed embedding graph elements: {e}")
             raise
 
-# 
-# async def embed_community_summaries(summaries: dict) -> list[dict]:
-#     from .kernel import ef
-# 
-#     table = [
-#         {
-#             "c_no": k,
-#             "summary": v[-1] if v else "null",
-#             "dense_vec": None,
-#             "sparse_vec": None,
-#         }
-#         for k, v in summaries.items()
-#     ]
-#     vecs = await ef([s["summary"] for s in table])
-#     for i, e in enumerate(table):
-#         e["dense_vec"] = vecs["dense"][i]
-#         e["sparse_vec"] = vecs["sparse"][[i]]
-# 
-#     return table
-# 
+@with_es_client
+async def embed_community_summaries(
+    summaries: dict[int, list[str]],
+    *,
+    return_sparse: bool = True,
+    esclient: AsyncEmbeddingClient | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Embed community summarise into vector representations.
+    
+    Args:
+        summaries: Community summarise returned from `summarize_communities`.
+        return_sparse: Whether to return sparse vectors along with dense vectors.
+            Default is True.
+        esclient: An instance of AsyncEmbeddingClient. This is provided
+            automatically by the decorator.
+            
+    Returns:
+        A tuple containing:
+            - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
+              the corresponding vector representations.
+            - An EmbeddingPayloadMeta object with metadata about the embeddings.
+    """
+    table = [
+        {
+            "c_no": k,
+            "summary": v[-1] if v else "null",
+            "dense_vec": None,
+            "sparse_vec": None,
+        }
+        for k, v in summaries.items()
+    ]
+    s = [x["summary"] for x in table]
+    vecs, _ = await esclient.embed(s, return_sparse=return_sparse)
+    for i, e in enumerate(table):
+        e["dense_vec"] = vecs["dense_vecs"][i]
+        e["sparse_vec"] = vecs["sparse_vecs"][i]
+        # e["sparse_vec"] = vecs["sparse"][[i]]
+
+    return table
+
 
 #
 # async def rerank_knowledges(query: str, knowledge_dict: dict):

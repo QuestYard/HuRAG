@@ -227,9 +227,9 @@ INIT_VSS_PARAMS = [
         "fields": [
             {
                 "field_name": "id",
-                "datatype": DataType.VARCHAR,
-                "max_length": 36,
+                "datatype": DataType.INT64,
                 "is_primary": True,
+                "auto_id": False,
             },
             {
                 "field_name": "dense_vec",

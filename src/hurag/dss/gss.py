@@ -3,6 +3,7 @@ from typing import Any, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..schemas import Graph
+    import igraph as ig
 
 async def upsert_graph(
     g: Graph,
@@ -109,6 +110,53 @@ async def upsert_graph(
         logger.error(f"Failed save knowledge graph into rdb: {e}")
         raise
 
+async def save_communities(
+    graph: ig.Graph,
+    partitions: ig.clustering.VertexClustering,
+    communities: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """
+    Existing communities will be cleaned out before saving new communities.
+
+    Arguments:
+        graph: the igraph.Graph object.
+        partitions: the partitions resulted from Leiden algorithm.
+        communities: the embedding table of communities.
+
+    Return:
+        A tuple containing:
+            - The number of communities saved.
+            - The number of community-entity associations saved.
+    """
+    from . import vss, rss
+
+    sql = [
+        "DELETE FROM community_entity;",
+        "DELETE FROM communities;",
+        "INSERT INTO communities (id, summary) VALUES (%s, %s)",
+        "INSERT INTO community_entity (community_id, entity_id) VALUES (%s, %s)"
+    ]
+
+    _communities = [(s["c_no"], s["summary"]) for s in communities]
+    _community_entity = [
+        (s["c_no"], graph.vs["name"][vid])
+        for s in communities
+        for vid in partitions[s["c_no"]]
+    ]
+    _embeddings = [
+        {
+            "id": s["c_no"],
+            "dense_vec": s["dense_vec"],
+            "sparse_vec": s["sparse_vec"],
+        }
+        for s in communities
+    ]
+    await rss.transact(sql, [(), (), _communities, _community_entity])
+    async with vss.client() as cli:
+        await cli.delete("communities", filter='id != ""')
+        await cli.insert("communities", _embeddings)
+
+    return len(_communities), len(_community_entity)
 
 
 
@@ -125,43 +173,6 @@ async def upsert_graph(
 # from ..dss import vss, rss
 # 
 # # --- Communities ---
-# 
-# SQL_INSERT_COMMUNITIES = [
-#     "INSERT INTO communities (id, summary) VALUES (?, ?)",
-#     "INSERT INTO community_entity (community_id, entity_id) VALUES (?, ?)"
-# ]
-# 
-# def save_communities(graph, partitions, communities):
-#     """
-#     Existing communities will be cleaned out before saving new communities.
-# 
-#     graph: the igraph.Graph object
-#     partitions: the partitions resulted from Leiden algorithm
-#     communities: the embedding table of communities
-#     """
-#     _communities = [(s["c_no"], s["summary"]) for s in communities]
-#     _community_entity = [
-#         (s["c_no"], graph.vs["name"][vid])
-#         for s in communities
-#         for vid in partitions[s["c_no"]]
-#     ]
-#     _embeddings = [
-#         {
-#             "id": s["c_no"],
-#             "dense_vec": s["dense_vec"],
-#             "sparse_vec": s["sparse_vec"],
-#         }
-#         for s in communities
-#     ]
-#     init_communities_schema()
-#     rss.transact(SQL_INSERT_COMMUNITIES, [_communities, _community_entity])
-#     with vss.connect() as cli:
-#         cli.insert(
-#             collection_name="communities",
-#             data=_embeddings,
-#         )
-# 
-#     return len(_communities), len(_community_entity)
 # 
 # def _n_hop_search(
 #     ori_nodes: dict[str, float],

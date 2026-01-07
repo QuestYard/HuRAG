@@ -381,4 +381,53 @@ from hurag.dss.gss import upsert_graph
 await upsert_graph(g, embeddings, doc_ids)
 ```
 
-TODO: 补充更多图数据存储服务的接口说明和使用示例。
+### save_communities
+
+`save_communities` 方法用于将生成的社区（Community）信息及其摘要向量保存到 RDB 和 VDB 中。
+
+> **注意**：该方法在保存新社区之前，会清空现有的所有社区数据（包括 RDB 中的 `communities`、`community_entity` 表以及 VDB 中的 `communities` 集合）。
+
+```python
+async def save_communities(
+    graph: ig.Graph,
+    partitions: ig.clustering.VertexClustering,
+    communities: list[dict[str, Any]],
+) -> tuple[int, int]
+```
+
+**功能描述：**
+
+1.  **清理旧数据**：删除 RDB 和 VDB 中已有的社区相关数据。
+2.  **保存社区信息 (RDB)**：将社区 ID 和生成的摘要保存到 `communities` 表。
+3.  **保存社区-实体关联 (RDB)**：根据 `partitions` 结果，建立社区与实体的关联，保存到 `community_entity` 表。
+4.  **保存向量数据 (VDB)**：将社区摘要的稠密向量 (`dense_vec`) 和稀疏向量 (`sparse_vec`) 保存到 VDB 的 `communities` 集合中。
+
+**参数说明：**
+
+- `graph`: `igraph.Graph` 对象，表示知识图谱。
+- `partitions`: `igraph.clustering.VertexClustering` 对象，Leiden 算法生成的社区划分结果。
+- `communities`: 包含社区摘要及向量信息的字典列表。每个字典应包含：
+    - `c_no`: 社区编号 (ID)
+    - `summary`: 社区摘要文本
+    - `dense_vec`: 摘要的稠密向量
+    - `sparse_vec`: 摘要的稀疏向量
+
+**返回值：**
+
+返回一个元组 `(int, int)`，包含：
+1.  保存的社区数量。
+2.  保存的社区-实体关联数量。
+
+**使用示例：**
+
+```python
+from hurag.dss.gss import save_communities
+
+# 假设已有 graph, partitions 和 communities 列表
+num_comms, num_assocs = await save_communities(graph, partitions, communities)
+print(f"Saved {num_comms} communities and {num_assocs} associations.")
+```
+
+`graph` 和 `partitions` 来自于社区发现和摘要生成的过程，具体可参考: [knowledge_graph_sdk.md](./knowledge_graph_sdk.md) 中的 `community_leiden` 和 `summarize_communities` 函数。
+`communities` 则是摘要生成后得到的社区信息及其向量表示，通过调用 `hurag.llm.embed_community_summaries` 函数可直接获取。
+

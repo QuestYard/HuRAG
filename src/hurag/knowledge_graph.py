@@ -332,7 +332,11 @@ async def normalize_kg_elements(
 
     return g
 
-async def community_leiden(resolution=0.5):
+async def community_leiden(resolution: float = 0.5) -> tuple[
+    ig.Graph,
+    ig.clustering.VertexClustering,
+    dict[str, tuple[str, str]]
+]:
     """
     Create undirect graph from entities and relations in database and evaluate
     the partitions by using Leiden algorithm.
@@ -400,7 +404,7 @@ async def summarize_communities(
     min_size: int = 10,
     num_workers: int = 20,
     oaclient = None,
-) -> dict[int, str]:
+) -> dict[int, list[str]]:
     """
     Summarize each community in the graph by using LLM.
 
