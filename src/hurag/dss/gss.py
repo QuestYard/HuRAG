@@ -158,6 +158,92 @@ async def save_communities(
 
     return len(_communities), len(_community_entity)
 
+# def search(
+#     keywords: dict,
+#     vecs: dict,
+#     docs: dict,
+#     top_k: int=20,
+#     max_nodes: int=1000,
+#     hops: int=1,
+#     rrf_k: float=60,
+# )-> dict:
+#     """
+#     Arguments:
+#         keywords: {"low_level_keywords": [], "high_level_keywords": []}
+#         vecs: {"dense": semantic vectors, "sparse": lexical weights}, among
+#             which the first vector-pair refers to the query, then the high-
+#             level keywords and the low-level keywords.
+#     Return:
+#         {id1: score1, id2: score2, ..., id_top_k: score_top_k}
+#     """
+#     n_lk = len(keywords["low_level_keywords"])
+#     n_hk = len(keywords["high_level_keywords"])
+# 
+#     # one-hop search for nodes, for all keywords, ll and hl
+#     zero_hop_nodes = {}
+#     # zero_hop_nodes := {node_id: score, ...}
+#     for i in range(1, n_hk + n_lk + 1):
+#         vectors = {
+#             "dense": [vecs["dense"][i]],
+#             "sparse": vecs["sparse"][[i]]
+#         }
+#         zero_hop_nodes.update(vss.search("nodes", vecs=vectors, top_k=3))
+#     nodes = _n_hop_search(zero_hop_nodes, top_n=max_nodes, hops=hops)
+# 
+#     # search edges, for the query itself and hl keywords
+#     hit_edges = {}
+#     for i in range(n_hk + 1):
+#         vectors = {
+#             "dense": [vecs["dense"][i]],
+#             "sparse": vecs["sparse"][[i]]
+#         }
+#         hit_edges.update(vss.search("edges", vecs=vectors, top_k=3))
+#     edges = set(hit_edges)
+# 
+#     # found cited segments and merge
+#     node_cites = [] if not nodes else rss.query(
+#         f"""
+#         SELECT sc.segment_id, s.document_id
+#         FROM entity_cite sc
+#         JOIN segments s ON s.id = sc.segment_id
+#         WHERE sc.entity_id IN ({','.join(['?'] * len(nodes))})
+#         """,
+#         tuple(nodes)
+#     )
+#     edge_cites = [] if not edges else rss.query(
+#         f"""
+#         SELECT rc.segment_id, s.document_id
+#         FROM relation_cite rc
+#         JOIN segments s ON s.id = rc.segment_id
+#         WHERE rc.relation_id IN ({','.join(['?'] * len(edges))})
+#         """,
+#         tuple(edges)
+#     )
+#     segments = set(x for x in edge_cites + node_cites if x[1] in docs)
+#     # semantic search in chunks of these segments
+#     chunks = [
+#         x[0] for x in rss.query(
+#             f"""
+#             WITH segs(id) AS (VALUES {','.join(['(?)'] * len(segments))})
+#             SELECT c.id FROM chunks c
+#             JOIN segs s ON c.segment_id = s.id
+#             """,
+#             tuple(s[0] for s in segments)
+#         )
+#     ]
+#     graph_search_results = vss.search(
+#         collection_name="chunks",
+#         scope=chunks,
+#         vecs={
+#             "dense": [vecs["dense"][0]],
+#             "sparse": vecs["sparse"][[0]],
+#         },
+#         top_k=top_k,
+#         rrf_k=rrf_k,
+#     )
+# 
+#     return graph_search_results
+
 
 
 # from collections import defaultdict, Counter
@@ -337,92 +423,4 @@ async def save_communities(
 #     segments += [x for x in associated_nodes_cites if x[1] in docs]
 # 
 #     return segments[:top_k]
-# 
-# def search(
-#     keywords: dict,
-#     vecs: dict,
-#     docs: dict,
-#     top_k: int=20,
-#     max_nodes: int=1000,
-#     hops: int=1,
-#     rrf_k: float=60,
-# )-> dict:
-#     """
-#     Arguments:
-#         keywords: {"low_level_keywords": [], "high_level_keywords": []}
-#         vecs: {"dense": semantic vectors, "sparse": lexical weights}, among
-#             which the first vector-pair refers to the query, then the high-
-#             level keywords and the low-level keywords.
-#     Return:
-#         {id1: score1, id2: score2, ..., id_top_k: score_top_k}
-#     """
-#     n_lk = len(keywords["low_level_keywords"])
-#     n_hk = len(keywords["high_level_keywords"])
-# 
-#     # one-hop search for nodes, for all keywords, ll and hl
-#     zero_hop_nodes = {}
-#     # zero_hop_nodes := {node_id: score, ...}
-#     for i in range(1, n_hk + n_lk + 1):
-#         vectors = {
-#             "dense": [vecs["dense"][i]],
-#             "sparse": vecs["sparse"][[i]]
-#         }
-#         zero_hop_nodes.update(vss.search("nodes", vecs=vectors, top_k=3))
-#     nodes = _n_hop_search(zero_hop_nodes, top_n=max_nodes, hops=hops)
-# 
-#     # search edges, for the query itself and hl keywords
-#     hit_edges = {}
-#     for i in range(n_hk + 1):
-#         vectors = {
-#             "dense": [vecs["dense"][i]],
-#             "sparse": vecs["sparse"][[i]]
-#         }
-#         hit_edges.update(vss.search("edges", vecs=vectors, top_k=3))
-#     edges = set(hit_edges)
-# 
-#     # found cited segments and merge
-#     node_cites = [] if not nodes else rss.query(
-#         f"""
-#         SELECT sc.segment_id, s.document_id
-#         FROM entity_cite sc
-#         JOIN segments s ON s.id = sc.segment_id
-#         WHERE sc.entity_id IN ({','.join(['?'] * len(nodes))})
-#         """,
-#         tuple(nodes)
-#     )
-#     edge_cites = [] if not edges else rss.query(
-#         f"""
-#         SELECT rc.segment_id, s.document_id
-#         FROM relation_cite rc
-#         JOIN segments s ON s.id = rc.segment_id
-#         WHERE rc.relation_id IN ({','.join(['?'] * len(edges))})
-#         """,
-#         tuple(edges)
-#     )
-#     segments = set(x for x in edge_cites + node_cites if x[1] in docs)
-#     # semantic search in chunks of these segments
-#     chunks = [
-#         x[0] for x in rss.query(
-#             f"""
-#             WITH segs(id) AS (VALUES {','.join(['(?)'] * len(segments))})
-#             SELECT c.id FROM chunks c
-#             JOIN segs s ON c.segment_id = s.id
-#             """,
-#             tuple(s[0] for s in segments)
-#         )
-#     ]
-#     graph_search_results = vss.search(
-#         collection_name="chunks",
-#         scope=chunks,
-#         vecs={
-#             "dense": [vecs["dense"][0]],
-#             "sparse": vecs["sparse"][[0]],
-#         },
-#         top_k=top_k,
-#         rrf_k=rrf_k,
-#     )
-# 
-#     return graph_search_results
-# 
-# 
 # 

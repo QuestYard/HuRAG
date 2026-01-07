@@ -163,3 +163,4 @@ async def chat_with_retry(*args, **kwargs):
     # and let tenacity handle the backoff strategy fully.
     kwargs["max_retries"] = 0
     return await chat(*args, **kwargs)
+

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from openai import AsyncOpenAI
     from .schemas import Graph
     import igraph as ig
 
@@ -41,7 +42,7 @@ async def extract_kg_elements(
     num_extracting_workers: int = 10,
     num_gleaning_workers: int = 10,
     limit: int | None = None,
-    oaclient = None,
+    oaclient: AsyncOpenAI | None = None,
 ) -> dict[str, dict[str, str]]:
     """
     Extract entities and relations from segments of documents in the rss with
@@ -250,7 +251,7 @@ async def extract_kg_elements(
 async def normalize_kg_elements(
     g: Graph,
     num_workers: int = 20,
-    oaclient = None,
+    oaclient: AsyncOpenAI | None = None,
 ) -> Graph:
     """
     Normalize the knowledge graph elements in the graph.
@@ -403,7 +404,7 @@ async def summarize_communities(
     batch_size: int = 90,
     min_size: int = 10,
     num_workers: int = 20,
-    oaclient = None,
+    oaclient: AsyncOpenAI | None = None,
 ) -> dict[int, list[str]]:
     """
     Summarize each community in the graph by using LLM.

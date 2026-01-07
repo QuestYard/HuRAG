@@ -449,3 +449,4 @@ async def load_knowledge_by_order(
         results[sid] = (kn, score)
 
     return results
+
