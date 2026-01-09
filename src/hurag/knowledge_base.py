@@ -9,10 +9,13 @@ if TYPE_CHECKING:
         Knowledge,
         KnowledgeMetadata,
     )
+    from .retrievers import QueryInfo
 
 from .kvcache import KVCache
 
 kn_cache = KVCache(max_size=1000, evict_ratio=0.2)
+
+_HBASE = 5  # base of hierarchical decrease factor, 1 / log_b(b + dist)
 
 # --- Document Management ---
 
@@ -449,4 +452,200 @@ async def load_knowledge_by_order(
         results[sid] = (kn, score)
 
     return results
+
+# TODO: refactor this function
+async def search(
+    query: str,
+    mode: Literal["mix", "naive", "graph", "global", "community"],
+    query_info: QueryInfo,
+    *,
+    user_path: str,
+    top_k: int,
+    top_a: int,
+    top_k_naive: int,
+    rrf_k_naive: float,
+    top_k_graph: int,
+    num_hops: int,
+    max_communities: int,
+    max_nodes: int,
+) -> list[list[Knowledge, float]]:
+    """
+    user_path: the organization path of current user, or None (defult) to
+        use conf().app.org_path instead.
+    mode:
+        "mix" (default): naive + graph
+        "naive": only naive
+        "graph": only graph
+        "global": nodes and edges in the whole graph
+        "community": nodes and edges inside communities
+    Returns:
+        A list like [[Knowledge, score], ...], descending ordered by scores.
+    """
+    docs, scope = await _th_scope(query_info.timings, user_path)
+    embeddings = query_info.embeddings[0]
+    # naive search
+    if mode in ["naive", "mix"]:
+        # return {chunk_id: score, ...}
+        from .dss import vss
+        naive_search_results = await vss.search(
+            collection_name="chunks",
+            scope=scope,
+            vecs={
+                "dense": [embeddings["dense_vecs"][0]],
+                "sparse": embeddings["sparse_vecs"][0],
+            },
+            top_k=top_k_naive,
+            rrf_k=rrf_k_naive,
+        )
+    else:
+        naive_search_results = {}
+    # graph search
+    if mode in ["graph", "mix"]:
+        # return {chunk_id: score, ...}
+        graph_search_results = gss.search(
+            keywords=query_info.keywords,
+            vecs=embeddings,
+            docs=docs,
+            top_k=top_k_graph,
+            max_nodes=max_nodes,
+            hops=num_hops,
+            rrf_k=rrf_k_naive,
+        )
+    else:
+        graph_search_results = {}
+
+    if mode in ["global", "community"]:
+        # return [(segment_id, document_id), ...] in order of distance
+        associations_results = await gss.associations(
+            query=query,
+            keywords=keywords,
+            vecs=embeddings,
+            docs=docs,
+            top_k=top_a,
+            hops=num_hops,
+            max_communities=max_communities if mode == "community" else 0,
+            max_nodes=max_nodes,
+        )
+
+    # merge search results, drop scores
+    if mode in ["naive", "graph", "mix"]:
+        from .retrievers import rerank_knowledges
+        kns_naive = await load_knowledge(set(naive_search_results), docs)
+        kns_graph = await load_knowledge(set(graph_search_results), docs)
+        _scores = await rerank_knowledges(query, kns_naive | kns_graph)
+        kn_scores = _scores[:top_k]
+    else:
+        kns_comms = load_knowledge_by_segments(associations_results, docs)
+        kn_scores = [[x, 1.0] for x in kns_comms.values()]
+
+    for entry in kn_scores:
+        kn, sc = entry
+        entry[1] = sc * docs[kn.metadata.id]["decrease_factor"]
+    final = sorted(kn_scores, key=lambda x: x[1], reverse=True)
+
+    return final
+
+# --- Inner functions ---
+
+_is_valid = lambda fr, to, date: fr <= date and (to is None or to >= date)
+
+_org_level = lambda p: len(p.strip("*").split("/")) - 1
+
+def _filter_docs(docs, timings):
+    """Filter expired documents according to the timings"""
+    final_docs = []
+    cur_doc = 0
+    n = len(docs)
+    for cur_date in timings:
+        while (
+            cur_doc < n
+            and _is_valid(
+                docs.iloc[cur_doc]["valid_from"],
+                docs.iloc[cur_doc]["valid_to"],
+                cur_date.date()
+            )
+        ):
+            final_docs.append(docs.iloc[cur_doc])
+            cur_doc += 1
+    return final_docs
+
+def _doc_paths(user_path):
+    """Extract doc_paths under the user_path."""
+    path = user_path.split("/")
+    ret = ["/".join(path[:i]) + "*" for i in range(2, len(path) + 1)]
+    ret.append(user_path)
+    return ret
+
+async def _th_scope(timings, user_path):
+    """Find document searching scope."""
+    import pandas as pd
+    import numpy as np
+    from .dss import rss
+    # find search scope of documents
+    paths = _doc_paths(user_path)
+    pd_docs = pd.DataFrame(
+        await rss.query(
+            f"""
+            SELECT
+                id,
+                title,
+                sn,
+                date,
+                valid_from,
+                valid_to,
+                replaces,
+                pub_path,
+                localizes,
+                authors
+            FROM documents
+            WHERE
+                valid_from <= %s
+                AND (
+                    pub_path IN ({', '.join(['%s'] * len(paths))})
+                    OR pub_path NOT LIKE '/%%'
+                ) 
+            ORDER BY
+                valid_to IS NOT NULL,
+                valid_to DESC
+            """,
+            tuple([timings[0]] + paths)
+        ),
+        columns=[
+            "id",
+            "title",
+            "sn",
+            "date",
+            "valid_from",
+            "valid_to",
+            "replaces",
+            "pub_path",
+            "localizes",
+            "authors",
+        ]
+    )
+    docs = pd.DataFrame(_filter_docs(pd_docs, timings))
+    docs["level"] = docs["pub_path"].map(_org_level)
+    docs = docs.sort_values("level", ascending=False, ignore_index=True)
+    docs["dist"] = 0
+    localizes = tuple(docs["localizes"])
+    for idx, loc in enumerate(localizes):
+        if loc:
+            docs.at[
+                docs.index[docs["title"] == loc].item(),
+                "dist"
+            ] = docs.iloc[idx]["dist"] + 1
+    docs["decrease_factor"] = np.log(_HBASE) / np.log(docs["dist"] + _HBASE)
+    # find search scope of chunks
+    scope = [
+        x[0] for x in await rss.query(
+            f"""
+            SELECT c.id FROM chunks c
+            JOIN segments s ON c.segment_id = s.id
+            JOIN documents d ON s.document_id = d.id
+            WHERE d.id IN ({','.join(['%s'] * len(docs))})
+            """,
+            tuple(docs["id"])
+        )
+    ]
+    return {row["id"]: row for row in docs.to_dict(orient="records")}, scope
 

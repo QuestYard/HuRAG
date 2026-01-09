@@ -3,6 +3,7 @@ from datetime import datetime
 
 @dataclass(kw_only=True, frozen=True)
 class KnowledgeMetadata():
+    id: str | None = field(default=None)
     title: str | None = field(default=None)
     sn: str | None = field(default=None)
     pub_path: str | None = field(default=None)
