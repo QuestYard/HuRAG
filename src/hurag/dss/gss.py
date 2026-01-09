@@ -160,7 +160,7 @@ async def save_communities(
 
 # TODO: refactor this function
 
-def search(
+async def search(
     keywords: dict[str, list[str]],
     vecs: dict[str, Any],
     docs: dict[str, Any],
@@ -168,7 +168,7 @@ def search(
     max_nodes: int = 1000,
     hops: int = 1,
     rrf_k: float = 60,
-)-> dict[str, float]:
+) -> dict[str, float]:
     """
     Arguments:
         keywords: {"low_level_keywords": [], "high_level_keywords": []}
@@ -191,8 +191,10 @@ def search(
             "dense": [vecs["dense_vecs"][i]],
             "sparse": vecs["sparse_vecs"][i],
         }
-        zero_hop_nodes.update(await vss.search("nodes", vecs=vectors, top_k=3))
-    nodes = _n_hop_search(zero_hop_nodes, top_n=max_nodes, hops=hops)
+        zero_hop_nodes.update(
+            await vss.search("nodes", vecs=vectors, top_k=3, rrf_k=rrf_k)
+        )
+    nodes = await _n_hop_search(zero_hop_nodes, top_n=max_nodes, hops=hops)
 
     # search edges, for the query itself and hl keywords
     hit_edges = {}
@@ -201,36 +203,37 @@ def search(
             "dense": [vecs["dense_vecs"][i]],
             "sparse": vecs["sparse_vecs"][i],
         }
-        hit_edges.update(await vss.search("edges", vecs=vectors, top_k=3))
+        hit_edges.update(
+            await vss.search("edges", vecs=vectors, top_k=3, rrf_k=rrf_k)
+        )
     edges = set(hit_edges)
 
     # found cited segments and merge
-    node_cites = [] if not nodes else rss.query(
+    node_cites = [] if not nodes else await rss.query(
         f"""
         SELECT sc.segment_id, s.document_id
         FROM entity_cite sc
         JOIN segments s ON s.id = sc.segment_id
-        WHERE sc.entity_id IN ({','.join(['?'] * len(nodes))})
+        WHERE sc.entity_id IN ({','.join(['%s'] * len(nodes))})
         """,
         tuple(nodes)
     )
-    edge_cites = [] if not edges else rss.query(
+    edge_cites = [] if not edges else await rss.query(
         f"""
         SELECT rc.segment_id, s.document_id
         FROM relation_cite rc
         JOIN segments s ON s.id = rc.segment_id
-        WHERE rc.relation_id IN ({','.join(['?'] * len(edges))})
+        WHERE rc.relation_id IN ({','.join(['%s'] * len(edges))})
         """,
         tuple(edges)
     )
     segments = set(x for x in edge_cites + node_cites if x[1] in docs)
     # semantic search in chunks of these segments
     chunks = [
-        x[0] for x in rss.query(
+        x[0] for x in await rss.query(
             f"""
-            WITH segs(id) AS (VALUES {','.join(['(?)'] * len(segments))})
-            SELECT c.id FROM chunks c
-            JOIN segs s ON c.segment_id = s.id
+            WITH segs(id) AS (VALUES {','.join(['(%s)'] * len(segments))})
+            SELECT c.id FROM chunks c JOIN segs s ON c.segment_id = s.id
             """,
             tuple(s[0] for s in segments)
         )
@@ -239,14 +242,41 @@ def search(
         collection_name="chunks",
         scope=chunks,
         vecs={
-            "dense": [vecs["dense"][0]],
-            "sparse": vecs["sparse"][[0]],
+            "dense": [vecs["dense_vecs"][0]],
+            "sparse": vecs["sparse_vecs"][0],
         },
         top_k=top_k,
         rrf_k=rrf_k,
     )
 
     return graph_search_results
+
+# --- Inner functions ---
+
+async def _n_hop_search(ori_nodes, top_n, hops):
+    from . import rss
+
+    if not ori_nodes:
+        return set()
+    nodes = set(ori_nodes)
+    starts = nodes.copy()
+    for hop in range(hops):
+        connected = set(
+            x[0] for x in await rss.query(
+                f"""
+                WITH nodes(id) AS (VALUES {','.join(['(%s)'] * len(starts))})
+                SELECT r.source_id FROM relations r JOIN nodes n ON r.target_id = n.id
+                UNION
+                SELECT r.target_id FROM relations r JOIN nodes n ON r.source_id = n.id
+                """,
+                tuple(starts)
+            )
+        )
+        starts = connected.copy() - nodes
+        nodes |= connected
+        if len(nodes) >= top_n:
+            break
+    return nodes
 
 
 
@@ -263,35 +293,6 @@ def search(
 # from ..dss import vss, rss
 # 
 # # --- Communities ---
-# 
-# def _n_hop_search(
-#     ori_nodes: dict[str, float],
-#     top_n: int=1000,
-#     hops: int=1
-# )-> set:
-#     if not ori_nodes:
-#         return set()
-#     nodes = set(ori_nodes)
-#     starts = nodes.copy()
-#     for hop in range(hops):
-#         connected = set(
-#             x[0] for x in rss.query(
-#                 f"""
-#                 WITH nodes(id) AS (VALUES {','.join(['(?)'] * len(starts))})
-#                 SELECT r.source_id FROM relations r
-#                 JOIN nodes n ON r.target_id = n.id
-#                 UNION
-#                 SELECT r.target_id FROM relations r
-#                 JOIN nodes n ON r.source_id = n.id
-#                 """,
-#                 tuple(starts)
-#             )
-#         )
-#         starts = connected.copy() - nodes
-#         nodes |= connected
-#         if len(nodes) >= top_n:
-#             break
-#     return nodes
 # 
 # async def _find_communities(
 #     query: str,

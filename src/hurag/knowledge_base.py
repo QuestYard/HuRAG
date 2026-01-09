@@ -499,10 +499,11 @@ async def search(
         )
     else:
         naive_search_results = {}
+
     # graph search
     if mode in ["graph", "mix"]:
         # return {chunk_id: score, ...}
-        graph_search_results = gss.search(
+        graph_search_results = await gss.search(
             keywords=query_info.keywords,
             vecs=embeddings,
             docs=docs,
