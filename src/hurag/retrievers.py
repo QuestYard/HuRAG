@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from embedding_service.async_embedding_client import AsyncEmbeddingClient
@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from . import conf, logger
 from .llm import with_es_client, with_oa_client, extract_response
+
 
 @dataclass
 class QueryInfo:
@@ -27,14 +28,34 @@ class QueryInfo:
     embeddings: dict[str, Any] = field(default_factory=dict)
 
 
+async def rerank_knowledge(
+    query: str,
+    knowledge_dict: dict[str, Knowledge],
+) -> list[tuple[Knowledge, float]]:
+    """
+    Rerank the input knowledge objects based on the query.
+
+    Args:
+        query (str): the user query.
+        knowledge_dict: A dict of knowledge objects like {id: Knowledge, ...}
+
+    Returns:
+        A list like [[Knowledge, score], ...]
+    """
+    if conf.llm.reranker.lower() == "glm":
+        return await rerank_knowledge_by_glm(query, knowledge_dict)
+    else:
+        return await rerank_knowledge_by_es(query, knowledge_dict)
+
+
 @with_es_client
-async def rerank_knowledges(
+async def rerank_knowledge_by_es(
     query: str,
     knowledge_dict: dict[str, Knowledge],
     esclient: AsyncEmbeddingClient | None = None,
-) -> list[Knowledge, float]:
+) -> list[tuple[Knowledge, float]]:
     """
-    Rerank the input knowledge objects based on the query.
+    Rerank the input knowledge objects based on the query by using embedding-service.
 
     Args:
         query (str): the user query.
@@ -52,7 +73,102 @@ async def rerank_knowledges(
     )
 
 
-@with_es_client
+async def rerank_knowledge_by_glm(
+    query: str,
+    knowledge_dict: dict[str, Knowledge],
+) -> list[tuple[Knowledge, float]]:
+    """
+    Rerank the input knowledge objects based on the query by using GLM rerank.
+
+    Args:
+        query (str): the user query.
+        knowledge_dict: A dict of knowledge objects like {id: Knowledge, ...}
+
+    Returns:
+        A list like [[Knowledge, score], ...]
+    """
+    import asyncio
+    import httpx
+    from tenacity import (
+        retry,
+        stop_after_attempt,
+        wait_exponential,
+        retry_if_exception,
+    )
+
+    base_url = os.getenv("GLM_RERANK_BASE_URL")
+    api_key = os.getenv("GLM_RERANK_API_KEY")
+    model = os.getenv("GLM_RERANK_MODEL")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    def should_retry_error(e):
+        # Retry on 429 Rate Limit
+        if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429:
+            return True
+        # Retry on connection errors or timeouts (transient network issues)
+        if isinstance(
+            e, (httpx.ConnectError, httpx.TimeoutException, httpx.ReadTimeout)
+        ):
+            return True
+        return False
+
+    @retry(
+        retry=retry_if_exception(should_retry_error),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential(multiplier=1, max=10),
+    )
+    async def _post_payload(client, payload):
+        # Set a slightly longer timeout for individual requests in the batch if needed
+        response = await client.post(
+            base_url, headers=headers, json=payload, timeout=30.0
+        )
+        response.raise_for_status()
+        return response.json()
+
+    # --- worker ---
+    async def _rerank_worker(queue: asyncio.Queue, client: httpx.AsyncClient):
+        while True:
+            batch = await queue.get()  # batch: ([Knowledge, float], ...)
+            if batch is None:
+                queue.task_done()
+                return
+            try:
+                payload = {
+                    "model": model,
+                    "query": query,
+                    "documents": [kn[0].context for kn in batch],
+                    "return_raw_scores": True,
+                }
+                resp_json = await _post_payload(client, payload)
+                scores = resp_json["results"]
+                for score in scores:
+                    batch[score["index"]][1] = score["relevance_score"]
+            except Exception as e:
+                logger.error(f"Failed to rerank batch using GLM: {e!r}")
+            finally:
+                queue.task_done()
+
+    # --- main process ---
+    from itertools import batched
+
+    _items = [[k, 0.0] for k in knowledge_dict.values()]
+    queue = asyncio.Queue()
+    async with httpx.AsyncClient(timeout=60) as client:
+        rerankers = [
+            asyncio.create_task(_rerank_worker(queue, client)) for _ in range(20)
+        ]
+        for batch in batched(_items, n=2):
+            await queue.put(batch)
+        await queue.join()
+        for worker in rerankers:
+            worker.cancel()
+        gathered = await asyncio.gather(*rerankers, return_exceptions=True)
+    return sorted(_items, key=lambda x: x[1], reverse=True)
+
+
 @with_oa_client(
     base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
     api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
@@ -60,7 +176,6 @@ async def rerank_knowledges(
 async def prepare_for_searching(
     query: str,
     history: list[str] | None = None,
-    esclient: AsyncEmbeddingClient | None = None,
     oaclient: AsyncOpenAI | None = None,
 ) -> QueryInfo:
     """
@@ -218,4 +333,3 @@ async def retrieve(
         max_communities=max_communities or conf.retrieval.max_comms,
         max_nodes=max_nodes or conf.retrieval.max_nodes,
     )
-

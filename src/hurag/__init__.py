@@ -65,6 +65,7 @@ try:
     conf.retrieval.max_nodes = conf.retrieval.max_nodes or 1000
     conf.llm.extraction = conf.llm.extraction or conf.llm.generation
     conf.llm.embedding = conf.llm.embedding or "http://localhost:8765"
+    conf.llm.reranker = conf.llm.reranker or "ES"
     conf.api.host = conf.api.host or "0.0.0.0"
     conf.api.port = conf.api.port or 5000
 except ValueError as ve:

@@ -173,14 +173,12 @@ async def extract_kg_elements(
     ex_queue = asyncio.Queue()
     gl_queue = asyncio.Queue()
     extractors = [
-        asyncio.create_task(
-            _extractor(ex_queue, gl_queue)
-        ) for _ in range(num_extracting_workers)
+        asyncio.create_task(_extractor(ex_queue, gl_queue))
+        for _ in range(num_extracting_workers)
     ]
     gleaners = [
-        asyncio.create_task(
-            _gleaner(gl_queue, pbar=pbar)
-        ) for _ in range(num_gleaning_workers)
+        asyncio.create_task(_gleaner(gl_queue, pbar=pbar))
+        for _ in range(num_gleaning_workers)
     ]
 
     for seg in segs:
@@ -312,7 +310,7 @@ async def normalize_kg_elements(
 
     import asyncio
     from tqdm.asyncio import tqdm
-    pbar = tqdm(total = len(g.nodes) + len(g.edges), ncols=80, desc="Normalizing")
+    pbar = tqdm(total=len(g.nodes) + len(g.edges), ncols=80, desc="Normalizing")
 
     queue = asyncio.Queue()
     workers = [

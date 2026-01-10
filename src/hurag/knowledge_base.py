@@ -503,6 +503,7 @@ async def search(
     # graph search
     if mode in ["graph", "mix"]:
         # return {chunk_id: score, ...}
+        from .dss import gss
         graph_search_results = await gss.search(
             keywords=query_info.keywords,
             vecs=embeddings,
@@ -515,29 +516,30 @@ async def search(
     else:
         graph_search_results = {}
 
-    if mode in ["global", "community"]:
-        # return [(segment_id, document_id), ...] in order of distance
-        associations_results = await gss.associations(
-            query=query,
-            keywords=keywords,
-            vecs=embeddings,
-            docs=docs,
-            top_k=top_a,
-            hops=num_hops,
-            max_communities=max_communities if mode == "community" else 0,
-            max_nodes=max_nodes,
-        )
+#     if mode in ["global", "community"]:
+#         # return [(segment_id, document_id), ...] in order of distance
+#         from .dss import gss
+#         associations_results = await gss.associations(
+#             query=query,
+#             keywords=query_info.keywords,
+#             vecs=embeddings,
+#             docs=docs,
+#             top_k=top_a,
+#             hops=num_hops,
+#             max_communities=max_communities if mode == "community" else 0,
+#             max_nodes=max_nodes,
+#         )
 
     # merge search results, drop scores
     if mode in ["naive", "graph", "mix"]:
-        from .retrievers import rerank_knowledges
+        from .retrievers import rerank_knowledge
         kns_naive = await load_knowledge(set(naive_search_results), docs)
         kns_graph = await load_knowledge(set(graph_search_results), docs)
-        _scores = await rerank_knowledges(query, kns_naive | kns_graph)
+        _scores = await rerank_knowledge(query, kns_naive | kns_graph)
         kn_scores = _scores[:top_k]
-    else:
-        kns_comms = load_knowledge_by_segments(associations_results, docs)
-        kn_scores = [[x, 1.0] for x in kns_comms.values()]
+#     else:
+#         kns_comms = load_knowledge_by_segments(associations_results, docs)
+#         kn_scores = [[x, 1.0] for x in kns_comms.values()]
 
     for entry in kn_scores:
         kn, sc = entry

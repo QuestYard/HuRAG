@@ -41,6 +41,7 @@ llm:
   generation:         # 必配项，用于生成问答，建议采用高性能大尺寸LLM
   extraction:         # 必配项，用于知识提取，可以采用中等尺寸LLM
   embedding:          # HuRAG EmbeddingService，默认 "http://localhost:8765"
+  reranker:           # GLM 或 ES，分别使用 GLM-RERANK 或 EmbeddingService，默认 ES
 
 # API Server 配置
 api:
