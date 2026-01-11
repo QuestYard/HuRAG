@@ -17,6 +17,11 @@ from .openai_client import (
     chat_with_retry,
     with_oa_client,
 )
+from .glm_reranker import (
+    glm_rerank,
+    parallel_glm_rerank,
+    with_rr_client,
+)
 from .prompts import (
     PROMPTS,
     create_entity_extraction_prompt,
@@ -42,6 +47,9 @@ __all__ = [
     "chat",
     "chat_with_retry",
     "with_oa_client",
+    "glm_rerank",
+    "parallel_glm_rerank",
+    "with_rr_client",
     "PROMPTS",
     "create_entity_extraction_prompt",
     "create_entity_gleaning_prompt",

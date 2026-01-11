@@ -1,11 +1,5 @@
 from __future__ import annotations
-from typing import (
-    Callable,
-    Coroutine,
-    TypeVar,
-    Any,
-    TYPE_CHECKING,
-)
+from typing import Callable, Coroutine, TypeVar, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
@@ -118,6 +112,7 @@ def with_oa_client(
 ) -> Callable[..., Any]:
     """
     Decorator to provide an AsyncOpenAI client to the decorated async function.
+
     Args:
         func: Callable | None -- the function to decorate.
         base_url: str -- base URL for OpenAI API.
@@ -125,6 +120,9 @@ def with_oa_client(
         timeout: float -- request timeout in seconds.
         max_retries: int -- maximum number of retries for failed requests.
         client_name: str -- the name of the parameter to pass the client as.
+
+    Returns:
+        Callable[..., Any] -- the decorated function.
     """
     def decorator(func: T) -> T:
         @wraps(func)

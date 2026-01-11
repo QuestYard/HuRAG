@@ -158,8 +158,6 @@ async def save_communities(
 
     return len(_communities), len(_community_entity)
 
-# TODO: refactor this function
-
 async def search(
     keywords: dict[str, list[str]],
     vecs: dict[str, Any],
@@ -251,8 +249,6 @@ async def search(
 
     return graph_search_results
 
-# --- Inner functions ---
-
 async def _n_hop_search(ori_nodes, top_n, hops):
     from . import rss
 
@@ -278,154 +274,105 @@ async def _n_hop_search(ori_nodes, top_n, hops):
             break
     return nodes
 
+# --- Communities ---
 
+async def associations(
+    query: str,
+    keywords: dict[str, list[str]],
+    vecs: dict[str, Any],
+    docs: dict[str, Any],
+    top_k: int = 50,
+    hops: int = 1,
+    max_communities: int = 5,
+    max_nodes: int = 1000,
+    rrf_k: float = 60,
+):
+    """
+    Returns:
+        [(segment_id, document_id), ...] in order of distance
+    """
+    from . import vss, rss
 
-# from collections import defaultdict, Counter
-# from pymilvus import (
-#     MilvusClient,
-#     AnnSearchRequest,
-#     RRFRanker,
-#     DataType,
-# )
-# 
-# from ..kernel import logger, rf
-# from ..kg import Graph, Entity, Relation, GRAPH_FIELD_SEP
-# from ..dss import vss, rss
-# 
-# # --- Communities ---
-# 
-# async def _find_communities(
-#     query: str,
-#     vecs: dict,
-#     max_communities: int=5,
-# )-> tuple:
-#     if max_communities == 0:
-#         return None, None
-# 
-#     community_scores = vss.search(
-#         collection_name="communities",
-#         vecs={
-#             "dense": [vecs["dense"][0]],
-#             "sparse": vecs["sparse"][[0]],
-#         },
-#         top_k=12,
-#     )
-#     community_summaries = rss.query(
-#         f"""
-#         SELECT id, summary
-#         FROM communities
-#         WHERE id IN ({','.join(['?'] * len(community_scores))})
-#         """,
-#         tuple(community_scores)
-#     )
-#     rerank_scores = await rf(query, [x[1] for x in community_summaries])
-#     reranked_communities = sorted(
-#         list(zip(community_summaries, rerank_scores)),
-#         key=lambda x: x[1],
-#         reverse=True
-#     )
-#     hits = 1
-#     while (
-#         hits < max_communities and
-#         reranked_communities[hits][1] / reranked_communities[hits-1][1] > 0.5
-#     ):
-#         hits += 1
-#     hit_communities = tuple(x[0][0] for x in reranked_communities[:hits])
-#     scope = [
-#         x[0] for x in rss.query(
-#             f"""
-#             SELECT entity_id
-#             FROM community_entity
-#             WHERE community_id IN ({','.join(['?'] * hits)})
-#             """,
-#             hit_communities
-#         )
-#     ]
-#     return scope, hit_communities
-# 
-# async def associations(
-#     query: str,
-#     keywords: dict,
-#     vecs: dict,
-#     docs: dict,
-#     top_k: int=50,
-#     hops: int=1,
-#     max_communities: int=5,
-#     max_nodes: int=1000,
-# ):
-#     """
-#     Returns:
-#         [(segment_id, document_id), ...] in order of distance
-#     """
-#     # choose communities if not 0 and create node scope
-#     scope, _ = await _find_communities(query, vecs, max_communities)
-# 
-#     # cites whose distance is zero: top 3 edges and nodes
-#     n_lk = len(keywords["low_level_keywords"])
-#     n_hk = len(keywords["high_level_keywords"])
-# 
-#     zero_dist_edges = {}
-#     for i in range(n_hk + 1):
-#         vectors = {
-#             "dense": [vecs["dense"][i]],
-#             "sparse": vecs["sparse"][[i]]
-#         }
-#         zero_dist_edges.update(
-#             vss.search("edges", vecs=vectors, top_k=3)
-#         )
-#     zero_dist_edge_cites = set(
-#         rss.query(
-#             f"""
-#             SELECT rc.segment_id, s.document_id
-#             FROM relation_cite rc
-#             JOIN segments s ON s.id = rc.segment_id
-#             WHERE rc.relation_id IN ({','.join(['?'] * len(zero_dist_edges))})
-#             """,
-#             tuple(zero_dist_edges)
-#         )
-#     )
-# 
-#     zero_dist_nodes = {}
-#     for i in range(1, n_hk + n_lk + 1):
-#         vectors = {
-#             "dense": [vecs["dense"][i]],
-#             "sparse": vecs["sparse"][[i]]
-#         }
-#         zero_dist_nodes.update(
-#             vss.search("nodes", vecs=vectors, scope=scope, top_k=3)
-#         )
-#     zero_dist_node_cites = set(
-#         rss.query(
-#             f"""
-#             SELECT ec.segment_id, s.document_id
-#             FROM entity_cite ec
-#             JOIN segments s ON s.id = ec.segment_id
-#             WHERE ec.entity_id IN ({','.join(['?'] * len(zero_dist_nodes))})
-#             """,
-#             tuple(zero_dist_nodes)
-#         )
-#     ) - zero_dist_edge_cites
-# 
-#     associated_nodes = _n_hop_search(
-#         zero_dist_nodes,
-#         top_n=max_nodes,
-#         hops=hops
-#     )
-#     associated_nodes_cites = set(
-#         rss.query(
-#             f"""
-#             SELECT ec.segment_id, s.document_id
-#             FROM entity_cite ec
-#             JOIN segments s ON s.id = ec.segment_id
-#             WHERE ec.entity_id IN ({','.join(['?'] * len(associated_nodes))})
-#             """,
-#             tuple(associated_nodes)
-#         )
-#     ) - (zero_dist_edge_cites | zero_dist_node_cites)
-#     # merge in order of distance
-#     segments = [x for x in zero_dist_edge_cites if x[1] in docs]
-#     segments += [x for x in zero_dist_node_cites if x[1] in docs]
-#     segments += [x for x in associated_nodes_cites if x[1] in docs]
-# 
-#     return segments[:top_k]
-# 
+    scope = None
+    if max_communities > 0:
+        community_scores = await vss.search(
+            collection_name="communities",
+            vecs={
+                "dense": [vecs["dense_vecs"][0]],
+                "sparse": vecs["sparse_vecs"][0],
+            },
+            top_k=max_communities,
+            rrf_k=rrf_k,
+        )
+        scope = [
+            x[0] for x in await rss.query(
+                f"""
+                SELECT entity_id FROM community_entity
+                WHERE community_id IN ({','.join(['%s'] * len(community_scores))})
+                """,
+                tuple(community_scores),
+            )
+        ]
+
+    # cites whose distance is zero: top 3 edges and nodes
+    n_lk = len(keywords["low_level_keywords"])
+    n_hk = len(keywords["high_level_keywords"])
+
+    zero_dist_edges = {}
+    for i in range(n_hk + 1):
+        vectors = {
+            "dense": [vecs["dense_vecs"][i]],
+            "sparse": vecs["sparse_vecs"][i],
+        }
+        zero_dist_edges.update(
+            await vss.search("edges", vecs=vectors, top_k=3, rrf_k=rrf_k)
+        )
+    zero_dist_edge_cites = set(
+        await rss.query(
+            f"""
+            SELECT rc.segment_id, s.document_id FROM relation_cite rc
+            JOIN segments s ON s.id = rc.segment_id
+            WHERE rc.relation_id IN ({','.join(['%s'] * len(zero_dist_edges))})
+            """,
+            tuple(zero_dist_edges),
+        )
+    )
+
+    zero_dist_nodes = {}
+    for i in range(1, n_hk + n_lk + 1):
+        vectors = {
+            "dense": [vecs["dense_vecs"][i]],
+            "sparse": vecs["sparse_vecs"][i],
+        }
+        zero_dist_nodes.update(
+            await vss.search("nodes", vecs=vectors, scope=scope, top_k=3, rrf_k=rrf_k)
+        )
+    zero_dist_node_cites = set(
+        await rss.query(
+            f"""
+            SELECT ec.segment_id, s.document_id FROM entity_cite ec
+            JOIN segments s ON s.id = ec.segment_id
+            WHERE ec.entity_id IN ({','.join(['%s'] * len(zero_dist_nodes))})
+            """,
+            tuple(zero_dist_nodes),
+        )
+    ) - zero_dist_edge_cites
+
+    associated_nodes = await _n_hop_search(zero_dist_nodes, top_n=max_nodes, hops=hops)
+    associated_nodes_cites = set(
+        await rss.query(
+            f"""
+            SELECT ec.segment_id, s.document_id
+            FROM entity_cite ec
+            JOIN segments s ON s.id = ec.segment_id
+            WHERE ec.entity_id IN ({','.join(['%s'] * len(associated_nodes))})
+            """,
+            tuple(associated_nodes),
+        )
+    ) - (zero_dist_edge_cites | zero_dist_node_cites)
+    # merge in order of distance
+    segments = [x for x in zero_dist_edge_cites if x[1] in docs]
+    segments += [x for x in zero_dist_node_cites if x[1] in docs]
+    segments += [x for x in associated_nodes_cites if x[1] in docs]
+
+    return segments[:top_k]

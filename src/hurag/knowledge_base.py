@@ -2,13 +2,7 @@ from __future__ import annotations
 from typing import Any, Literal, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .schemas import (
-        Document,
-        Segment,
-        Chunk,
-        Knowledge,
-        KnowledgeMetadata,
-    )
+    from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
 
 from .kvcache import KVCache
@@ -453,7 +447,6 @@ async def load_knowledge_by_order(
 
     return results
 
-# TODO: refactor this function
 async def search(
     query: str,
     mode: Literal["mix", "naive", "graph", "global", "community"],
@@ -483,9 +476,8 @@ async def search(
     """
     docs, scope = await _th_scope(query_info.timings, user_path)
     embeddings = query_info.embeddings[0]
-    # naive search
-    if mode in ["naive", "mix"]:
-        # return {chunk_id: score, ...}
+
+    async def _naive_search():
         from .dss import vss
         naive_search_results = await vss.search(
             collection_name="chunks",
@@ -497,12 +489,10 @@ async def search(
             top_k=top_k_naive,
             rrf_k=rrf_k_naive,
         )
-    else:
-        naive_search_results = {}
-
-    # graph search
-    if mode in ["graph", "mix"]:
         # return {chunk_id: score, ...}
+        return naive_search_results
+
+    async def _graph_search():
         from .dss import gss
         graph_search_results = await gss.search(
             keywords=query_info.keywords,
@@ -513,33 +503,36 @@ async def search(
             hops=num_hops,
             rrf_k=rrf_k_naive,
         )
-    else:
-        graph_search_results = {}
+        # return {chunk_id: score, ...}
+        return graph_search_results
 
-#     if mode in ["global", "community"]:
-#         # return [(segment_id, document_id), ...] in order of distance
-#         from .dss import gss
-#         associations_results = await gss.associations(
-#             query=query,
-#             keywords=query_info.keywords,
-#             vecs=embeddings,
-#             docs=docs,
-#             top_k=top_a,
-#             hops=num_hops,
-#             max_communities=max_communities if mode == "community" else 0,
-#             max_nodes=max_nodes,
-#         )
+    async def _associations():
+        from .dss import gss
+        associations_results = await gss.associations(
+            query=query,
+            keywords=query_info.keywords,
+            vecs=embeddings,
+            docs=docs,
+            top_k=top_a,
+            hops=num_hops,
+            max_communities=max_communities if mode == "community" else 0,
+            max_nodes=max_nodes,
+            rrf_k=rrf_k_naive,
+        )
+        # return [(segment_id, document_id), ...] in order of distance
+        return associations_results
 
-    # merge search results, drop scores
     if mode in ["naive", "graph", "mix"]:
         from .retrievers import rerank_knowledge
+        naive_search_results = await _naive_search()
+        graph_search_results = await _graph_search()
         kns_naive = await load_knowledge(set(naive_search_results), docs)
         kns_graph = await load_knowledge(set(graph_search_results), docs)
-        _scores = await rerank_knowledge(query, kns_naive | kns_graph)
-        kn_scores = _scores[:top_k]
-#     else:
-#         kns_comms = load_knowledge_by_segments(associations_results, docs)
-#         kn_scores = [[x, 1.0] for x in kns_comms.values()]
+        kn_scores = (await rerank_knowledge(query, kns_naive | kns_graph))[:top_k]
+    else:   # global, community, or else
+        associations_results = await _associations()
+        kns_comms = await load_knowledge_by_segments(associations_results, docs)
+        kn_scores = [[x, 1.0] for x in kns_comms.values()]
 
     for entry in kn_scores:
         kn, sc = entry
@@ -651,4 +644,3 @@ async def _th_scope(timings, user_path):
         )
     ]
     return {row["id"]: row for row in docs.to_dict(orient="records")}, scope
-
