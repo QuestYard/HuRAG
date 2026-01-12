@@ -232,7 +232,7 @@ async def prepare_for_searching(
 
     timings = t_timing.result()
     keywords = t_keywords.result()
-    embeddings = await embed_query(
+    embeddings, _ = await embed_query(
         [query] + keywords["high_level_keywords"] + keywords["low_level_keywords"]
     )
 

@@ -145,6 +145,103 @@ async def embed_community_summaries(
 
 `esclient` 参数由装饰器自动传入，开发者无需手动提供。
 
+### Reranker Service 调用
+
+HuRAG 支持两种重排序服务：QuestYard Reranker Service 和基于 GLM 的 Reranker 模型。HuRAG SDK 在 `hurag.llm` 模块中封装了对这两种重排序服务的调用，提供了简化的接口，方便开发者进行文本块重排序。
+
+#### QuestYard Reranker 接口
+
+QuestYard Reranker Service 与 Embedding Service 为同一服务，通过装饰器 `with_es_client` 即可调用客户端的 `rerank` 函数实现重排序功能。
+
+在 `hurag.yaml` 配置文件中，可以通过 `llm.reranker` 参数选择使用 `ES`（Embedding Service）作为重排序器。
+
+以对知识对象的重排序为例：
+
+```python
+@with_es_client
+async def rerank_knowledge_by_es(
+    query: str,
+    knowledge_dict: dict[str, Knowledge],
+    esclient: AsyncEmbeddingClient | None = None,
+) -> list[tuple[Knowledge, float]]:
+    """
+    Rerank the input knowledge objects based on the query by using embedding-service.
+
+    Args:
+        query (str): the user query.
+        knowledge_dict: A dict of knowledge objects like {id: Knowledge, ...}
+
+    Returns:
+        A list like [[Knowledge, score], ...]
+    """
+    contents = [k.context for k in knowledge_dict.values()]
+    response = await esclient.rerank(query, contents)
+    return sorted(
+        [[k, s] for k, s in zip(knowledge_dict.values(), response.scores)],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+```
+
+#### GLM Reranker 接口
+
+HuRAG SDK 在 `hurag.llm.glm_reranker` 模块中提供了基于 GLM Rerank 模型的重排序接口，封装了对 GLM Rerank 模型的调用，方便开发者进行文本块重排序。
+
+*注意：GLM Rerank 为商用模型，在线调用需要配置环境变量并会产生费用。*
+
+##### 配置
+
+使用 GLM Rerank 模型，需要在 `.env` 文件中配置以下环境变量：
+
+- `GLM_RERANK_BASE_URL`: 模型服务基地址，一般固定为 `https://open.bigmodel.cn/api/paas/v4/rerank`。
+- `GLM_RERANK_API_KEY`: 模型服务 API Key，一般使用 GLM 的 token 即可。
+- `GLM_RERANK_MODEL`: 指定使用的模型名称，一般固定为 `rerank`。
+
+同时，在 `hurag.yaml` 配置文件中，需要将 `llm.reranker` 参数设置为 `GLM`，以启用该重排序器。
+
+##### 装饰器与函数
+
+`hurag.llm.glm_reranker` 模块提供了以下核心组件：
+
+- **`with_rr_client` 装饰器**：类似于 `with_es_client`，用于为被装饰函数注入一个异步 `httpx.AsyncClient` 实例（参数名默认为 `rrclient`），负责管理 HTTP 连接的生命周期。
+
+- **`glm_rerank` 函数**：执行单次在线重排序请求。
+    - **返回格式**：不同于通常本地部署 Reranker 直接返回得分列表，`glm_rerank` 返回一个字典列表，每个字典包含 `"index"`（原始文档索引）和 `"relevance_score"`（相关性得分）两个键。
+    - **限制**：在线服务的上下文窗口限制为 4k token，因此一次请求不宜包含过多或过长的文档。
+
+- **`parallel_glm_rerank` 并发函数**：专为处理大量文档设计。
+    - **原理**：鉴于在线模型的 4k 窗口限制，但该模型支持最多 50 个并发调用，该函数将文档列表分批（`batch_size` 默认为 2），利用 `asyncio` 进行并发重排序。
+    - **返回格式**：为了方便下游处理，该函数内部处理了索引映射，直接返回一个与输入文档顺序对应的原始相关性得分列表（`list[float]`），与本地 Reranker 的行为一致。
+
+##### 使用示例
+
+以下示例展示了 `hurag.retrievers.py` 模块中如何使用 `parallel_glm_rerank` 对知识库检索结果进行重排序：
+
+```python
+async def rerank_knowledge_by_glm(
+    query: str,
+    knowledge_dict: dict[str, Knowledge],
+) -> list[tuple[Knowledge, float]]:
+    """
+    Rerank the input knowledge objects based on the query by using GLM rerank in parallel.
+
+    Args:
+        query (str): the user query.
+        knowledge_dict: A dict of knowledge objects like {id: Knowledge, ...}
+
+    Returns:
+        A list like [[Knowledge, score], ...]
+    """
+    from .llm import parallel_glm_rerank
+    contents = [k.context for k in knowledge_dict.values()]
+    reranked = await parallel_glm_rerank(query, contents)
+    return sorted(
+        [[k, s] for k, s in zip(knowledge_dict.values(), reranked)],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+```
+
 ### OpenAI LLM 调用
 
 HuRAG 采用 OpenAI SDK 作为大语言模型（LLM）的调用接口，所有支持 OpenAI 接口的模型均可调用。HuRAG SDK 在 `hurag.llm` 模块中封装了对 OpenAI SDK 的调用，提供了简化的接口，方便开发者在应用中集成 LLM 能力。
@@ -340,3 +437,139 @@ HuRAG 支持通过配置文件 `kgraph.toml` 自定义知识图谱的提取规�
 
 SDK 详情请参考: [知识图谱管理 SDK 文档](sdk_docs/knowledge_graph_sdk.md)
 
+## 知识检索
+
+Knowledge Retrieval (知识检索) 是 HuRAG SDK 的核心功能模块，提供了对知识库和知识图谱的检索功能。知识检索模块封装在 `hurag.retrievers` 模块中，方便开发者进行知识检索相关的操作。
+
+HuRAG 支持多种检索模式，包括基于向量的相似度检索和基于图谱的相关性检索。开发者可以根据应用需求，选择合适的检索模式。
+
+- **naive**: （弃用）语义检索，直接基于向量相似度进行检索，内部使用密集-稀疏双向量检索机制，通过密集向量与稀疏向量的结合提升检索效果。
+- **graph**: （弃用）图谱检索，在知识图谱中进行 n-hop 的 BPS 检索，对检索到的关联实体为进行进一步的语义匹配和排序，得到最终检索结果。
+- **mix**: 语义-图谱混合检索，结合向量检索和图谱检索的优势，二者的结果归并后进行重排序得到最终结果。此为目前推荐的检索模式。
+- **community**: 知识社区检索，基于知识社区，先在知识社区中选取语义相关社区，再在社区内进行关联性检索，得到最终结果，适用于大规模知识库。
+- **global**: 全局检索，直接在整个知识库中进行全图关联性检索，适用于小规模知识库。
+
+上述五种检索模式，目前性能最佳的为 `mix` 模式，在提问语义明确的情况下推荐优先使用，其次为 `community` 模式，适用于大规模知识库和复杂查询场景。`global` 模式适用于小规模知识库。`naive` 和 `graph` 模式已被弃用，为保持向前兼容，仍然支持 API 调用，但内部将统一采用 `mix` 模式实现。
+
+### 知识检索 SDK
+
+HuRAG SDK 在 `hurag.retrievers` 模块中封装了知识检索功能，提供了简化的接口，方便开发者进行知识检索操作。
+
+Retrieval 阶段的 SDK 主要包括两个函数：
+
+#### `prepare_for_searching` 函数
+
+用于对用户查询进行预处理，包括关键词提取、时间点要素提取和查询向量生成。
+
+预处理的结果以一个 `QueryInfo` 对象返回，这是一个 dataclass 类，包含一下属性：
+
+```python
+@dataclass
+class QueryInfo:
+    """
+    keywords: high level and low level keywords extracted from the query.
+    timings: time points extracted from the query, today if no time info in the query.
+    embeddings: vector representations of the query, the high level keywords and the
+        low level keywords, in order.
+    """
+
+    keywords: dict[str, list[str]] = field(default_factory=dict)
+    timings: list[datetime] = field(default_factory=list)
+    embeddings: dict[str, Any] = field(default_factory=dict)
+```
+
+其中 `embeddings` 属性包含密集和稀疏两种向量，键名分别为 `dense_vecs` 和 `sparse_vecs`，内部向量的排序依次对应查询、关键词的高层次表示和低层次表示。
+
+**函数签名**
+
+```python
+@with_oa_client(
+    base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
+    api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
+)
+async def prepare_for_searching(
+    query: str,
+    history: list[str] | None = None,
+    oaclient: AsyncOpenAI | None = None,
+) -> QueryInfo:
+    """
+    Extract keywords, timings from the query and embed the query.
+
+    Arguments:
+        query: The user query
+        history: History queries. History responses are not needed
+
+    Return:
+        A QueryInfo object contains keywords, timings and embeddings.
+    """
+    ...
+```
+
+该函数是相对比较耗时的操作，如果同一 query 会被多次检索，建议对 `QueryInfo` 进行缓存，在后续检索阶段作为参数传递给 `retrieve` 函数，避免重复计算。
+
+#### `retrieve` 函数
+
+用于执行知识检索操作，支持多种检索模式。
+
+**函数签名**
+
+```python
+async def retrieve(
+    query: str,
+    *,
+    history: list[str] | None = None,
+    mode: Literal["mix", "naive", "graph", "global", "community"] = "mix",
+    query_info: QueryInfo | None = None,
+    user_path: str | None = None,
+    top_k: int | None = None,
+    top_a: int | None = None,
+    top_k_naive: int | None = None,
+    rrf_k_naive: float | None = None,
+    top_k_graph: int | None = None,
+    num_hops: int | None = None,
+    max_communities: int | None = None,
+    max_nodes: int | None = None,
+) -> list[list[Knowledge, float]]:
+    """
+    Arguments:
+        query: current user query.
+        history: history queries, history responses are not needed.
+        mode:
+            "mix" (default): naive + graph;
+            "naive": only naive;
+            "graph": only graph search with top_k_graph segments;
+            "global": nodes and edges in the whole graph;
+            "community": nodes and edges inside communities.
+        query_info: returned values of prepare_for_searching.
+        user_path: the organization path of current user.
+        top_k: number of knowledges in final results in K-RAG search,
+        top_a: number of knowledges in final results of associations search.
+        top_k_naive: number of chunks in naive search results,
+        rrf_k_naive: rrf_k for hybrid search,
+        top_k_graph: number of chunks in graph search results,
+        num_hops: (BPS) number of hops,
+        max_communities: (BPS) maximum number of communities,
+        max_nodes: (BPS) maximum number of nodes.
+
+    Returns:
+        A list like [[Knowledge, score], ...], descending ordered by scores.
+    """
+    ...
+```
+
+该函数根据指定的检索模式，结合 `QueryInfo` 对象中的预处理结果，执行相应的检索操作，并返回排序后的知识对象列表。
+
+若 `query_info` 参数为 `None`，则函数内部会调用 `prepare_for_searching` 函数对查询进行预处理。
+
+若 `user_path` 参数为 `None`，则使用 `hurag.yaml` 中配置的 `org_path` 作为默认的用户组织路径。
+
+其他检索相关的参数均可在 `hurag.yaml` 配置文件中进行配置，函数调用时可根据需要进行覆盖：
+
+- `top_k`: 最终返回的知识对象数量，默认值为配置文件中的 `retriever.top_k`。
+- `top_a`: 关联性检索返回的知识对象数量，默认值为配置文件中的 `retriever.top_a`。
+- `top_k_naive`: 语义检索返回的文本块数量，默认值为配置文件中的 `retriever.top_s`。
+- `rrf_k_naive`: 语义检索的 RRF 参数，默认值为配置文件中的 `retriever.rrf_k`。
+- `top_k_graph`: 图谱检索返回的文本块数量，默认值为配置文件中的 `retriever.top_g`。
+- `num_hops`: 图谱检索的跳数，默认值为配置文件中的 `retriever.max_depth`。
+- `max_communities`: 图谱检索的最大社区数量，默认值为配置文件中的 `retriever.max_comms`。
+- `max_nodes`: 图谱检索的最大节点数量，默认值为配置文件中的 `retriever.max_nodes`。

@@ -475,7 +475,7 @@ async def search(
         A list like [[Knowledge, score], ...], descending ordered by scores.
     """
     docs, scope = await _th_scope(query_info.timings, user_path)
-    embeddings = query_info.embeddings[0]
+    embeddings = query_info.embeddings
 
     async def _naive_search():
         from .dss import vss

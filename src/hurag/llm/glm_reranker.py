@@ -1,8 +1,4 @@
-from __future__ import annotations
-from typing import Callable, Coroutine, TypeVar, Any, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import httpx
+from typing import Callable, Coroutine, TypeVar, Any
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
@@ -14,7 +10,7 @@ headers = {
     "Authorization": f"Bearer {api_key}",
     "Content-Type": "application/json",
 }
-
+import httpx
 from functools import wraps
 
 def create_httpx_client(timeout: float) -> httpx.AsyncClient:
@@ -188,3 +184,4 @@ async def parallel_glm_rerank(
     gathered = await asyncio.gather(*rerankers, return_exceptions=True)
 
     return scores
+

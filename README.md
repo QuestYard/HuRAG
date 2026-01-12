@@ -23,6 +23,7 @@ HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应
 
 ## News and Changelog
 
+- [x] 2026-01-12: Python SDK (Indexing, Retrieval) 部分全部构建完毕，基础功能完成。
 - [x] 2025-12-01: 仓库创建，HuRAG即将到来！
 
 ## Quick Start
