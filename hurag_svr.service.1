@@ -1,0 +1,53 @@
+[Unit]
+Description=HuRAG-Server API Service 0.1.0
+After=network.target
+
+[Service]
+# 运行服务的用户
+User=xxx
+
+# 设置项目根目录
+WorkingDirectory=/path/to/working_directory
+
+# Enable python faulthandler and asyncio debug
+Environment=PYTHONFAULTHANDLER=1
+Environment=PYTHONASYNCIODEBUG=1
+
+# Allow core dumps and increase file descriptor limits
+LimitCORE=infinity
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Send stdout/stderr to journal
+StandardOutput=journal
+StandardError=journal
+
+# 启动命令
+# 确保 /path/to/virtualenv/bin/gunicorn 是环境中 gunicorn 的确切路径
+# 如果 gunicorn 安装在全局，可能像 /usr/local/bin/gunicorn
+ExecStart=/path/to/virtualenv/bin/gunicorn hurag_server.__main__:app \
+    -w 5 \
+    -k uvicorn.workers.UvicornWorker \
+    -b 0.0.0.0:5002 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --log-level debug \
+    --capture-output \
+    --access-logfile - \
+    --error-logfile -
+    --max-requests 1000 \
+    --max-requests-jitter 50
+
+# 优雅重载服务的命令
+ExecReload=/bin/kill -s HUP $MAINPID
+
+# 保证服务在失败时总是重启
+Restart=always
+RestartSec=3
+
+# Give workers enough time to stop
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
+
