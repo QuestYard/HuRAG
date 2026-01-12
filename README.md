@@ -111,22 +111,44 @@ client = MilvusClient(
 
 #### Start API Server
 
-TODO: constructing, coming soon...
+HuRAG 提供基于 FastAPI 的 API Server，可以通过以下命令启动测试环境：
+
+```bash
+cd /path/to/HuRAG
+source .venv/bin/activate  # 激活虚拟环境
+cd /path/to/your-working-directory  # 切换到工作目录
+hurag-server # 启动 HuRAG API Server 测试环境
+```
+
+测试环境会在代码发生改变时自动重加载，适用于开发和调试。若要启动生产环境，请使用 gunicorn 并在服务器（Linux）环境下配置为 systemctl 服务。
+
+gunicorn 服务启动脚本模板见 [HuRAG-Server gunicorn 启动服务脚本模板](hurag_svr.service.1)
+
+HuRAG API Server 默认监听 5002 端口，提供以下 API 接口：
+
+- `/docs` : HuRAG API 文档页面，基于 OpenAPI 规范生成，提供接口说明和在线测试功能。
+- `/health` : (GET) 健康检查接口，用于检查服务状态。
+- `/v1/info` : (GET) 基本信息接口，提供 HuRAG 基本信息。
+- `/v1/info/version` : (GET) 版本信息接口，提供 HuRAG 版本信息。
+- `/v1/info/organization` : (GET) 组织机构接口，提供部署应用的组织机构信息。
+- `/v1/llm/chat` : (POST) 聊天接口，提供基于 RAG 的聊天问答功能，支持 SSE 流式响应。
+- `/v1/hurag/retrieve` : (POST) 检索接口，提供基于 RAG 的文档检索功能。
+- `/v1/hurag/knowledge` : 知识查询接口，提供根据 ID 查询知识段的功能。
+
+服务启动后，即可通过 `http://<server_host>:5002/docs` 访问 HuRAG API 文档页面。
 
 ## Usages
 
-HuRAG 提供命令行工具和 API 调用两种使用方式，命令行工具用于系统后台管理和维护，API 提供 RAG 检索和 LLM 调用能力，用于构建其他应用。基于 HuRAG API，可以快速构建面向法律法规解释的智能问答系统、文档检索系统等应用，QuestYard 的 [QuestYard Chat](https://github.com/QuestYard/hurag-webui) 就是一个基于 HuRAG 构建的智能问答系统。
+HuRAG 提供命令行工具和 SDK 调用两种使用方式，命令行工具用于系统后台管理和维护，SDK 提供 RAG 索引和检索功能的 Python 函数调用，用于构建其他应用。基于 HuRAG API，可以快速构建面向法律法规解释的智能问答系统、文档检索系统等应用。
 
-另外，HuRAG 也可以作为 Python SDK 库被其他 Python 应用调用，方便集成到现有系统中。
+另外，HuRAG 提供的 RestFul API Server 可直接用于构建 RAG 类 Web 应用，使得应用端的构建可以不依赖于本地安装的 HuRAG 库。QuestYard 的 [QuestYard Chat](https://github.com/QuestYard/hurag-webui) 就是一个基于 HuRAG 构建的智能问答系统。
+
+API 的调用方法请参考 HuRAG API 的 Swagger 文档页面。
 
 ### Command Line Tool
 
 HuRAG 提供的命令行工具包括知识库管理、文档管理和用户管理等功能，具体命令和用法请参考 [HuRAG CLI Documentation](docs/cli_documentation.md)。
 
-### API Usage
-
-HuRAG 提供 RESTful API 供外部应用调用，API 文档请参考 [HuRAG API Documentation](docs/api_documentation.md)。
-
 ### Python SDK Usage
 
-HuRAG 也可以作为 Python SDK 库被其他 Python 应用调用，SDK 文档请参考 [HuRAG SDK Documentation](docs/sdk_documentation.md)。
+HuRAG Python SDK 调用文档请参考 [HuRAG SDK Documentation](docs/sdk_documentation.md)。

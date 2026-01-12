@@ -1,3 +1,0 @@
-# HuRAG API Documentation
-
-TODO: constructing, coming soon...

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+# from fastapi.responses import StreamingResponse, JSONResponse
 
 from ...schemas import (
     QueryRequest,
@@ -102,7 +102,7 @@ async def retrieve(req: QueryRequest):
     }
     ```
     """
-    from hurag.retriever import retrieve
+    from ....retrievers import retrieve
 
     try:
         if isinstance(req.graph_search, bool):

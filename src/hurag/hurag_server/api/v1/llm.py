@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 import json
 
-from ...schemas import MessageSchema, ChatRequest, ChatResponse
+from ...schemas import ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/v1/llm", tags=["大模型"])
 
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/v1/llm", tags=["大模型"])
         }
     }
 )
-async def chat(req: ChatRequest):
+async def _chat(req: ChatRequest):
     """
     与本地部署的大模型进行聊天，统一入口。
 
@@ -89,28 +89,29 @@ async def chat(req: ChatRequest):
     asyncio.run(main())
     ```
     """
-    import os
-    from .... import conf
     from ....llm import chat, extract_response, extract_chunk
+    from ...server import chat_client
 
     try:
         resp = await chat(
-            conf.llm.
+            chat_client.model,
             req.prompt,
             system_prompt=req.system_prompt,
             history_messages=req.history,
             stream=req.stream,
             temperature=req.temperature,
             timeout=req.timeout,
+            client=chat_client.client,
         )
         if not req.stream:
             return ChatResponse(content=extract_response(resp))
 
         async def _sse():
-            async for ev in resp:
-                if ev.type == "token" and ev.text:
-                    payload = {"delta": ev.text}
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            async for chunk in resp:
+                # extract_chunk 返回当前 chunk 的内容增量
+                delta = extract_chunk(chunk)
+                payload = {"delta": delta}
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(
@@ -120,5 +121,3 @@ async def chat(req: ChatRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
