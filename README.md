@@ -23,6 +23,7 @@ HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应
 
 ## News and Changelog
 
+- [x] 2026-01-13: API Server 重构完毕，与测试阶段的 HuRAG WebUI 前段适配完成。第一阶段开发结束，将启动新版 WebUI 重构。
 - [x] 2026-01-12: Python SDK (Indexing, Retrieval) 部分全部构建完毕，基础功能完成。
 - [x] 2025-12-01: 仓库创建，HuRAG即将到来！
 
