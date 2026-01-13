@@ -74,32 +74,41 @@ async def chat(
         should_close = True
 
     try:
+        messages = build_messages(
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+        )
+
         if stream:
             astream = await client.chat.completions.create(
                 model=model,
-                messages=build_messages(
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                ),
+                messages=messages,
                 temperature=temperature,
                 stream=True,
             )
+            if should_close:
+                async def stream_wrapper():
+                    try:
+                        async for chunk in astream:
+                            yield chunk
+                    finally:
+                        await client.close()
+                return stream_wrapper()
             return astream
         else:
             response = await client.chat.completions.create(
                 model=model,
-                messages=build_messages(
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                ),
+                messages=messages,
                 temperature=temperature,
             )
+            if should_close:
+                await client.close()
             return response
-    finally:
+    except Exception:
         if should_close:
             await client.close()
+        raise
 
 def with_oa_client(
     func: Callable | None = None,
