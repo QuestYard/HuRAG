@@ -89,12 +89,16 @@ async def _retrieve(req: QueryRequest):
 
     ```
     {
-        "id": str,                  # 文档唯一标识符
-        "title": str,               # 文档标题
-        "sn": str|None,             # 法令号或文号，非正式发布的法令和文件为 None
-        "pub_path": str,            # 发布路径，详见 HuRAG 说明文档
-        "valid_from": datetime,     # 生效日期
-        "valid_to": datetime|None,  # 废止日期，未废止则为 None
+        "id": str,                      # 文档唯一标识符
+        "title": str,                   # 文档标题
+        "sn": str | None,               # 法令号或文号，非正式发布的法令和文件为 None
+        "date": datetime,               # 发布日期
+        "valid_from": datetime,         # 生效日期
+        "valid_to": datetime | None,    # 废止日期，未废止则为 None
+        "replaces": str | None,         # 上一版本标题，若无则为 None
+        "pub_path": str,                # 发布路径，详见 HuRAG 说明文档
+        "localizes": str | None,        # 上位文件标题，若无则为 None
+        "authors": str | None,          # 作者，若无则为 None
     }
     ```
     """
@@ -120,9 +124,13 @@ async def _retrieve(req: QueryRequest):
                     id=kn[0].metadata.id,
                     title=kn[0].metadata.title,
                     sn=kn[0].metadata.sn,
+                    date=kn[0].metadata.date,
                     pub_path=kn[0].metadata.pub_path,
                     valid_from=kn[0].metadata.valid_from,
                     valid_to=kn[0].metadata.valid_to,
+                    replaces=kn[0].metadata.replaces,
+                    localizes=kn[0].metadata.localizes,
+                    authors=kn[0].metadata.authors,
                 ),
                 score=kn[1],
             ) for kn in kns
@@ -167,12 +175,16 @@ async def _get_knowledge_by_ids(req: KnowledgeRequest):
 
     ```
     {
-        "id": str,                  # 文档唯一标识符
-        "title": str,               # 文档标题
-        "sn": str|None,             # 法令号或文号，非正式发布的法令和文件为 None
-        "pub_path": str,            # 发布路径，详见 HuRAG 2.0 说明文档
-        "valid_from": datetime,     # 生效日期
-        "valid_to": datetime|None,  # 废止日期，未废止则为 None
+        "id": str,                      # 文档唯一标识符
+        "title": str,                   # 文档标题
+        "sn": str | None,               # 法令号或文号，非正式发布的法令和文件为 None
+        "date": datetime,               # 发布日期
+        "valid_from": datetime,         # 生效日期
+        "valid_to": datetime | None,    # 废止日期，未废止则为 None
+        "replaces": str | None,         # 上一版本标题，若无则为 None
+        "pub_path": str,                # 发布路径，详见 HuRAG 说明文档
+        "localizes": str | None,        # 上位文件标题，若无则为 None
+        "authors": str | None,          # 作者，若无则为 None
     }
     ```
     """
@@ -188,9 +200,13 @@ async def _get_knowledge_by_ids(req: KnowledgeRequest):
                     id=kn.metadata.id,
                     title=kn.metadata.title,
                     sn=kn.metadata.sn,
+                    date=kn.metadata.date,
                     pub_path=kn.metadata.pub_path,
                     valid_from=kn.metadata.valid_from,
                     valid_to=kn.metadata.valid_to,
+                    replaces=kn.metadata.replaces,
+                    localizes=kn.metadata.localizes,
+                    authors=kn.metadata.authors,
                 ),
                 score=0.0,
             ) for kn in kns

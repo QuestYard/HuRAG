@@ -6,9 +6,13 @@ class KnowledgeMetadata():
     id: str | None = field(default=None)
     title: str | None = field(default=None)
     sn: str | None = field(default=None)
-    pub_path: str | None = field(default=None)
+    date: datetime | None = field(default=None)
     valid_from: datetime | None = field(default=None)
     valid_to: datetime | None = field(default=None)
+    replaces: str | None = field(default=None)
+    pub_path: str | None = field(default=None)
+    localizes: str | None = field(default=None)
+    authors: str | None = field(default=None)
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -56,3 +60,4 @@ class Knowledge():
     def brief(self) -> str:
         """create brief for print"""
         return f"{self.metadata.title}: {' '.join(self.content[:40].split('\n'))}"
+
