@@ -7,7 +7,7 @@ from .. import logger, conf, __version__ as hurag_version
 
 from .api.v1.messages import router as info_router
 from .api.v1.llm import router as llm_router
-# from .api.v1.hurag import router as hurag_router
+from .api.v1.hurag import router as hurag_router
 
 class LifespanClient:
     model = None
@@ -68,7 +68,7 @@ app = FastAPI(
 
 app.include_router(info_router)
 app.include_router(llm_router)
-# app.include_router(hurag_router)
+app.include_router(hurag_router)
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon_redirect():

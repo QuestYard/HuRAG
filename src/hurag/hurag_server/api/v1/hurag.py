@@ -11,7 +11,7 @@ from ...schemas import (
 router = APIRouter(prefix="/v1/hurag", tags=["知识库"])
 
 @router.post("/retrieve", response_model=list[KnowledgeSchema])
-async def retrieve(req: QueryRequest):
+async def _retrieve(req: QueryRequest):
     """
     从知识库中检索与用户查询相关的知识。
 
@@ -29,12 +29,12 @@ async def retrieve(req: QueryRequest):
     }
     ```
 
-    `domain` 和 `modes` 两个参数在 HuRAG 2.0 中已停用，为保持 API 前后兼容，
+    `domain` 和 `modes` 两个参数在 HuRAG 中已停用，为保持 API 前后兼容，
     仍然可以接受这两个参数，但不会有任何实际作用，通常情况下不要提供即可。
 
-    `graph_search` 参数在 HuRAG 2.0 中扩展为 `bool` 和 `str` 两种数据类型，
+    `graph_search` 参数在 HuRAG 中支持 `bool` 和 `str` 两种数据类型，
     以支持更多图搜索模式，默认值为 `"mix"`，表示图文混搜模式。
-    保留 `bool` 类型以保持与 HuRAG 1.0 API 前后兼容。
+    保留 `bool` 类型以保持与早期实验性 API 版本的前后兼容。
 
     检索模式及对应的 `graph_search` 参数如下：
 
@@ -61,13 +61,13 @@ async def retrieve(req: QueryRequest):
     建议前端事先判断用户查询是否需要检索知识库以增强生成，若不需要可直接调用
     `v1/llm/chat` API 进行对话。
 
-    `rerank` 参数已经停用，仅为保持 API 前后兼容而保留。HuRAG 2.0 中，`naive`,
+    `rerank` 参数已经停用，仅为保持 API 前后兼容而保留。HuRAG 中，`naive`,
     `graph`, `mix` 三种模式检索结果自动重排序；`graph` 和 `community`
     模式检索结果不重排序。
 
     `user_path` 参数为前端可选提供的参数。如果前端接入了用户与组织机构管理，
     则可以通过此参数传递当前用户所在组织机构的路径，规则同文档发布机构路径。
-    不提供此参数即采用默认值 None，使用 HuRAG 2.0 部署机构相同的路径。
+    不提供此参数即采用默认值 None，使用 HuRAG 部署机构相同的路径。
 
     ## 返回值
 
@@ -92,13 +92,9 @@ async def retrieve(req: QueryRequest):
         "id": str,                  # 文档唯一标识符
         "title": str,               # 文档标题
         "sn": str|None,             # 法令号或文号，非正式发布的法令和文件为 None
-        "date": datetime,           # 发布日期
+        "pub_path": str,            # 发布路径，详见 HuRAG 说明文档
         "valid_from": datetime,     # 生效日期
         "valid_to": datetime|None,  # 废止日期，未废止则为 None
-        "replaces": str|None,       # 上一版本文档标题，若无则为 None
-        "pub_path": str,            # 发布路径，详见 HuRAG 2.0 说明文档
-        "localizes": str|None,      # 上位版本文档标题，若无则为 None
-        "authors": str|None,        # 作者，若无则为 None
     }
     ```
     """
@@ -120,15 +116,22 @@ async def retrieve(req: QueryRequest):
             KnowledgeSchema(
                 segment_id=kn[0].segment_id,
                 content=kn[0].content,
-                metadata=KnowledgeMetadataSchema(**kn[0].metadata),
-                score=kn[1]
+                metadata=KnowledgeMetadataSchema(
+                    id=kn[0].metadata.id,
+                    title=kn[0].metadata.title,
+                    sn=kn[0].metadata.sn,
+                    pub_path=kn[0].metadata.pub_path,
+                    valid_from=kn[0].metadata.valid_from,
+                    valid_to=kn[0].metadata.valid_to,
+                ),
+                score=kn[1],
             ) for kn in kns
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/knowledge", response_model=list[KnowledgeSchema])
-async def get_knowledge_by_ids(req: KnowledgeRequest):
+async def _get_knowledge_by_ids(req: KnowledgeRequest):
     """
     根据提供的 id 列表获取知识段。
 
@@ -154,7 +157,7 @@ async def get_knowledge_by_ids(req: KnowledgeRequest):
             "segment_id": "知识段id",
             "content": "知识段文本",
             "metadata": {知识所在文档元数据字典},
-            "score": 0.9
+            "score": 0
         },
         ...
     ]
@@ -167,29 +170,31 @@ async def get_knowledge_by_ids(req: KnowledgeRequest):
         "id": str,                  # 文档唯一标识符
         "title": str,               # 文档标题
         "sn": str|None,             # 法令号或文号，非正式发布的法令和文件为 None
-        "date": datetime,           # 发布日期
+        "pub_path": str,            # 发布路径，详见 HuRAG 2.0 说明文档
         "valid_from": datetime,     # 生效日期
         "valid_to": datetime|None,  # 废止日期，未废止则为 None
-        "replaces": str|None,       # 上一版本文档标题，若无则为 None
-        "pub_path": str,            # 发布路径，详见 HuRAG 2.0 说明文档
-        "localizes": str|None,      # 上位版本文档标题，若无则为 None
-        "authors": str|None,        # 作者，若无则为 None
     }
     ```
     """
-    from hurag.knowledge_base import get_knowledge_by_segment_ids
+    from ....knowledge_base import get_knowledge_by_segment_ids
 
     try:
-        kns = get_knowledge_by_segment_ids(req.ids, user_path=req.user_path)
+        kns = await get_knowledge_by_segment_ids(req.ids, user_path=req.user_path)
         return [
             KnowledgeSchema(
                 segment_id=kn.segment_id,
                 content=kn.content,
-                metadata=KnowledgeMetadataSchema(**kn.metadata),
-                score=0.0
+                metadata=KnowledgeMetadataSchema(
+                    id=kn.metadata.id,
+                    title=kn.metadata.title,
+                    sn=kn.metadata.sn,
+                    pub_path=kn.metadata.pub_path,
+                    valid_from=kn.metadata.valid_from,
+                    valid_to=kn.metadata.valid_to,
+                ),
+                score=0.0,
             ) for kn in kns
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 

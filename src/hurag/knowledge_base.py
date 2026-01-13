@@ -644,3 +644,13 @@ async def _th_scope(timings, user_path):
         )
     ]
     return {row["id"]: row for row in docs.to_dict(orient="records")}, scope
+
+async def get_knowledge_by_segment_ids(
+    seg_ids: list[str],
+    user_path: str,
+) -> list[Knowledge]:
+    from datetime import datetime
+
+    docs, _ = await _th_scope([datetime.today()], user_path)
+    return list((await load_knowledge_by_segment_ids(seg_ids, docs)).values())
+
