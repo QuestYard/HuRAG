@@ -30,7 +30,7 @@ async def init_ds(rdb_connection, rdb_cursor, vdb_client):
             if not stmt:
                 continue
             await rdb_cursor.execute(stmt)
-            await rdb_connection.commit()
+        await rdb_connection.commit()
         logger.info("The rdb is initialized.")
     except Exception as e:
         await rdb_connection.rollback()
