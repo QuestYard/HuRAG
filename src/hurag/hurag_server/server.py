@@ -49,6 +49,9 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to startup HuRAG API Server: {e!r}")
         raise
     finally:
+        from ..dss import rss
+        logger.info("Closing database connection pool...")
+        await rss.close_pool()
         logger.info("Closing chat completions client...")
         await chat_client.shutdown()
         logger.info("HuRAG API Server shutdown complete.")
