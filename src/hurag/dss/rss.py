@@ -46,7 +46,7 @@ async def close_pool():
         _pool = None
 
 @asynccontextmanager
-async def lifespan():
+async def lifespan(app=None):
     """Context manager to handle database pool lifecycle."""
     try:
         yield
