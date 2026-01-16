@@ -26,6 +26,8 @@ async def get_pool() -> aiomysql.Pool:
 
     lock = await _get_lock()
     async with lock:
+        if _pool is not None:
+            return _pool
         _pool = await aiomysql.create_pool(
             host=conf.mariadb.host,
             port=conf.mariadb.port,
@@ -149,10 +151,16 @@ def with_rdb(
                     cursor = await connection.cursor()
             kwargs[connection_name] = connection
             kwargs[cursor_name] = cursor
-            ret = await func(*args, **kwargs)
-            await cursor.close()
-            pool.release(connection)
-            return ret
+            try:
+                ret = await func(*args, **kwargs)
+                await connection.commit()
+                return ret
+            except Exception:
+                await connection.rollback()
+                raise
+            finally:
+                await cursor.close()
+                pool.release(connection)
         return wrapper
     
     if func is not None:
