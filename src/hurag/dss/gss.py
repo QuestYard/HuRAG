@@ -327,7 +327,7 @@ async def associations(
         zero_dist_edges.update(
             await vss.search("edges", vecs=vectors, top_k=3, rrf_k=rrf_k)
         )
-    zero_dist_edge_cites = set(
+    zero_dist_edge_cites = set() if not zero_dist_edges else set (
         await rss.query(
             f"""
             SELECT rc.segment_id, s.document_id FROM relation_cite rc
@@ -347,7 +347,7 @@ async def associations(
         zero_dist_nodes.update(
             await vss.search("nodes", vecs=vectors, scope=scope, top_k=3, rrf_k=rrf_k)
         )
-    zero_dist_node_cites = set(
+    zero_dist_node_cites = set() if not zero_dist_nodes else set(
         await rss.query(
             f"""
             SELECT ec.segment_id, s.document_id FROM entity_cite ec
@@ -359,7 +359,7 @@ async def associations(
     ) - zero_dist_edge_cites
 
     associated_nodes = await _n_hop_search(zero_dist_nodes, top_n=max_nodes, hops=hops)
-    associated_nodes_cites = set(
+    associated_nodes_cites = set() if not associated_nodes else set(
         await rss.query(
             f"""
             SELECT ec.segment_id, s.document_id

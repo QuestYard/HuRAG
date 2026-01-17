@@ -48,9 +48,13 @@ def with_vdb(
                 db_name=conf.milvus.db_name,
             )
             kwargs[client_name] = _cli
-            ret = await func(*args, **kwargs)
-            _cli and await _cli.close()
-            return ret
+            try:
+                ret = await func(*args, **kwargs)
+                return ret
+            except Exception:
+                raise
+            finally:
+                _cli and await _cli.close()
         return wrapper
     
     if func is not None:

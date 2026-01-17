@@ -632,7 +632,7 @@ async def _th_scope(timings, user_path):
             ] = docs.iloc[idx]["dist"] + 1
     docs["decrease_factor"] = np.log(_HBASE) / np.log(docs["dist"] + _HBASE)
     # find search scope of chunks
-    scope = [
+    scope = [] if docs.empty else [
         x[0] for x in await rss.query(
             f"""
             SELECT c.id FROM chunks c
