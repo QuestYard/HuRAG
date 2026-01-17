@@ -11,12 +11,6 @@ T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 _pool: aiomysql.Pool | None = None
 _pool_lock: asyncio.Lock = asyncio.Lock()
 
-# async def _get_lock() -> asyncio.Lock:
-#     global _pool_lock
-#     if _pool_lock is None:
-#         _pool_lock = asyncio.Lock()
-#     return _pool_lock
-
 async def get_pool() -> aiomysql.Pool:
     """Get or create the database connection pool."""
     global _pool
@@ -24,7 +18,6 @@ async def get_pool() -> aiomysql.Pool:
     if _pool is not None:
         return _pool
 
-    # lock = await _get_lock()
     async with _pool_lock:
         if _pool is not None:
             return _pool
@@ -283,5 +276,5 @@ async def transact(
             return rowcount
         except Exception as e:
             await conn.rollback()
-            raise e
+            raise
 

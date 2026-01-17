@@ -51,8 +51,6 @@ def with_vdb(
             try:
                 ret = await func(*args, **kwargs)
                 return ret
-            except Exception:
-                raise
             finally:
                 _cli and await _cli.close()
         return wrapper
