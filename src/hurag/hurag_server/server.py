@@ -94,8 +94,8 @@ def main():
     src_dir = os.path.dirname(os.path.abspath(__file__))
     uvicorn.run(
         "hurag.hurag_server.server:app",
-        host="0.0.0.0",
-        port=5002,
+        host=conf.api.host,
+        port=conf.api.port,
         reload=True,
         reload_dirs=[src_dir],
     )
