@@ -147,13 +147,8 @@ async def parallel_glm_rerank(
     import asyncio
 
     async def _worker(queue: asyncio.Queue):
-        nonlocal scores
-
         while True:
             batch_indices = await queue.get()
-            if batch_indices is None:
-                queue.task_done()
-                return
             batch_docs = [documents[i] for i in batch_indices]
             try:
                 reranked = await glm_rerank(
@@ -164,15 +159,13 @@ async def parallel_glm_rerank(
                 for score in reranked:
                     scores[batch_indices[score["index"]]] = score["relevance_score"]
             except Exception as e:
-                print(f"Failed to rerank batch using GLM: {e!r}")
+                logger.error(f"Failed to rerank batch using GLM: {e!r}")
             finally:
                 queue.task_done()
 
     queue = asyncio.Queue()
     scores = [0.0] * len(documents)
-    rerankers = [
-        asyncio.create_task(_worker(queue)) for _ in range(workers)
-    ]
+    rerankers = [asyncio.create_task(_worker(queue)) for _ in range(workers)]
 
     for i in range(0, len(documents), batch_size):
         batch_indices = list(range(i, min(i + batch_size, len(documents))))
