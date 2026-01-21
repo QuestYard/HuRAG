@@ -10,8 +10,9 @@ from .api.v1.llm import router as llm_router
 from .api.v1.hurag import router as hurag_router
 
 class LifespanClient:
-    model = None
-    client = None
+    def __init__(self):
+        self.model = None
+        self.client = None
 
     @property
     def started(self) -> bool:
