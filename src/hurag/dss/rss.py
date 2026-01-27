@@ -1,47 +1,60 @@
 import aiomysql
 import asyncio
 from functools import wraps
-from typing import Any, Callable, Coroutine, TypeVar
+from typing import Any, Callable, Coroutine, TypeVar, AsyncGenerator
 from contextlib import asynccontextmanager
-
-from .. import conf
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
-_pool: aiomysql.Pool | None = None
-_pool_lock: asyncio.Lock = asyncio.Lock()
+_pools: dict[str, aiomysql.Pool] = {}
+_pools_lock: asyncio.Lock = asyncio.Lock()
 
-async def get_pool() -> aiomysql.Pool:
+async def get_pool(
+    host: str | None = None,
+    port: int | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    db: str | None = None,
+    pool_name: str = "default",
+) -> aiomysql.Pool:
     """Get or create the database connection pool."""
-    global _pool
+    from .. import conf
 
-    if _pool is not None:
-        return _pool
+    global _pools
 
-    async with _pool_lock:
-        if _pool is not None:
-            return _pool
-        _pool = await aiomysql.create_pool(
-            host=conf.mariadb.host,
-            port=conf.mariadb.port,
-            user=conf.mariadb.user,
-            password=conf.mariadb.password,
-            db=conf.mariadb.database,
+    if pool_name in _pools:
+        return _pools[pool_name]
+
+    async with _pools_lock:
+        if pool_name in _pools:
+            return _pools[pool_name]
+        _pools[pool_name] = await aiomysql.create_pool(
+            host=host or conf.mariadb.host,
+            port=port or conf.mariadb.port,
+            user=user or conf.mariadb.user,
+            password=password or conf.mariadb.password,
+            db=db or conf.mariadb.database,
             autocommit=False,
             minsize=1,
             maxsize=10,
             pool_recycle=3600,
         )
 
-    return _pool
+    return _pools[pool_name]
 
-async def close_pool():
-    """Close the database connection pool. Only used with API lifespan."""
-    global _pool
-    if _pool is not None:
-        _pool.close()
-        await _pool.wait_closed()
-        _pool = None
+async def close_pool(pool_name: str | None = None) -> None:
+    """Close the database connection pool."""
+    global _pools
+    if pool_name:
+        if pool_name in _pools:
+            pool = _pools.pop(pool_name)
+            pool.close()
+            await pool.wait_closed()
+    else:
+        for pool in _pools.values():
+            pool.close()
+            await pool.wait_closed()
+        _pools.clear()
 
 @asynccontextmanager
 async def lifespan(app=None):
@@ -54,10 +67,11 @@ async def lifespan(app=None):
 def with_rdb(
     func: Callable | None = None,
     *,
-    connection_name: str = "connection",
-    cursor_name: str = "cursor",
+    connection_arg_name: str = "connection",
+    cursor_arg_name: str = "cursor",
     dict_cursor: bool = False,
     ss_cursor: bool = False,
+    pool_name: str = "default",
 ) -> Callable:
     """
     Decorator for injection of rss connection and cursor.
@@ -65,14 +79,16 @@ def with_rdb(
     Args:
         func:
             The function to be decorated.
-        connection_name: optional, default "connection"
+        connection_arg_name: optional, default "connection"
             The name of the connection argument to be injected.
-        cursor_name: optional, default "cursor"
+        cursor_arg_name: optional, default "cursor"
             The name of the cursor argument to be injected.
         dict_cursor: optional, default False
             Whether to use a dictionary cursor.
         ss_cursor: optional, default False
             Whether to use a server-side cursor.
+        pool_name: optional, default "default"
+            The name of the connection pool to use.
 
     **Usage**:
 
@@ -106,7 +122,7 @@ def with_rdb(
     Or you can customize the names of the injected arguments.
 
     ```python
-    @with_rdb(connection_name="conn", cursor_name="cur", dict_cursor=True)
+    @with_rdb(connection_arg_name="conn", cursor_arg_name="cur", dict_cursor=True)
     async def my_function(other_arg, **kwargs):
         connection = kwargs['conn']
         cursor = kwargs['cur']
@@ -133,7 +149,7 @@ def with_rdb(
     def decorator(func: T)-> T:
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            pool = await get_pool()
+            pool = await get_pool(pool_name=pool_name)
             connection = await pool.acquire()
             if dict_cursor:
                 if ss_cursor:
@@ -145,8 +161,8 @@ def with_rdb(
                     cursor = await connection.cursor(aiomysql.SSCursor)
                 else:
                     cursor = await connection.cursor()
-            kwargs[connection_name] = connection
-            kwargs[cursor_name] = cursor
+            kwargs[connection_arg_name] = connection
+            kwargs[cursor_arg_name] = cursor
             try:
                 ret = await func(*args, **kwargs)
                 await connection.commit()
@@ -163,7 +179,11 @@ def with_rdb(
         return decorator(func)
     return decorator
 
-async def query(statement: str, data: tuple = ()) -> list[tuple]:
+async def query(
+    statement: str,
+    data: tuple = (),
+    pool_name: str = "default",
+) -> list[tuple]:
     """
     Execute a SQL query statement (SELECT) and return all results.
 
@@ -172,17 +192,24 @@ async def query(statement: str, data: tuple = ()) -> list[tuple]:
             The SQL query statement to be executed.
         data:
             The data to be used in the query statement.
+        pool_name:
+            The name of the connection pool to use. Default is "default".
 
     Returns:
         A list of tuples representing the query results.
     """
-    pool = await get_pool()
+    pool = await get_pool(pool_name=pool_name)
     async with pool.acquire() as conn, conn.cursor() as cur:
         await cur.execute(statement, data)
         ret = await cur.fetchall()
         return list(ret)
 
-async def query_iter(statement: str, data: tuple = (), batch_size: int = 1000):
+async def query_iter(
+    statement: str,
+    data: tuple = (),
+    batch_size: int = 1000,
+    pool_name: str = "default",
+) -> AsyncGenerator[tuple | dict, None]:
     """
     Execute a SQL query statement (SELECT) and yield results iteratively.
     Uses a server-side cursor to avoid loading all results into memory.
@@ -194,11 +221,13 @@ async def query_iter(statement: str, data: tuple = (), batch_size: int = 1000):
             The data to be used in the query statement.
         batch_size:
             The number of rows to fetch at a time. Default is 1000.
+        pool_name:
+            The name of the connection pool to use. Default is "default".
 
     Yields:
-        A tuple representing a row in the query results.
+        A tuple or a dict representing a row in the query results.
     """
-    pool = await get_pool()
+    pool = await get_pool(pool_name=pool_name)
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.SSCursor) as cur:
             await cur.execute(statement, data)
@@ -209,7 +238,11 @@ async def query_iter(statement: str, data: tuple = (), batch_size: int = 1000):
                 for row in rows:
                     yield row
 
-async def dml(statement: str, data: tuple | list[tuple] | None = ()) -> int:
+async def dml(
+    statement: str,
+    data: tuple | list[tuple] | None = (),
+    pool_name: str = "default",
+) -> int:
     """
     Execute a DML statement (INSERT, UPDATE, DELETE).
     
@@ -219,11 +252,13 @@ async def dml(statement: str, data: tuple | list[tuple] | None = ()) -> int:
         data:
             The data to be used in the DML statement. If a list of tuples is
             provided, executemany() will be used.
+        pool_name:
+            The name of the connection pool to use. Default is "default".
 
     Returns:
         The number of affected rows.
     """
-    pool = await get_pool()
+    pool = await get_pool(pool_name=pool_name)
     async with pool.acquire() as conn, conn.cursor() as cur:
         try:
             if data is not None and isinstance(data, list):
@@ -235,11 +270,12 @@ async def dml(statement: str, data: tuple | list[tuple] | None = ()) -> int:
             return cur.rowcount
         except Exception as e:
             await conn.rollback()
-            raise e
+            raise
 
 async def transact(
     statements: list[str],
     data: list[tuple | list[tuple] | None] | None = None,
+    pool_name: str = "default",
 ) -> int:
     """
     Execute multiple DML statements in a transaction.
@@ -251,11 +287,13 @@ async def transact(
             statement. If None, empty tuples will be used. If the length of
             data is less than statements, the remaining statements will use
             empty tuples.
+        pool_name:
+            The name of the connection pool to use. Default is "default".
 
     Returns:
         The total number of affected rows.
     """
-    pool = await get_pool()
+    pool = await get_pool(pool_name=pool_name)
     async with pool.acquire() as conn, conn.cursor() as cur:
         if data is None:
             data = [()] * len(statements)

@@ -118,16 +118,15 @@ def with_async_spinner(
     return decorator
 
 def async_cmd(func: T) -> Callable[..., Any]:
-    """
-    Decorator to run an async command with database lifespan management.
-    """
+    """Decorator to run an async command with database lifespan management."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         import asyncio
-        from ..dss import rss
+        from ..dss import rss, vss
+        from ..llm import llm_lifespan
         
         async def _runner():
-            async with rss.lifespan():
+            async with rss.lifespan(), vss.lifespan(), llm_lifespan():
                 return await func(*args, **kwargs)
         
         return asyncio.run(_runner())

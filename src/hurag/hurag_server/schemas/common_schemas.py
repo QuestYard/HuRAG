@@ -18,4 +18,3 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     role: str = Field(default="assistant")
     content: str = Field(default="")
-

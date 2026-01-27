@@ -12,16 +12,25 @@ HuRAG SDK 提供了一些数据存储服务的通用工具，方便开发者进�
 
 `hurag.dss` 模块提供了两个装饰器 `with_rdb` 和 `with_vdb`，用于简化数据库连接和客户端的生命周期管理。
 
+### 多数据库支持
+
+HuRAG SDK 支持连接多个不同数据库，包括 MySQL/MariaDB 关系型数据库和 Milvus 向量数据库。
+
+项目自身使用的数据库在 `hurag.yaml` 中配置，其使用的 `aiomysql.Pool` 和 `AsyncMilvusClient` 使用标识名 `"default"`，不需要显式调用创建连接池或客户端，直接使用默认参数调用 SDK 即可自动创建连接。
+
+同时也支持其他依赖 `hurag` 库的项目复用 SDK，为此，可以在代码中显式调用 `rss.get_pool()` 或 `vss.get_client()` 函数，传入数据库连接参数和一个不同的标识名来创建连接池或客户端，在调用 SDK 时将该标识名传递给命名参数 `pool_name` 或 `client_name`，即可利用项目提供的数据存储服务 SDK 来访问其他数据库。
+
 ### with_rdb 装饰器
 
 `with_rdb` 装饰器用于自动注入关系型数据库（MariaDB/MySQL）的连接和游标对象。它会自动处理连接池的获取和释放。
 
 **参数说明：**
 
-- `connection_name` (str, optional): 注入到被装饰函数中的连接对象参数名，默认为 `"connection"`。
-- `cursor_name` (str, optional): 注入到被装饰函数中的游标对象参数名，默认为 `"cursor"`。
+- `connection_arg_name` (str, optional): 注入到被装饰函数中的连接对象参数名，默认为 `"connection"`。
+- `cursor_arg_name` (str, optional): 注入到被装饰函数中的游标对象参数名，默认为 `"cursor"`。
 - `dict_cursor` (bool, optional): 是否使用字典游标（返回结果为字典），默认为 `False`。
 - `ss_cursor` (bool, optional): 是否使用服务端游标（用于处理大量数据），默认为 `False`。
+- `pool_name` (str, optional): 连接池的标识名，默认为 `"default"`。
 
 **使用示例：**
 
@@ -43,7 +52,8 @@ user = await get_user_by_id(1)
 
 **参数说明：**
 
-- `client_name` (str, optional): 注入到被装饰函数中的客户端对象参数名，默认为 `"client"`。
+- `client_arg_name` (str, optional): 注入到被装饰函数中的客户端对象参数名，默认为 `"client"`。
+- `client_name` (str, optional): 注入到被装饰函数中的客户端标识名，默认为 `"default"`。
 
 **使用示例：**
 
@@ -59,13 +69,12 @@ async def search_vectors(vectors: list, milvus_client=None):
     )
     return res
 
-# 调用时无需传递 milvus_client 参数
 results = await search_vectors([[0.1, 0.2, ...]])
 ```
 
 ### RDB 生命周期
 
-本项目采用 `aiomysql` 作为 MariaDB/MySQL 的异步客户端，使用连接池管理数据库连接。连接池在应用启动时创建，并必须在应用关闭时销毁。
+本项目采用 `aiomysql` 作为 MariaDB/MySQL 的异步客户端，使用连接池管理数据库连接。在应用关闭时必须关闭并销毁。
 
 对于 API 服务，可以为 FastAPI app 对象指定一个 `AsyncContextManager` 类型的 `lifespan` 属性，用于管理连接池的生命周期。例如：
 
@@ -86,27 +95,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-对于 CLI 命令等短生命周期应用，可以在主函数中手动调用 `hurag.dss.rss.close_pool` 来关闭连接池。也可以使用模块内置的 `rss.lifespan` 上下文管理器。
-
-例如 `cli` 模块的 `async_cmd` 装饰器就使用了 `rss.lifespan` 来管理连接池的生命周期，其源代码和使用方式如下：
+对于 CLI 命令等短生命周期应用，可以在主函数中手动调用 `rss.close_pool()` 来关闭连接池。也可以使用 `hurag.cli` 模块内置的 `async_cmd` 装饰器，使用方式如下：
 
 ```python
-def async_cmd(func: T) -> Callable[..., Any]:
-    """
-    Decorator to run an async command with database lifespan management.
-    """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        import asyncio
-        from ..dss import rss
-        
-        async def _runner():
-            async with rss.lifespan():
-                return await func(*args, **kwargs)
-        
-        return asyncio.run(_runner())
-    return wrapper
-
 # 装饰器使用示例
 from hurag.cli import async_cmd
 
@@ -116,13 +107,115 @@ async def info():
     ... # CLI 命令函数逻辑，可安全使用数据库，异步调用无需 asyncio.run
 ```
 
+### VDB 生命周期
+
+本项目采用 `pymilvus` 的 `AsyncMilvusClient` 异步客户端连接和访问向量数据库。连接的客户端在应用关闭时必须关闭并销毁。
+
+和 RDB 的生命周期管理类似，项目在 `hurag.dss.vss` 模块中提供了 `close_client()` 函数用于关闭和销毁客户端，可以使用和 RDB 一样的方法来管理 VDB 生命周期。
+
+`hurag.cli` 模块的 `async_cmd` 装饰器同时支持向量数据库客户端的生命周期管理。
+
 ### 初始化数据存储
 
 `hurag.dss` 模块提供了 `init_ds()` 函数，用于初始化数据存储服务。该函数会根据配置文件中的设置，初始化 Milvus 和 MariaDB 后台数据库。
 
 *警告：该函数会删除所有现有数据，包括所有文档和知识图谱，仅在首次部署或重置数据存储时使用。*
 
-`hurag.dss` 模块的 `clear_graph` 函数可以清除知识图谱相关的数据，包括 MariaDB 中的实体和关系数据，以及 Milvus 中的向量数据。
+`hurag.dss` 模块的 `clear_graph()` 函数可以清除知识图谱相关的数据，包括 MariaDB 中的实体和关系数据，以及 Milvus 中的向量数据。
+
+*以上两个初始化函数仅对 HuRAG 自身的数据存储进行初始化，即配置在 `hurag.yaml` 中的数据库。*
+
+### FastAPI 依赖注入支持
+
+`hurag.depends` 模块提供了 FastAPI 依赖项，用于将数据库连接和客户端注入到 API 处理函数中。
+
+#### RDB 连接池 (`Pool`)
+
+用于获取 `aiomysql.Pool` 连接池对象。
+
+- **`HuragRdbPoolDep`**: 注入默认连接池（对应 `hurag.yaml` 配置）。
+- **`rdb_pool`**: 函数依赖，用于注入自定义配置的连接池。
+
+**使用示例：**
+
+使用 `HuragRdbPoolDep` 注入默认数据库连接池：
+
+```python
+from hurag.depends import HuragRdbPoolDep
+
+@app.get("/db1")
+async def _db1(pool: HuragRdbPoolDep):
+    async with pool.acquire() as conn, conn.cursor() as cur:
+        await cur.execute("SELECT COUNT(*) FROM documents")
+        ret = await cur.fetchall()
+        return { "number_of_documents": ret[0][0] }
+```
+
+使用 `rdb_pool` 注入其他自定义的数据库连接池：
+
+```python
+from hurag.depends import rdb_pool
+from fastapi import Depends
+from typing import Annotated
+
+db2_params = {
+    "host": "localhost",
+    "port": 3306,
+    "user": "username",
+    "password": "password",
+    "db": "another_db",
+    "pool_name": "another_pool",    # 此参数值不能为 "default"
+}
+
+@app.get("/db2")
+async def _db2(pool: Annotated["aiomysql.Pool", Depends(rdb_pool(**db2_params))]):
+    async with pool.acquire() as conn, conn.cursor() as cur:
+        await cur.execute("SELECT COUNT(*) FROM documents")
+        ret = await cur.fetchall()
+        return { "number_of_documents": ret[0][0] }
+```
+
+#### RDB 连接 (`Connection`)
+
+用于获取 `aiomysql.Connection` 连接对象。相比连接池，直接注入连接通常更简单且推荐使用。
+
+- **`HuragRdbConnectionDep`**: 注入默认数据库连接。
+- **`rdb_connection`**: 函数依赖，用于注入自定义配置的数据库连接。
+
+**使用示例：**
+
+```python
+from hurag.depends import HuragRdbConnectionDep
+
+@app.get("/db1")
+async def _db1(conn: HuragRdbConnectionDep):
+    async with conn.cursor() as cur:
+        await cur.execute("SELECT COUNT(*) FROM documents")
+        ret = await cur.fetchall()
+        return { "number_of_documents": ret[0][0] }
+```
+
+自定义数据库连接的依赖用法类似。
+
+#### VDB 客户端 (`AsyncMilvusClient`)
+
+用于获取 `pymilvus.AsyncMilvusClient` 异步客户端对象。
+
+- **`HuragVdbClientDep`**: 注入默认 Milvus 客户端。
+- **`vdb_client`**: 函数依赖，用于注入自定义配置的 Milvus 客户端。
+
+**使用示例：**
+
+```python
+from hurag.depends import HuragVdbClientDep
+
+@app.get("/vdb1")
+async def _vdb1(cli: HuragVdbClientDep):
+    resp = await cli.list_collections()
+    return { "collections": resp }
+```
+
+自定义数据库客户端的依赖用法类似。
 
 ## 向量存储服务模块
 

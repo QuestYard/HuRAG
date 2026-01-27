@@ -12,15 +12,13 @@ from .llm_common_tools import (
     extract_chunk,
 )
 from .openai_client import (
-    create_client,
+    create_oa_client,
+    get_oa_client,
+    close_oa_client,
+    lifespan as llm_lifespan,
     chat,
     chat_with_retry,
     with_oa_client,
-)
-from .glm_reranker import (
-    glm_rerank,
-    parallel_glm_rerank,
-    with_rr_client,
 )
 from .prompts import (
     PROMPTS,
@@ -43,13 +41,13 @@ __all__ = [
     "build_messages",
     "extract_chunk",
     "extract_response",
-    "create_client",
+    "create_oa_client",
+    "get_oa_client",
+    "close_oa_client",
+    "llm_lifespan",
     "chat",
     "chat_with_retry",
     "with_oa_client",
-    "glm_rerank",
-    "parallel_glm_rerank",
-    "with_rr_client",
     "PROMPTS",
     "create_entity_extraction_prompt",
     "create_entity_gleaning_prompt",

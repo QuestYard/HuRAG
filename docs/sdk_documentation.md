@@ -76,7 +76,7 @@ HuRAG SDK 在 `hurag.llm` 模块中提供了装饰器 `with_es_client`，封装�
 ```python
 from hurag.llm import with_es_client
 @with_es_client
-async def get_text_embedding(es_client, text: str) -> list[float]:
+async def get_text_embedding(esclient, text: str) -> list[float]:
     embedding = await es_client.embed(text)
     return embedding
 ```
@@ -143,11 +143,11 @@ async def embed_community_summaries(
 - `batch_type = 1`: 按文档分批处理，每次处理一个文档中的所有文本块。
 - `batch_type > 1`: 按文本块分批处理，每次处理 `batch_type` 个文本块。
 
-`esclient` 参数由装饰器自动传入，开发者无需手动提供。
+`esclient` 参数由装饰器自动传入，开发者无需手动提供。用户也可以使用装饰器参数 `client_arg_name` 来指定不同的注入参数名称。
 
 ### Reranker Service 调用
 
-HuRAG 支持两种重排序服务：QuestYard Reranker Service 和基于 GLM 的 Reranker 模型。HuRAG SDK 在 `hurag.llm` 模块中封装了对这两种重排序服务的调用，提供了简化的接口，方便开发者进行文本块重排序。
+HuRAG 使用 QuestYard Reranker Service 调用 Reranker 模型。HuRAG SDK 在 `hurag.llm` 模块中封装了对重排序服务的调用，提供了简化的接口，方便开发者进行文本块重排序。
 
 #### QuestYard Reranker 接口
 
@@ -178,65 +178,6 @@ async def rerank_knowledge_by_es(
     response = await esclient.rerank(query, contents)
     return sorted(
         [[k, s] for k, s in zip(knowledge_dict.values(), response.scores)],
-        key=lambda x: x[1],
-        reverse=True,
-    )
-```
-
-#### GLM Reranker 接口
-
-HuRAG SDK 在 `hurag.llm.glm_reranker` 模块中提供了基于 GLM Rerank 模型的重排序接口，封装了对 GLM Rerank 模型的调用，方便开发者进行文本块重排序。
-
-*注意：GLM Rerank 为商用模型，在线调用需要配置环境变量并会产生费用。*
-
-##### 配置
-
-使用 GLM Rerank 模型，需要在 `.env` 文件中配置以下环境变量：
-
-- `GLM_RERANK_BASE_URL`: 模型服务基地址，一般固定为 `https://open.bigmodel.cn/api/paas/v4/rerank`。
-- `GLM_RERANK_API_KEY`: 模型服务 API Key，一般使用 GLM 的 token 即可。
-- `GLM_RERANK_MODEL`: 指定使用的模型名称，一般固定为 `rerank`。
-
-同时，在 `hurag.yaml` 配置文件中，需要将 `llm.reranker` 参数设置为 `GLM`，以启用该重排序器。
-
-##### 装饰器与函数
-
-`hurag.llm.glm_reranker` 模块提供了以下核心组件：
-
-- **`with_rr_client` 装饰器**：类似于 `with_es_client`，用于为被装饰函数注入一个异步 `httpx.AsyncClient` 实例（参数名默认为 `rrclient`），负责管理 HTTP 连接的生命周期。
-
-- **`glm_rerank` 函数**：执行单次在线重排序请求。
-    - **返回格式**：不同于通常本地部署 Reranker 直接返回得分列表，`glm_rerank` 返回一个字典列表，每个字典包含 `"index"`（原始文档索引）和 `"relevance_score"`（相关性得分）两个键。
-    - **限制**：在线服务的上下文窗口限制为 4k token，因此一次请求不宜包含过多或过长的文档。
-
-- **`parallel_glm_rerank` 并发函数**：专为处理大量文档设计。
-    - **原理**：鉴于在线模型的 4k 窗口限制，但该模型支持最多 50 个并发调用，该函数将文档列表分批（`batch_size` 默认为 2），利用 `asyncio` 进行并发重排序。
-    - **返回格式**：为了方便下游处理，该函数内部处理了索引映射，直接返回一个与输入文档顺序对应的原始相关性得分列表（`list[float]`），与本地 Reranker 的行为一致。
-
-##### 使用示例
-
-以下示例展示了 `hurag.retrievers.py` 模块中如何使用 `parallel_glm_rerank` 对知识库检索结果进行重排序：
-
-```python
-async def rerank_knowledge_by_glm(
-    query: str,
-    knowledge_dict: dict[str, Knowledge],
-) -> list[tuple[Knowledge, float]]:
-    """
-    Rerank the input knowledge objects based on the query by using GLM rerank in parallel.
-
-    Args:
-        query (str): the user query.
-        knowledge_dict: A dict of knowledge objects like {id: Knowledge, ...}
-
-    Returns:
-        A list like [[Knowledge, score], ...]
-    """
-    from .llm import parallel_glm_rerank
-    contents = [k.context for k in knowledge_dict.values()]
-    reranked = await parallel_glm_rerank(query, contents)
-    return sorted(
-        [[k, s] for k, s in zip(knowledge_dict.values(), reranked)],
         key=lambda x: x[1],
         reverse=True,
     )
@@ -357,11 +298,12 @@ if __name__ == "__main__":
 def with_oa_client(
     func: Callable | None = None,
     *,
-    base_url: str,
-    api_key: str,
-    timeout: float = 60.0,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    client_name: str | None = None,
+    timeout: float = 180.0,
     max_retries: int = 3,
-    client_name: str = "oaclient"
+    client_arg_name: str = "oaclient"
 ) -> Callable[..., Any]:
 ```
 
@@ -369,9 +311,10 @@ def with_oa_client(
 
 - `base_url`: OpenAI API 的基础 URL。
 - `api_key`: OpenAI API 的密钥。
-- `timeout`: 请求超时时间（秒），默认为 60.0。
+- `client_name`: 可复用的 AsyncOpenAI 客户端的标签名。如果提供，则会获取或创建一个可复用的客户端，否则创建一个临时客户端，此时必须提供有效的 `base_url` 和 `api_key` 两个参数，且该临时客户端在被装饰函数退出后立即被关闭和清理，今后不能复用。如果提供的标签名为保留的 `extraction` 或者 `generation`，则不需要提供 `base_url` 和 `api_key`，这两个参数会从配置信息中读取；如果提供了其他标签名，除非能够确定对应的可复用客户端已经创建过，否则也应当提供 `base_url` 和 `api_key`。
+- `timeout`: 请求超时时间（秒），用于设置 `read` 超时，默认为 180.0。
 - `max_retries`: 最大重试次数，默认为 3。
-- `client_name`: 注入到被装饰函数中的参数名称，默认为 `"oaclient"`。
+- `client_arg_name`: 注入到被装饰函数中的参数名称，默认为 `"oaclient"`。
 
 **使用示例**
 
@@ -381,12 +324,13 @@ from hurag.llm.openai_client import with_oa_client, chat
 from hurag.llm.llm_common_tools import extract_response
 from openai import AsyncOpenAI
 
-# 使用装饰器自动注入 client
-# 注意：被装饰的函数需要接收 client_name 指定的参数
+# 使用装饰器自动注入 client，本例中注入临时客户端，退出时会关闭。如指定 client_name
+# 以注入可复用的客户端，则退出时不会关闭。
+# 注意：被装饰的函数需要接收 client_arg_name 指定的参数
 @with_oa_client(
     base_url="https://api.openai.com/v1", 
     api_key="your-api-key", 
-    client_name="client" # 将客户端注入到名为 'client' 的参数中
+    client_arg_name="client" # 将客户端注入到名为 'client' 的参数中
 )
 async def custom_chat_task(prompt: str, client: AsyncOpenAI):
     # 直接使用注入的 client 调用 chat 函数
@@ -405,10 +349,59 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+#### OpenAI 客户端生命周期
+
+HuRAG 提供了可复用 OpenAI 客户端机制，用户可以通过签名 `client_name` 来创建和复用不会被自动关闭和销毁的客户端，其中保留了两个标签名 `"generation"` 和 `"extraction"` 专用于根据配置信息创建文本生成和信息提取的客户端，这两个标签名不能用于创建其他客户端。
+
+可复用的客户端一旦创建后，项目不会自动关闭，必须在应用生命周期结束时手动关闭并销毁。
+
+和 VDB/RDB 的生命周期管理类似，项目在 `hurag.llm` 模块中提供了 `close_oa_client()` 函数用于关闭和销毁客户端，可以使用和 VDB/RDB 一样的方法来管理 OpenAI 客户端的生命周期。
+
+CLI 中调用 LLM，可以使用 `cli.async_cmd` 装饰器，该装饰器同时加载了 RDB、VDB、OpenAI 三者的生命周期管理，可以确保在 CLI 命令结束时关闭清理资源，而实现 CLI 功能的代码只需要调用资源完成业务逻辑即可。也可以采用创建临时客户端的方式调用 `llm.chat()` 函数，即传递参数 `base_url` 和 `api_key`，而不传递 `client` 参数。
+
+#### FastAPI 依赖注入支持
+
+`hurag.depends` 模块提供了 FastAPI 依赖项，用于将 OpenAI 客户端注入到 API 处理函数中。
+
+- **HuragGenerationClient**: 注入 generation 客户端
+- **HuragExtractionClient**: 注入 extraction 客户端
+- **`openai_client`**: 函数依赖，用于注入自定义配置的客户端。
+
+**使用示例：**
+
+使用 `HuragGenerationClient` 注入用于文本生成的客户端：
+
+```python
+from hurag.depends import HuragGenerationClient
+
+@app.get("/openai_client")
+async def _oa_client(client: HuragGenerationClient):
+    ...
+```
+
+使用 `openai_client` 注入其他自定义的客户端：
+
+```python
+from hurag.depends import openai_client
+from fastapi import Depends
+from typing import Annotated
+
+params = {
+    "base_url": "https://base_url.com",
+    "api_key": "the-token",
+    "timeout": 120.0,
+    "max_retries": 3,
+    "client_name": "other_client",    # 此参数值不能为 "extraction" 或 "generation"
+}
+
+@app.get("/openai_client")
+async def _oa_client(pool: Annotated["openai.AsyncOpenAI", Depends(openai_client(**params))]):
+    ...
+```
+
 ## 文集管理
 
 Corpus Management (文集管理) 是 HuRAG SDK 的核心功能模块，提供了以文集 (Corpus) 为组织单元的文档标注、分割、加载等功能。文集管理模块封装在 `hurag.corpus` 模块中，方便开发者进行文集相关的操作。
-
 SDK 详情请参考: [文集管理 SDK 文档](sdk_docs/corpus_management_sdk.md)
 
 ## 知识库管理

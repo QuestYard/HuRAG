@@ -12,7 +12,7 @@ def with_es_client(
     *,
     base_url: str | None = None,
     timeout: float = 300.0,
-    client_name: str = "esclient",
+    client_arg_name: str = "esclient",
 ) -> Callable[..., Any]:
     """
     Decorator to inject an embedding client into the decorated function.
@@ -23,7 +23,7 @@ def with_es_client(
             it defaults to the value in the configuration.
         timeout (float): 
             Timeout for embedding requests. Default is 300.0 seconds.
-        client_name (str):
+        client_arg_name (str):
             The name of the client to be injected into. Default is "esclient".
 
     Returns:
@@ -37,7 +37,7 @@ def with_es_client(
                     base_url = base_url or f"{conf.llm.embedding}",
                     timeout = timeout,
                 ) as embedding_client:
-                    kwargs[client_name] = embedding_client
+                    kwargs[client_arg_name] = embedding_client
                     async for item in func(*args, **kwargs):
                         yield item
         else:
@@ -47,7 +47,7 @@ def with_es_client(
                     base_url = base_url or f"{conf.llm.embedding}",
                     timeout = timeout,
                 ) as embedding_client:
-                    kwargs[client_name] = embedding_client
+                    kwargs[client_arg_name] = embedding_client
                     ret = await func(*args, **kwargs)
                 return ret
         return wrapper

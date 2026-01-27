@@ -100,15 +100,15 @@ client = MilvusClient(
 
 #### Generate Configuration File
 
-在工作目录下创建 `hurag.yaml` 配置文件，内容参照项目提供的示例 [hurag.yaml.sample](hurag.yaml.sample) 并根据实际情况修改配置项。
+在工作目录下创建 `hurag.yaml` 配置文件，内容参照项目提供的示例模板 [HuRAG 配置文件模板](hurag_config_template.yaml) 并根据实际情况修改配置项。
 
 示例配置文件中注释为必配的配置项必须填写，其他配置项若无不同可以不提供。其中 `milvus` 和 `mariadb` 两部分中的必配项根据上一步骤中创建的数据库和用户信息进行填写。
 
-配置文件中的 `llm.generation` 和 `llm.extraction` 部分用于配置 HuRAG 使用的语言模型，分别用于生成式问答和信息抽取。二者均采用字符串形式指定模型，配置的模型名称必须和环境变量配置文件 `.env` 中的模型参数变量名保持对应。
+配置文件中的 `llm.generation` 和 `llm.extraction` 部分用于配置 HuRAG 使用的大语言模型，分别用于生成式问答和信息抽取。二者均采用字符串形式指定一个模型的标签名，例如 `"DEEPSEEK"`，配置的模型标签名和环境变量配置文件 `.env` 中的模型参数环境变量名保持对应。
 
-例如，若在 `hurag.yaml` 中配置 `llm.generation.model` 为 `"GLM"`，则在 `.env` 文件中需要配置以下三个环境变量：`GLM_BASE_URL`、`GLM_API_KEY` 和 `GLM_MODEL`。其中 `GLM_MODEL` 用于指定具体的模型名称，如 `"glm-4-flash-250414"`。
+例如，若在 `hurag.yaml` 中配置 `llm.generation.model` 为 `"GLM"`，则在 `.env` 文件中需要配置以下三个环境变量：`GLM_BASE_URL`、`GLM_API_KEY` 和 `GLM_MODEL`。其中 `GLM_MODEL` 用于指定具体的模型调用基址、令牌和模型名称。
 
-注意，环境变量名均为大写且下划线分隔。由于真正的模型名称在 `.env` 文件中配置，因此在 `hurag.yaml` 中的模型名称仅作为引用标识符使用，可以使用简称，只需要在环境变量名中保持对应即可。
+注意，环境变量名均为大写且下划线分隔。由于真正的模型名称在 `.env` 文件中配置，因此在 `hurag.yaml` 中的模型标签名仅作为引用标识符使用，可以使用简称，只需要在环境变量名中保持对应即可。
 
 #### Start API Server
 
@@ -123,7 +123,7 @@ hurag-server # 启动 HuRAG API Server 测试环境
 
 测试环境会在代码发生改变时自动重加载，适用于开发和调试。若要启动生产环境，请使用 gunicorn 并在服务器（Linux）环境下配置为 systemctl 服务。
 
-gunicorn 服务启动脚本模板见 [HuRAG-Server gunicorn 启动服务脚本模板](hurag_svr.service.1)
+gunicorn 服务启动脚本模板见 [HuRAG API Server 服务单元文件模板](hurag_api_template.service)
 
 HuRAG API Server 默认监听 5002 端口，提供以下 API 接口：
 

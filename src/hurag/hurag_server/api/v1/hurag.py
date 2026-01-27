@@ -213,4 +213,3 @@ async def _get_knowledge_by_ids(req: KnowledgeRequest):
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

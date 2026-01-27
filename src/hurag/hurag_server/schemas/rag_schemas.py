@@ -39,4 +39,3 @@ class KnowledgeSchema(BaseModel):
     content: str = Field(..., description="文本内容，表示检索到的知识片段正文")
     metadata: KnowledgeMetadataSchema = Field(..., description="段落所属文档的元信息")
     score: float = Field(..., description="检索返回的匹配得分（越高表示越相关）")
-

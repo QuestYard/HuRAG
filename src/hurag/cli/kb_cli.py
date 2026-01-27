@@ -17,9 +17,7 @@ app = typer.Typer(
 
 @app.command("init", epilog=HURAG_EPILOG)
 def init():
-    """
-    初始化后台知识库，原有数据将被全部清除，请慎重操作。
-    """
+    """初始化后台知识库，原有数据将被全部清除，请慎重操作。"""
     ensure = input("初始化将清空数据并重建后端数据库，请输入 Y 确认: ")
     if not ensure.strip().lower().startswith("y"):
         show_msg("用户取消初始化操作", style="info")
@@ -40,9 +38,7 @@ def init():
 @app.command("info", epilog=HURAG_EPILOG)
 @async_cmd
 async def info():
-    """
-    查看后台知识库信息。
-    """
+    """查看后台知识库信息。"""
     from ..knowledge_base import stat
     try:
         stat = await stat()
@@ -52,11 +48,7 @@ async def info():
 
     from rich.table import Table
     from . import console
-    table = Table(
-        title="知识库统计信息",
-        title_style="bold italic",
-        box=None
-    )
+    table = Table(title="知识库统计信息", title_style="bold italic", box=None)
     table.add_column(
         "类别",
         width=24,
@@ -91,15 +83,10 @@ async def list(
         help="排序字段: 标题, 生效日期, 发布机构",
     ),
 ):
-    """
-    列出后台知识库中的文档列表及文档相关信息。
-    """
+    """列出后台知识库中的文档列表及文档相关信息。"""
     from ..knowledge_base import list_documents
     try:
-        docs = await list_documents(
-            keyword=keyword,
-            order=order,
-        )
+        docs = await list_documents(keyword=keyword, order=order)
     except Exception:
         show_msg("数据库尚未初始化，请先用 hurag init 初始化数据库", style="error")
         return
@@ -119,22 +106,14 @@ async def list(
         for doc in docs
     ]
     table = Table(box=None)
-    table.add_column(
-        "序号", header_style="underline", width=6, justify="center")
-    table.add_column(
-        "文档标题", header_style="underline", width=100, no_wrap=True)
-    table.add_column(
-        "生效日期", header_style="underline", width=12, justify="center")
-    table.add_column(
-        "失效日期", header_style="underline", width=12, justify="center")
-    table.add_column(
-        "发布机构", header_style="underline", width=28, no_wrap=True)
-    table.add_column(
-        "仅本级", header_style="underline", width=8, justify="center")
-    table.add_column(
-        "段落数", header_style="underline", width=8, justify="right")
-    table.add_column(
-        "实体数", header_style="underline", width=8, justify="right")
+    table.add_column("序号", header_style="underline", width=6, justify="center")
+    table.add_column("文档标题", header_style="underline", width=100, no_wrap=True)
+    table.add_column("生效日期", header_style="underline", width=12, justify="center")
+    table.add_column("失效日期", header_style="underline", width=12, justify="center")
+    table.add_column("发布机构", header_style="underline", width=28, no_wrap=True)
+    table.add_column("仅本级", header_style="underline", width=8, justify="center")
+    table.add_column("段落数", header_style="underline", width=8, justify="right")
+    table.add_column("实体数", header_style="underline", width=8, justify="right")
 
     for ind, inf in enumerate(doc_info):
         table.add_row(
@@ -151,9 +130,7 @@ async def list(
 
 @app.command("store", epilog=HURAG_EPILOG)
 @async_cmd
-async def store(
-    path: str = typer.Argument(..., help="需要入库的文集所在目录")
-):
+async def store(path: str = typer.Argument(..., help="需要入库的文集所在目录")):
     """
     以文集为单位，读取已经标注和分割完毕的文档进入知识库。
 

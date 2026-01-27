@@ -5,84 +5,105 @@ warnings.filterwarnings(
     module="google.protobuf.runtime_version",
 )
 
+import asyncio
+
 from contextlib import asynccontextmanager
 from functools import wraps
-from pymilvus import (
-    AsyncMilvusClient,
-    AnnSearchRequest,
-    RRFRanker,
-)
+from pymilvus import AsyncMilvusClient
 from typing import Callable, Any, Coroutine, TypeVar
 
-from .. import conf
+# from .. import conf
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
-@asynccontextmanager
-async def client():
-    _cli = None
-    try:
-        _cli = AsyncMilvusClient(
-            uri=conf.milvus.uri,
-            token=conf.milvus.token,
-            db_name=conf.milvus.db_name,
+_clients: dict[str, AsyncMilvusClient] = {}
+_clients_lock: asyncio.Lock = asyncio.Lock()
+
+async def get_client(
+    uri: str | None = None,
+    token: str | None = None,
+    db_name: str | None = None,
+    client_name: str = "default",
+) -> AsyncMilvusClient:
+    """Get or create the Milvus client."""
+    from .. import conf
+
+    global _clients
+
+    if client_name in _clients:
+        return _clients[client_name]
+
+    async with _clients_lock:
+        if client_name in _clients:
+            return _clients[client_name]
+        _clients[client_name] = AsyncMilvusClient(
+            uri=uri or conf.milvus.uri,
+            token=token or conf.milvus.token,
+            db_name=db_name or conf.milvus.db_name,
         )
-        yield _cli
+
+    return _clients[client_name]
+
+async def close_client(client_name: str | None = None) -> None:
+    """Close the Milvus client."""
+    global _clients
+    if client_name:
+        if client_name in _clients:
+            client = _clients.pop(client_name)
+            await client.close()
+    else:
+        for client in _clients.values():
+            await client.close()
+        _clients.clear()
+
+@asynccontextmanager
+async def lifespan(app=None):
+    """Context manager to handle Milvus clients."""
+    try:
+        yield
     finally:
-        _cli and await _cli.close()
+        await close_client()
 
 def with_vdb(
     func: T | None = None,
     *,
-    client_name: str = "client",
+    client_arg_name: str = "client",
+    client_name: str = "default",
 ) -> Callable[..., Any]:
     """Decorator to provide a VSS client to the decorated function."""
-    # if func is None:
-        # return lambda f: with_vdb(f, client_name=client_name)
     def decorator(func: T) -> T:
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            _cli = AsyncMilvusClient(
-                uri=conf.milvus.uri,
-                token=conf.milvus.token,
-                db_name=conf.milvus.db_name,
-            )
-            kwargs[client_name] = _cli
-            try:
-                ret = await func(*args, **kwargs)
-                return ret
-            finally:
-                _cli and await _cli.close()
+            kwargs[client_arg_name] = await get_client(client_name=client_name)
+            return await func(*args, **kwargs)
         return wrapper
     
     if func is not None:
         return decorator(func)
     return decorator
 
-async def upsert(collection: str, data: list[dict]):
-    async with client() as cli:
-        res = await cli.upsert(collection_name=collection, data=data)
-    return res
+async def upsert(collection: str, data: list[dict], client_name: str = "default"):
+    cli = await get_client(client_name=client_name)
+    return await cli.upsert(collection_name=collection, data=data)
 
-async def insert(collection: str, data: list[dict]):
-    async with client() as cli:
-        res = await cli.insert(collection_name=collection, data=data)
-    return res
+async def insert(collection: str, data: list[dict], client_name: str = "default"):
+    cli = await get_client(client_name=client_name)
+    return await cli.insert(collection_name=collection, data=data)
 
 async def query(
     collection_name: str,
     filter: str = "",
     output_fields: list[str] | None = None,
+    client_name: str = "default",
     **kwargs,
 ):
-    async with client() as cli:
-        results = await cli.query(
-            collection_name=collection_name,
-            filter=filter,
-            output_fields=output_fields,
-            **kwargs,
-        )
-    return results
+    cli = await get_client(client_name=client_name)
+    return await cli.query(
+        collection_name=collection_name,
+        filter=filter,
+        output_fields=output_fields,
+        **kwargs,
+    )
 
 async def search(
     collection_name: str,
@@ -90,6 +111,7 @@ async def search(
     scope: list | None = None,
     top_k: int = 50,
     rrf_k: float = 100,
+    client_name: str = "default",
 ) -> dict[str, float]:
     """
     Perform hybrid search on collection 'collection_name'.
@@ -107,6 +129,8 @@ async def search(
     Return:
         {id1: score1, id2: score2, ..., id_top_k: score_top_k}
     """
+    from pymilvus import AnnSearchRequest, RRFRanker
+
     expr = "id IN {ids}" if scope else None
     expr_params = {"ids": scope} if scope else None
     dense_request = AnnSearchRequest(
@@ -126,13 +150,13 @@ async def search(
         param={"metric_type": "IP"},
     )
     ranker = RRFRanker(rrf_k)
-    async with client() as cli:
-        res = await cli.hybrid_search(
-            collection_name=collection_name,
-            reqs=[dense_request, sparse_request],
-            ranker=ranker,
-            limit = top_k,
-            output_fields=["id"],
-        )
+    cli = await get_client(client_name=client_name)
+    res = await cli.hybrid_search(
+        collection_name=collection_name,
+        reqs=[dense_request, sparse_request],
+        ranker=ranker,
+        limit = top_k,
+        output_fields=["id"],
+    )
     return {x["id"]: x["distance"] for x in res[0]}
 

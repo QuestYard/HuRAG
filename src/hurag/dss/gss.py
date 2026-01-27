@@ -152,9 +152,9 @@ async def save_communities(
         for s in communities
     ]
     await rss.transact(sql, [(), (), _communities, _community_entity])
-    async with vss.client() as cli:
-        await cli.delete("communities", filter='id != ""')
-        await cli.insert("communities", _embeddings)
+    cli = await vss.get_client()
+    await cli.delete("communities", filter='id != ""')
+    await cli.insert("communities", _embeddings)
 
     return len(_communities), len(_community_entity)
 

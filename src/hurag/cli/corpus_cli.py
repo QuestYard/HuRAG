@@ -66,9 +66,7 @@ def convert(
     show_msg(**result)
 
 @app.command("markup", epilog=HURAG_EPILOG)
-def markup(
-    path: str = typer.Argument(..., help="需要标注的文集所在目录")
-):
+def markup(path: str = typer.Argument(..., help="需要标注的文集所在目录")):
     """
     在指定的目录下检查 TXT, CSV, Markdown 文件，收集文档元数据并创建文集标注。
     
@@ -99,9 +97,7 @@ def markup(
     show_msg(**result)
 
 @app.command("split", epilog=HURAG_EPILOG)
-def split(
-    path: str = typer.Argument(..., help="需要分割文档的文集所在目录")
-):
+def split(path: str = typer.Argument(..., help="需要分割文档的文集所在目录")):
     """
     根据文集标注文件，查找并分割文集中 'text' 或 'regu' 布局的文档。
 
@@ -140,4 +136,3 @@ def split(
 
     result = asyncio.run(_split())
     show_msg(**result)
-

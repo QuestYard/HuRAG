@@ -9,53 +9,26 @@ from .api.v1.messages import router as info_router
 from .api.v1.llm import router as llm_router
 from .api.v1.hurag import router as hurag_router
 
-class LifespanClient:
-    def __init__(self):
-        self.model = None
-        self.client = None
-
-    @property
-    def started(self) -> bool:
-        return self.client is not None
-
-    def startup(self, base_url, api_key, model):
-        from ..llm import create_client
-        self.model = model
-        self.client = create_client(base_url=base_url, api_key=api_key)
-
-    async def shutdown(self):
-        self.model = None
-        await self.client.close()
-        self.client = None
-
-# Global lifespan chat completions client
-chat_client = LifespanClient()
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # startup, create a chat completion client
-    logger.info(f"Starting up HuRAG API Server...")
-
-    import os
-    base_url = os.getenv(f"{conf.llm.generation}_BASE_URL")
-    api_key = os.getenv(f"{conf.llm.generation}_API_KEY")
-    model = os.getenv(f"{conf.llm.generation}_MODEL")
     try:
-        chat_client.startup(base_url, api_key, model)
-        logger.info("Lifespan chat completions client is created.")
+        logger.info(f"HuRAG API Server startup completed.")
 
         yield
 
     except Exception as e:
-        logger.error(f"Failed to startup HuRAG API Server: {e!r}")
+        logger.error(f"HuRAG API Server error: {e!r}")
         raise
     finally:
-        from ..dss import rss
-        logger.info("Closing database connection pool...")
+        from ..dss import rss, vss
+        logger.info("Closing MySQL/MariaDB connection pool...")
         await rss.close_pool()
-        logger.info("Closing chat completions client...")
-        await chat_client.shutdown()
-        logger.info("HuRAG API Server shutdown complete.")
+        logger.info("Closing Milvus clients...")
+        await vss.close_client()
+        from ..llm import close_oa_client
+        logger.info("Closing LLM clients...")
+        await close_oa_client()
+        logger.info("HuRAG API Server shutdown completed.")
 
 
 app = FastAPI(
@@ -74,13 +47,16 @@ app.include_router(info_router)
 app.include_router(llm_router)
 app.include_router(hurag_router)
 
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon_redirect():
     return Response(status_code=204)
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 @app.get("/")
 async def root():
@@ -88,6 +64,7 @@ async def root():
         "server": f"HuRAG-Server {hurag_version}",
         "org": conf.app.org_path.split("/")[-1],
     }
+
 
 def main():
     # change to gunicorn + uvicorn.workers.UvicornWorker in product environment

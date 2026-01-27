@@ -36,12 +36,11 @@ retrieval:
   max_comms:          # 图搜索算法最大社区数，默认 3
   max_nodes:          # 图搜索算法最大返回节点数，默认 1000
 
-# LLM 配置，在 .env 中配置与模型名称对应的模型访问参数配置
+# LLM 配置，在 .env 中配置与此处名称对应的大模型访问参数环境变量
 llm:
   generation:         # 必配项，用于生成问答，建议采用高性能大尺寸LLM
   extraction:         # 必配项，用于知识提取，可以采用中等尺寸LLM
-  embedding:          # HuRAG EmbeddingService，默认 "http://localhost:8765"
-  reranker:           # GLM 或 ES，分别使用 GLM-RERANK 或 EmbeddingService，默认 ES
+  embedding:          # HuRAG EmbeddingService URL，默认 "http://localhost:8765"
 
 # API Server 配置
 api:

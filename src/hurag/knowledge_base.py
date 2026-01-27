@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Literal, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import pandas as pd
     from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
 
@@ -223,7 +224,7 @@ async def indexing_documents(
 
 from .dss import with_rdb
 
-@with_rdb(dict_cursor=True, connection_name="conn", cursor_name="cur")
+@with_rdb(dict_cursor=True, connection_arg_name="conn", cursor_arg_name="cur")
 async def _load_metadata(doc_ids, conn, cur):
     sql = f"""
         SELECT id, title, sn, pub_path, valid_from, valid_to
@@ -233,6 +234,7 @@ async def _load_metadata(doc_ids, conn, cur):
     await cur.execute(sql, tuple(doc_ids))
     rows = await cur.fetchall()
     return {row["id"]: row for row in rows}
+
 
 async def load_knowledge(
     chunks: Iterable[str],
@@ -301,6 +303,7 @@ async def load_knowledge(
 
     return results
 
+
 async def load_knowledge_by_segments(
     segments: Iterable[tuple[str, str]],
     docs: dict[str, dict] | None = None,
@@ -354,6 +357,7 @@ async def load_knowledge_by_segments(
 
     return results
 
+
 async def load_knowledge_by_segment_ids(
     ids: Iterable[str],
     docs: dict[str, dict] | None = None,
@@ -381,71 +385,6 @@ async def load_knowledge_by_segment_ids(
     )
     return await load_knowledge_by_segments(segments, docs, limit)
 
-async def load_knowledge_by_order(
-    chunks_scores: dict[str, float],
-    docs: dict[str, dict] | None = None,
-)-> dict[str, tuple[Knowledge, float]]:
-    """
-    Load knowledge by chunk IDs with their scores, keeping the order of scores.
-
-    Arguments:
-        chunks_scores: dict of chunk IDs and their scores.
-        docs: Optional dictionary of document metadata.
-
-    Returns:
-        A dictionary mapping segment IDs to tuples of (Knowledge, score):
-    """
-    from .dss import rss
-    from .schemas import Knowledge, KnowledgeMetadata
-
-    if not chunks_scores:
-        return {}
-
-    sdc_scores = sorted(
-        [
-            (*x, chunks_scores[x[2]])
-            for x in await rss.query(
-                f"""
-                SELECT s.id, d.id, c.id
-                FROM chunks c
-                JOIN segments s ON c.segment_id = s.id
-                JOIN documents d ON s.document_id = d.id
-                WHERE c.id IN ({','.join(['%s'] * len(chunks_scores))})
-                """,
-                tuple(chunks_scores.keys()),
-            )
-        ],
-        key = lambda x: x[3],
-        reverse = True,
-    )
-    doc_ids = set(did for _, did, _, _ in sdc_scores)
-    if docs is None:
-        docs = await _load_metadata(doc_ids)
-
-    results = {}
-    for sid, did, cid, score in sdc_scores:
-        if sid in results:
-            continue
-        if did not in docs:
-            continue
-        if kn_cache.contains(sid):
-            results[sid] = (kn_cache.get(sid), score)
-            continue
-        ctx = "".join(
-            t[0] for t in await rss.query(
-                "SELECT text FROM chunks WHERE segment_id = %s ORDER BY seq_no",
-                (sid, ),
-            )
-        )
-        kn = Knowledge(
-            segment_id=sid,
-            content=ctx,
-            metadata=KnowledgeMetadata.from_dict(docs[did]),
-        )
-        kn_cache.put(sid, kn)
-        results[sid] = (kn, score)
-
-    return results
 
 async def search(
     query: str,
@@ -541,6 +480,7 @@ async def search(
 
     return final
 
+
 # --- Inner functions ---
 
 _is_valid = lambda fr, to, date: fr <= date and (to is None or to >= date)
@@ -572,7 +512,7 @@ def _doc_paths(user_path):
     ret.append(user_path)
     return ret
 
-async def _th_scope(timings, user_path):
+async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
     """Find document searching scope."""
     import pandas as pd
     import numpy as np
@@ -645,12 +585,26 @@ async def _th_scope(timings, user_path):
     ]
     return {row["id"]: row for row in docs.to_dict(orient="records")}, scope
 
+# --- Tool Functions for API Server or MCP/Tool Calling
+
 async def get_knowledge_by_segment_ids(
     seg_ids: list[str],
     user_path: str,
 ) -> list[Knowledge]:
+    """
+    Get Knowledge objects by segment IDs.
+
+    Arguments:
+        seg_ids (list[str]): required, the list of segment IDs to load as Knowledge.
+        user_path (str): required, the organization path of current user to determent
+            the documents to search in.
+
+    Return:
+        A list of Knowledge objects corresponding to the input segment IDs.
+    """
     from datetime import datetime
+    from . import conf
+    user_path = user_path or conf.app.org_path
 
     docs, _ = await _th_scope([datetime.today()], user_path)
     return list((await load_knowledge_by_segment_ids(seg_ids, docs)).values())
-

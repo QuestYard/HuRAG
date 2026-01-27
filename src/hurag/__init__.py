@@ -1,4 +1,4 @@
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Libin, QuestYard HuRAG Team"
 __description__ = "SDK, CLI and API for HuRAG"
 __url__ = "https://github.com/QuestYard/HuRAG"
@@ -8,19 +8,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path.cwd() / ".env")
-
-# -- Global Options --
-
-OPTIONS = {}
-
-OPTIONS["chunk"] = {
-    "delimiter": "|||||",
-    "seg_delimiter": "=====",
-    "separators": [r"\n\n", r"\n", r"(?<=[。！？；])", r" "],
-}
-
-OPTIONS["kg_extraction_examples"] = 1   # suggested max 3
-OPTIONS["kg_max_gleanings"] = 1         # suggested max 3
 
 # -- Global Variables --
 
@@ -65,7 +52,6 @@ try:
     conf.retrieval.max_nodes = conf.retrieval.max_nodes or 1000
     conf.llm.extraction = conf.llm.extraction or conf.llm.generation
     conf.llm.embedding = conf.llm.embedding or "http://localhost:8765"
-    conf.llm.reranker = conf.llm.reranker or "ES"
     conf.api.host = conf.api.host or "0.0.0.0"
     conf.api.port = conf.api.port or 5000
 except ValueError as ve:
@@ -117,7 +103,6 @@ def reset_console_log_handler():
 # -- Shortcuts --
 
 __all__ = [
-    "OPTIONS",
     "conf",
     "logger",
     "change_console_log_handler",

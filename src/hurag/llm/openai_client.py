@@ -5,26 +5,83 @@ if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
     from openai.types.chat import ChatCompletion
 
-from functools import wraps
+import asyncio
 
+from contextlib import asynccontextmanager
+from functools import wraps
 from . import build_messages
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
-def create_client(
+_clients: dict[str, AsyncOpenAI] = {}
+_clients_lock: asyncio.Lock = asyncio.Lock()
+
+def create_oa_client(
     base_url: str,
     api_key: str,
-    timeout: float = 60.0,
+    timeout: float = 180.0,
     max_retries: int = 3,
 ) -> AsyncOpenAI:
-    """Create an AsyncOpenAI client."""
+    import httpx
     from openai import AsyncOpenAI
     return AsyncOpenAI(
         base_url=base_url,
         api_key=api_key,
-        timeout=timeout,
         max_retries=max_retries,
+        http_client=httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=timeout, write=30.0, pool=10.0),
+            limits=httpx.Limits(keepalive_expiry=60.0),
+        ),
     )
+
+async def get_oa_client(
+    base_url: str | None = None,
+    api_key: str | None = None,
+    timeout: float = 180.0,
+    max_retries: int = 3,
+    client_name: str = "extraction",
+) -> AsyncOpenAI:
+    """Get or create an AsyncOpenAI client."""
+    import os
+    from .. import conf
+
+    global _clients
+
+    if client_name in _clients:
+        return _clients[client_name]
+
+    async with _clients_lock:
+        if client_name in _clients:
+            return _clients[client_name]
+        if client_name == "extraction":
+            base_url = os.getenv(f"{conf.llm.extraction}_BASE_URL")
+            api_key = os.getenv(f"{conf.llm.extraction}_API_KEY")
+        elif client_name == "generation":
+            base_url = os.getenv(f"{conf.llm.generation}_BASE_URL")
+            api_key = os.getenv(f"{conf.llm.generation}_API_KEY")
+        _clients[client_name] = create_oa_client(base_url, api_key, timeout, max_retries)
+
+    return _clients[client_name]
+
+async def close_oa_client(client_name: str | None = None) -> None:
+    """Close the AsyncOpenAI client."""
+    global _clients
+    if client_name:
+        if client_name in _clients:
+            client = _clients.pop(client_name)
+            await client.close()
+    else:
+        for client in _clients.values():
+            await client.close()
+        _clients.clear()
+
+@asynccontextmanager
+async def lifespan(app=None):
+    """Context manager to handle OpenAI clients."""
+    try:
+        yield
+    finally:
+        await close_oa_client()
 
 async def chat(
     model: str,
@@ -65,7 +122,7 @@ async def chat(
     if client is None: 
         if not all([base_url, api_key]):
             raise ValueError("client or base_url/api_key must be provided.")
-        client = create_client(
+        client = create_oa_client(
             base_url=base_url,
             api_key=api_key,
             timeout=timeout,
@@ -113,11 +170,12 @@ async def chat(
 def with_oa_client(
     func: Callable | None = None,
     *,
-    base_url: str,
-    api_key: str,
-    timeout: float = 60.0,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    client_name: str | None = None,
+    timeout: float = 180.0,
     max_retries: int = 3,
-    client_name: str = "oaclient"
+    client_arg_name: str = "oaclient"
 ) -> Callable[..., Any]:
     """
     Decorator to provide an AsyncOpenAI client to the decorated async function.
@@ -126,9 +184,14 @@ def with_oa_client(
         func: Callable | None -- the function to decorate.
         base_url: str -- base URL for OpenAI API.
         api_key: str -- API key for OpenAI API.
+        client_name: str -- name act as the key in _clients dict. If client_name is
+            not provided, then base_url and api_key must be provided and a temperary
+            client will be created. Otherwise, get_oa_client will be called to get or
+            create a permenant client. base_url and api_key can be None if a client
+            with the given client_name is "extraction" or "generation".
         timeout: float -- request timeout in seconds.
         max_retries: int -- maximum number of retries for failed requests.
-        client_name: str -- the name of the parameter to pass the client as.
+        client_arg_name: str -- the name of the parameter to pass the client as.
 
     Returns:
         Callable[..., Any] -- the decorated function.
@@ -136,15 +199,22 @@ def with_oa_client(
     def decorator(func: T) -> T:
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            _cli = create_client(
+            _cli = await get_oa_client(
+                base_url,
+                api_key,
+                timeout,
+                max_retries,
+                client_name,
+            ) if client_name else create_oa_client(
                 base_url=base_url,
                 api_key=api_key,
                 timeout=timeout,
                 max_retries=max_retries,
             )
-            kwargs[client_name] = _cli
+            kwargs[client_arg_name] = _cli
             ret = await func(*args, **kwargs)
-            _cli and await _cli.close()
+            if not client_name:
+                _cli and await _cli.close()
             return ret
         return wrapper
     

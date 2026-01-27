@@ -1,12 +1,9 @@
 import aiofiles
 from pathlib import Path
 
-from . import OPTIONS as opt
+from .constants import CHK_DELIMITER, SEG_DELIMITER, TXT_SEPARATORS
 
-async def plain_text_splitter(
-    src: str | Path,
-    tgt: str | Path | None = None
-) -> str:
+async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
     """
     Split given plain text document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -31,21 +28,18 @@ async def plain_text_splitter(
         chunk_overlap=100,
         length_function=len,
         is_separator_regex=True,
-        separators=opt["chunk"]["separators"],
+        separators=TXT_SEPARATORS,
     )
     texts = text_splitter.split_text(content)
     # save to target file, append a newline to each segment.
     async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
-        await f.write(opt["chunk"]["seg_delimiter"])
-        await f.write(("\n"+opt["chunk"]["seg_delimiter"]).join(texts).strip())
+        await f.write(SEG_DELIMITER)
+        await f.write(("\n" + SEG_DELIMITER).join(texts).strip())
         await f.write("\n")
 
     return tgt.as_posix()
 
-async def markdown_splitter(
-    src: str | Path,
-    tgt: str | Path | None = None
-) -> str:
+async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
     """
     Split given markdown document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -85,25 +79,22 @@ async def markdown_splitter(
         chunk_overlap=0,
         length_function=len,
         is_separator_regex=True,
-        separators=opt["chunk"]["separators"],
+        separators=TXT_SEPARATORS,
     )
     # save to target file, append a newline to each segment.
     async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
         for seg in segs:
-            await f.write(opt["chunk"]["seg_delimiter"])
+            await f.write(SEG_DELIMITER)
             if len(seg) < 500:
                 await f.write(f"{seg}\n")
                 continue
             chks = text_splitter.split_text(seg)
-            await f.write(("\n"+opt["chunk"]["delimiter"]).join(chks))
+            await f.write(("\n" + CHK_DELIMITER).join(chks))
             await f.write("\n")
 
     return tgt.as_posix()
 
-async def regulation_splitter(
-    src: str | Path,
-    tgt: str | Path | None = None
-) -> str:
+async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
     """
     Split given regulation-like document and save into the 'tgt' file if given,  
     otherwise the result will be written into the 'src' file itself.
@@ -171,14 +162,13 @@ async def regulation_splitter(
 
     # save to target file
     async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
-        await f.write(opt["chunk"]["seg_delimiter"])
+        await f.write(SEG_DELIMITER)
         _text = []
         for seg in _segs:
             st = seg["start"]
             ed = seg["end"]
-            _text.append(opt["chunk"]["delimiter"].join(_chks[st:ed]))
-        await f.write(opt["chunk"]["seg_delimiter"].join(_text).strip())
+            _text.append(CHK_DELIMITER.join(_chks[st:ed]))
+        await f.write(SEG_DELIMITER.join(_text).strip())
         await f.write("\n")
 
     return tgt.as_posix()
-

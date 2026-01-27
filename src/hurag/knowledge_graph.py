@@ -32,11 +32,7 @@ class _Segment:
     chk_ids: list[str] = field(default_factory=list)
     history: list[dict[str, str]] = field(default_factory=list)
 
-@with_oa_client(
-    base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
-    api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
-    timeout=120.0,
-)
+@with_oa_client(client_name="extraction", timeout=120.0)
 async def extract_kg_elements(
     document_ids: str | list[str] | None = None,
     num_extracting_workers: int = 10,
@@ -222,11 +218,7 @@ async def extract_kg_elements(
     for worker in gleaners:
         worker.cancel()
 
-    gathered = await asyncio.gather(
-        *extractors,
-        *gleaners,
-        return_exceptions=True
-    )
+    gathered = await asyncio.gather(*extractors, *gleaners, return_exceptions=True)
 
     results = [
         {
@@ -236,16 +228,13 @@ async def extract_kg_elements(
             "text": seg.text,
             "extracting": seg.history[1]["content"] if seg.history else None,
             "gleaning": seg.history[-1]["content"] if seg.history else None,
-        } for seg in segs
+        }
+        for seg in segs
     ]
 
     return results
 
-@with_oa_client(
-    base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
-    api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
-    timeout=120.0,
-)
+@with_oa_client(client_name="extraction", timeout=120.0)
 async def normalize_kg_elements(
     g: Graph,
     num_workers: int = 20,
@@ -267,6 +256,7 @@ async def normalize_kg_elements(
         The normalized knowledge graph.
     """
     model = os.getenv(f"{conf.llm.extraction}_MODEL")
+    failed_elements = []
 
     async def _normalize_single_element(queue, pbar=None):
         while True:
@@ -305,6 +295,7 @@ async def normalize_kg_elements(
                     pbar.update(1)
             except Exception as e:
                 logger.error(f"summarize description error: {e!r}")
+                failed_elements.append(_element)
             finally:
                 queue.task_done()
 
@@ -322,7 +313,26 @@ async def normalize_kg_elements(
     for edge in g.edges:
         await queue.put(edge)
 
-    await queue.join()
+    # Retry logic for failed extractions
+    max_retries = 3
+    for attempt in range(max_retries + 1):
+        await queue.join()
+
+        if not failed_elements:
+            break
+
+        if attempt < max_retries:
+            logger.warning(
+                f"Retrying {len(failed_segs)} elements "
+                f"(Attempt {attempt + 1}/{max_retries})"
+            )
+            while failed_elements:
+                await ex_queue.put(failed_elements.pop())
+        else:
+            logger.error(
+                f"Failed to extract {len(failed_segs)} segments after "
+                f"{max_retries} retries."
+            )
 
     for worker in workers:
         worker.cancel()
@@ -390,11 +400,7 @@ async def community_leiden(resolution: float = 0.5) -> tuple[
 
     return g, partitions, nodes
 
-@with_oa_client(
-    base_url=os.getenv(f"{conf.llm.extraction}_BASE_URL"),
-    api_key=os.getenv(f"{conf.llm.extraction}_API_KEY"),
-    timeout=120.0,
-)
+@with_oa_client(client_name="extraction", timeout=120.0)
 async def summarize_communities(
     graph: ig.Graph,
     partitions: ig.clustering.VertexClustering,
@@ -480,10 +486,7 @@ async def summarize_communities(
     ]
     summaries = {}
     summarize_pbar = tqdm(
-        total=sum(num_batches),
-        ncols=80,
-        desc="Summarizing",
-        position=0
+        total=sum(num_batches), ncols=80, desc="Summarizing", position=0
     )
     for c_no, c in enumerate(partitions):
         if len(c) < min_size:
@@ -503,10 +506,7 @@ async def summarize_communities(
         asyncio.create_task(_aggregate_worker()) for _ in range(num_workers)
     ]
     aggregate_pbar = tqdm(
-        total=len(summaries),
-        ncols=80,
-        desc="Aggregating",
-        position=1
+        total=len(summaries), ncols=80, desc="Aggregating", position=1
     )
     for item in summaries.items():
         await aggregate_queue.put(item)
@@ -517,4 +517,3 @@ async def summarize_communities(
     aggregate_pbar.close()
 
     return summaries
-

@@ -16,8 +16,7 @@ app = typer.Typer(
 )
 
 @app.command("criteria", epilog=HURAG_EPILOG)
-@async_cmd
-async def criteria(
+def criteria(
     criteria_path: str | None = typer.Option(
         None,
         "--criteria-path",
@@ -151,13 +150,13 @@ async def build(
     console.print(f"1. 为下列 {len(doc_info)} 篇文档构建知识图谱：")
     for d in doc_info:
         console.print(d[0])
-
     # 2. extract from LLM
     from ..schemas import Graph
     from ..knowledge_graph import extract_kg_elements, normalize_kg_elements
     console.print("2. 提取实体与实体间关系")
     resp = await extract_kg_elements([d[1] for d in doc_info])
     # 3. Graph.from_responses
+    console.print()
     console.print("3. 去重并生成图谱")
     g = Graph.from_responses(resp, alias=criteria.entity_aliases)
     # 4. Graph.resolve
@@ -166,7 +165,7 @@ async def build(
     # 5. normalization
     console.print("5. 实体关系描述规范化")
     _ = await normalize_kg_elements(g)
-
+    console.print()
     show_msg(
         f"已经提取形成以上文档的知识图元素，包含 {len(g.nodes)} 个知识实体、"
         f"{(len(g.edges))} 对实体关系",
@@ -240,6 +239,7 @@ async def create_communities(
         g, p, n= await community_leiden(resolution=resolution)
         console.print("2. 生成社区摘要")
         summarise = await summarize_communities(g, p, n, min_size=min_size)
+        console.print()
         console.print("3. 社区向量化")
         emb = await embed_community_summaries(summarise)
         console.print("4. 保存知识社区")

@@ -27,6 +27,12 @@ class KGExtractionCriteria:
 
 GRAPH_FIELD_SEP = "<SEP>"
 
+# NOTE: 3 members in hurag.OPTIONS["chunk"] moved to here and renamed to constants:
+
+CHK_DELIMITER = "|||||"
+SEG_DELIMITER = "====="
+TXT_SEPARATORS = [r"\n\n", r"\n", r"(?<=[。！？；])", r" "]
+
 INIT_RSS_STATEMENTS = """
 DROP TABLE IF EXISTS community_entity;
 DROP TABLE IF EXISTS communities;

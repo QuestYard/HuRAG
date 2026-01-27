@@ -18,14 +18,14 @@ async def embed_query(
 ) -> tuple[dict[str, Any], EmbeddingPayloadMeta]:
     """
     Embed a query or a list of queries into vector representations.
-    
+
     Args:
         query: A single query string or a list of query strings to be embedded.
         return_sparse: Whether to return sparse vectors along with dense vectors.
             Default is True.
         esclient: An instance of AsyncEmbeddingClient. This is provided
             automatically by the decorator.
-            
+
     Returns:
         A tuple containing:
             - A dictionary with keys "dense_vecs" and "sparse_vecs" containing the
@@ -49,7 +49,7 @@ async def embed_documents(
 ) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
     """
     Embed documents into vector representations in batches.
-    
+
     Args:
         docs: A single Document object or a list of Document objects to be
             embedded.
@@ -61,7 +61,7 @@ async def embed_documents(
             Default is True.
         esclient: An instance of AsyncEmbeddingClient. This is provided
             automatically by the decorator.
-            
+
     Yields:
         A tuple containing:
             - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
@@ -116,7 +116,7 @@ async def embed_keywords(
 ) -> tuple[dict[str, Any], EmbeddingPayloadMeta]:
     """
     Embed keywords into vector representations.
-    
+
     Args:
         keywords: A dictionary with keys "low_level_keywords" and
             "high_level_keywords", each containing a list of keyword strings
@@ -125,7 +125,7 @@ async def embed_keywords(
             Default is True.
         esclient: An instance of AsyncEmbeddingClient. This is provided
             automatically by the decorator.
-            
+
     Returns:
         A tuple containing:
             - A dictionary with keys "dense_vecs" and "sparse_vecs" containing
@@ -193,14 +193,14 @@ async def embed_community_summaries(
 ) -> list[dict[str, Any]]:
     """
     Embed community summarise into vector representations.
-    
+
     Args:
         summaries: Community summarise returned from `summarize_communities`.
         return_sparse: Whether to return sparse vectors along with dense vectors.
             Default is True.
         esclient: An instance of AsyncEmbeddingClient. This is provided
             automatically by the decorator.
-            
+
     Returns:
         A list of dictionaries with keys "c_no", "summary", "dense_vecs" and
         "sparse_vecs" containing the communities and their corresponding vector
@@ -222,4 +222,3 @@ async def embed_community_summaries(
         e["sparse_vec"] = vecs["sparse_vecs"][i]
 
     return table
-

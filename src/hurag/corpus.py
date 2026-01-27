@@ -223,10 +223,7 @@ async def corpus_split(path: str) -> tuple:
 
     return tuple(count)
 
-async def corpus_load(
-    path: Path,
-    exclude_kb_docs: bool = False,
-) -> list[Document]:
+async def corpus_load(path: Path, exclude_kb_docs: bool = False) -> list[Document]:
     """
     Load documents in the given folder into a list of Document objects.
 
@@ -248,24 +245,15 @@ async def corpus_load(
         markups = json.load(f)
     if exclude_kb_docs:
         from .dss import rss
-        docs_in_kb = {
-            x[0] for x in await rss.query("SELECT title FROM documents")
-        }
-        markups = [
-            m for m in markups if m["title"] not in docs_in_kb
-        ]
+        docs_in_kb = {x[0] for x in await rss.query("SELECT title FROM documents")}
+        markups = [m for m in markups if m["title"] not in docs_in_kb]
     
     loop = asyncio.get_running_loop()
     docs = []
     
     with concurrent.futures.ThreadPoolExecutor() as pool:
         tasks = [
-            loop.run_in_executor(
-                pool,
-                Document().read,
-                path,
-                markup
-            )
+            loop.run_in_executor(pool, Document().read, path, markup)
             for markup in markups
         ]
         
@@ -279,4 +267,3 @@ async def corpus_load(
                 docs.append(result)
                 
     return docs
-

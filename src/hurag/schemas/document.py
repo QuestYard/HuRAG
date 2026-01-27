@@ -90,13 +90,13 @@ class Document:
         return self
 
     def _read_text(self, file):
-        from .. import OPTIONS as opt
+        from ..constants import CHK_DELIMITER, SEG_DELIMITER
 
         with open(file, "r", encoding="utf-8", newline="\n") as f:
-            st_list = f.read().split(opt["chunk"]["seg_delimiter"])[1:]
+            st_list = f.read().split(SEG_DELIMITER)[1:]
         for si, st in enumerate(st_list):
             seg = Segment(seq_no=si)
-            ct_list = st.split(opt["chunk"]["delimiter"])
+            ct_list = st.split(CHK_DELIMITER)
             for ci, ct in enumerate(ct_list):
                 seg.chunks.append(Chunk(text=ct, seq_no=ci))
             self.segments.append(seg)

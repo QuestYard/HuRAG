@@ -1,22 +1,11 @@
+from .. import logger
 from .rss import with_rdb
 from .vss import with_vdb
-from .. import logger
 
-@with_vdb(client_name="vdb_client")
-@with_rdb(
-    connection_name="rdb_connection",
-    cursor_name="rdb_cursor",
-)
+@with_vdb(client_arg_name="vdb_client")
+@with_rdb(connection_arg_name="rdb_connection", cursor_arg_name="rdb_cursor")
 async def init_ds(rdb_connection, rdb_cursor, vdb_client):
-    """Initialize the data storage of the HuRAG knowledge base.
-
-    Args:
-        rdb_connection: The RDB connection object.
-        rdb_cursor: The RDB cursor object.
-        vdb_client: The VDB client object.
-
-        All 3 arguments are injected by 'with_rdb' and 'with_vdb'.
-    """
+    """Initialize the data storage of the HuRAG knowledge base."""
     import warnings
     from aiomysql import Warning as mysql_warning
     warnings.filterwarnings("ignore", category=mysql_warning)
@@ -35,7 +24,7 @@ async def init_ds(rdb_connection, rdb_cursor, vdb_client):
     except Exception as e:
         await rdb_connection.rollback()
         logger.error(f"Error while initializing the rdb: {e}")
-        raise e
+        raise
 
     # 2. Initialize vdb
     import asyncio
@@ -65,11 +54,8 @@ async def _create_collection(cli, name, fields, indice):
         index_params.add_index(**index)
     await cli.create_collection(name, schema=schema, index_params=index_params)
 
-@with_vdb(client_name="vdb_client")
-@with_rdb(
-    connection_name="rdb_connection",
-    cursor_name="rdb_cursor",
-)
+@with_vdb(client_arg_name="vdb_client")
+@with_rdb(connection_arg_name="rdb_connection", cursor_arg_name="rdb_cursor")
 async def clear_graph(rdb_connection, rdb_cursor, vdb_client):
     """Clean the knowledge graph data from both RDB and VDB.
 
@@ -92,7 +78,7 @@ async def clear_graph(rdb_connection, rdb_cursor, vdb_client):
     except Exception as e:
         await rdb_connection.rollback()
         logger.error(f"Error while cleaning the rdb graph data: {e}")
-        raise e
+        raise
 
     try:
         await vdb_client.delete(collection_name="nodes", filter='id != ""')
@@ -101,12 +87,9 @@ async def clear_graph(rdb_connection, rdb_cursor, vdb_client):
         logger.info("The knowledge graph data is cleaned from both RDB and VDB.")
     except Exception as e:
         logger.error(f"Error while cleaning the vdb graph data: {e}")
-        raise e
+        raise
 
 __all__ = [
     "with_rdb",
     "with_vdb",
-    "init_ds",
-    "clear_graph",
 ]
-
