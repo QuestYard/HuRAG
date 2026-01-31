@@ -156,7 +156,7 @@ async def retrieve(
     num_hops: int | None = None,
     max_communities: int | None = None,
     max_nodes: int | None = None,
-) -> list[list[Knowledge, float]]:
+) -> list[tuple[Knowledge, float]]:
     """
     Arguments:
         query: current user query.

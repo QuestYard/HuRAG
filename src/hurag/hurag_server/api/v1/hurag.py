@@ -116,25 +116,10 @@ async def _retrieve(req: QueryRequest):
             user_path=req.user_path,
             mode=mode,
         )
-        return [
-            KnowledgeSchema(
-                segment_id=kn[0].segment_id,
-                content=kn[0].content,
-                metadata=KnowledgeMetadataSchema(
-                    id=kn[0].metadata.id,
-                    title=kn[0].metadata.title,
-                    sn=kn[0].metadata.sn,
-                    date=kn[0].metadata.date,
-                    pub_path=kn[0].metadata.pub_path,
-                    valid_from=kn[0].metadata.valid_from,
-                    valid_to=kn[0].metadata.valid_to,
-                    replaces=kn[0].metadata.replaces,
-                    localizes=kn[0].metadata.localizes,
-                    authors=kn[0].metadata.authors,
-                ),
-                score=kn[1],
-            ) for kn in kns
-        ]
+        responses = [KnowledgeSchema.model_validate(kn[0]) for kn in kns]
+        for response, kn in zip(responses, kns):
+            response.score = kn[1]
+        return responses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -192,24 +177,6 @@ async def _get_knowledge_by_ids(req: KnowledgeRequest):
 
     try:
         kns = await get_knowledge_by_segment_ids(req.ids, user_path=req.user_path)
-        return [
-            KnowledgeSchema(
-                segment_id=kn.segment_id,
-                content=kn.content,
-                metadata=KnowledgeMetadataSchema(
-                    id=kn.metadata.id,
-                    title=kn.metadata.title,
-                    sn=kn.metadata.sn,
-                    date=kn.metadata.date,
-                    pub_path=kn.metadata.pub_path,
-                    valid_from=kn.metadata.valid_from,
-                    valid_to=kn.metadata.valid_to,
-                    replaces=kn.metadata.replaces,
-                    localizes=kn.metadata.localizes,
-                    authors=kn.metadata.authors,
-                ),
-                score=0.0,
-            ) for kn in kns
-        ]
+        return [KnowledgeSchema.model_validate(kn) for kn in kns]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

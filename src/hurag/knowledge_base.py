@@ -227,7 +227,17 @@ from .dss import with_rdb
 @with_rdb(dict_cursor=True, connection_arg_name="conn", cursor_arg_name="cur")
 async def _load_metadata(doc_ids, conn, cur):
     sql = f"""
-        SELECT id, title, sn, pub_path, valid_from, valid_to
+        SELECT
+            id,
+            title,
+            sn,
+            date,
+            pub_path,
+            valid_from,
+            valid_to,
+            replaces,
+            localizes,
+            authors
         FROM documents
         WHERE id IN ({','.join(['%s'] * len(doc_ids))})
     """
@@ -400,7 +410,7 @@ async def search(
     num_hops: int,
     max_communities: int,
     max_nodes: int,
-) -> list[list[Knowledge, float]]:
+) -> list[tuple[Knowledge, float]]:
     """
     user_path: the organization path of current user, or None (defult) to
         use conf().app.org_path instead.
@@ -589,7 +599,7 @@ async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
 
 async def get_knowledge_by_segment_ids(
     seg_ids: list[str],
-    user_path: str,
+    user_path: str | None = None,
 ) -> list[Knowledge]:
     """
     Get Knowledge objects by segment IDs.
