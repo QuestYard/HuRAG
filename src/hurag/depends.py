@@ -215,12 +215,12 @@ HuragExtractionClient = Annotated[
 ]
 
 
-def generation_model_name() -> str:
+async def generation_model_name() -> str:
     import os
     from . import conf
     return os.getenv(f"{conf.llm.generation}_MODEL")
 
-def extraction_model_name() -> str:
+async def extraction_model_name() -> str:
     import os
     from . import conf
     return os.getenv(f"{conf.llm.extraction}_MODEL")
