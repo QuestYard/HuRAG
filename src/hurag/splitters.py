@@ -149,6 +149,8 @@ async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) ->
             _seg = {"start": len(_chks), "end": -1}
             _chk = _vol + _sub + _cha + _sec + line + "\n"
         else:
+            assert _chk is not None
+            assert _seg is not None
             if len(_chk) + len(line) < 500:
                 _chk += line + "\n"
             else:
@@ -156,6 +158,7 @@ async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) ->
                 _seg["end"] = len(_chks)
                 _chk = line + "\n"
     # append the last chunk
+    assert _seg is not None
     _chks.append(_chk)
     _seg["end"] = len(_chks)
     _segs.append(_seg)

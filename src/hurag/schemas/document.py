@@ -9,22 +9,22 @@ from datetime import datetime
 
 @dataclass
 class Chunk:
-    id: str = field(default=None)
-    seg_id: str = field(default=None, compare=False, repr=False)
-    text: str = field(default=None, compare=False, repr=False)
+    id: str | None = field(default=None)
+    seg_id: str | None = field(default=None, compare=False, repr=False)
+    text: str | None = field(default=None, compare=False, repr=False)
     seq_no: int = field(default=0, compare=False, repr=False)
 
     def __repr__(self):
+        _txt = self.text or ""
         return (
             f"Chunk(id={self.id}, seq_no={self.seq_no}, brief="
-            f"'{' '.join(self.text.split('\n'))[:40]}"
-            f"{'...' if len(self.text) > 40 else ''}')"
+            f"'{' '.join(_txt.split('\n'))[:40]}{'...' if len(_txt) > 40 else ''}')"
         )
 
 @dataclass
 class Segment:
-    id: str = field(default=None)
-    doc_id: str = field(default=None, compare=False, repr=False)
+    id: str | None = field(default=None)
+    doc_id: str | None = field(default=None, compare=False, repr=False)
     seq_no: int = field(default=0, compare=False, repr=False)
     chunks: list[Chunk] = field(default_factory=list, compare=False, repr=False)
 
@@ -37,20 +37,20 @@ class Segment:
 
     @property
     def text(self) -> str:
-        return "".join([chk.text for chk in self.chunks])
+        return "".join([chk.text or "" for chk in self.chunks])
 
 @dataclass
 class Document:
-    id: str = field(default=None)
-    title: str = field(default=None, compare=False)
-    sn: str = field(default=None, compare=False)
-    date: datetime = field(default=None, compare=False, repr=False)
-    valid_from: datetime = field(default=None, compare=False, repr=False)
-    valid_to: datetime = field(default=None, compare=False, repr=False)
-    replaces: str = field(default=None, compare=False, repr=False)  # title
-    pub_path: str = field(default=None, compare=False)
-    localizes: str = field(default=None, compare=False, repr=False) # title
-    authors: str = field(default=None, compare=False, repr=False)
+    id: str | None = field(default=None)
+    title: str | None = field(default=None, compare=False)
+    sn: str | None = field(default=None, compare=False)
+    date: datetime | None = field(default=None, compare=False, repr=False)
+    valid_from: datetime | None = field(default=None, compare=False, repr=False)
+    valid_to: datetime | None = field(default=None, compare=False, repr=False)
+    replaces: str | None = field(default=None, compare=False, repr=False)  # title
+    pub_path: str | None = field(default=None, compare=False)
+    localizes: str | None = field(default=None, compare=False, repr=False) # title
+    authors: str | None = field(default=None, compare=False, repr=False)
     segments: list[Segment] = field(default_factory=list, compare=False, repr=False)
     kg_built: bool = field(default=False, compare=False, repr=False)
 
@@ -236,4 +236,3 @@ class Document:
                 doc_map[seg.doc_id].segments.append(seg)
 
         return list(doc_map.values())
-

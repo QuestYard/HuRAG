@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
+    from openai.types.chat import ChatCompletion
     from .schemas import Graph
     import igraph as ig
     from igraph.clustering import VertexClustering
@@ -86,9 +87,11 @@ async def extract_kg_elements(
             try:
                 pmt = create_entity_extraction_prompt(_seg.text)
                 res = await chat_with_retry(model, pmt, client=oaclient)
+                if TYPE_CHECKING:
+                    res = cast(ChatCompletion, res)
                 _seg.history = [
                     {"role": "user", "content": pmt},
-                    extract_response(res, content_only=False), # type: ignore
+                    extract_response(res, content_only=False),
                 ]
                 await gleaning_queue.put(_seg)
             except Exception as e:
@@ -110,10 +113,12 @@ async def extract_kg_elements(
                     history_messages=_seg.history,
                     client=oaclient,
                 )
+                if TYPE_CHECKING:
+                    res = cast(ChatCompletion, res)
                 _seg.history.extend(
                     [
                         {"role": "user", "content": pmt},
-                        extract_response(res, content_only=False),  # type: ignore
+                        extract_response(res, content_only=False),
                     ]
                 )
                 if pbar:
@@ -291,7 +296,9 @@ async def normalize_kg_elements(
                     descriptions = descriptions,
                 )
                 _desc = await chat_with_retry(model, pmt, client=oaclient)
-                _element.description = extract_response(_desc)  # type: ignore
+                if TYPE_CHECKING:
+                    _desc = cast(ChatCompletion, _desc)
+                _element.description = extract_response(_desc)
                 if pbar:
                     pbar.update(1)
             except Exception as e:
@@ -448,7 +455,9 @@ async def summarize_communities(
                     [{"name": nodes[x][0], "description": nodes[x][1]} for x in ids]
                 )
                 _resp = await chat_with_retry(model, pmt, client=oaclient)
-                summaries[batch["c_no"]].append(extract_response(_resp))  # type: ignore
+                if TYPE_CHECKING:
+                    _resp = cast(ChatCompletion, _resp)
+                summaries[batch["c_no"]].append(extract_response(_resp))
                 summarize_pbar.update(1)
             except Exception as e:
                 logger.error(f"generate community summary error: {e!r}")
@@ -468,7 +477,9 @@ async def summarize_communities(
             try:
                 pmt = create_community_summary_aggregate_prompt(item[1])
                 _resp = await chat_with_retry(model, pmt, client=oaclient)
-                item[1].append(extract_response(_resp))  # type: ignore
+                if TYPE_CHECKING:
+                    _resp = cast(ChatCompletion, _resp)
+                item[1].append(extract_response(_resp))
                 aggregate_pbar.update(1)
             except Exception as e:
                 logger.error(f"aggregate community summary error: {e!r}")

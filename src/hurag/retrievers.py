@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from embedding_service.async_embedding_client import AsyncEmbeddingClient
+    from embedding_service import AsyncEmbeddingClient
     from openai import AsyncOpenAI
+    from openai.types.chat import ChatCompletion
     from .schemas import Knowledge
 
 import os
@@ -33,7 +34,7 @@ async def rerank_knowledge(
     query: str,
     knowledge_dict: dict[str, Knowledge],
     esclient: AsyncEmbeddingClient | None = None,
-) -> list[tuple[Knowledge, float]]:
+) -> list[list[Knowledge | float]]:
     """
     Rerank the input knowledge objects based on the query by using embedding-service.
 
@@ -44,13 +45,17 @@ async def rerank_knowledge(
     Returns:
         A list like [[Knowledge, score], ...]
     """
+    assert esclient is not None
     contents = [k.context for k in knowledge_dict.values()]
     response = await esclient.rerank(query, contents)
-    return sorted(
-        [[k, s] for k, s in zip(knowledge_dict.values(), response.scores)],
+    if not response.scores:
+        response.scores = [0.0] * len(contents)
+    results = sorted(
+        zip(knowledge_dict.values(), response.scores),
         key=lambda x: x[1],
         reverse=True,
     )
+    return [[k, s] for k, s in results]
 
 
 @with_oa_client(client_name="extraction")
@@ -78,17 +83,19 @@ async def prepare_for_searching(
         chat,
     )
 
-    model = os.getenv(f"{conf.llm.extraction}_MODEL")
+    model = os.getenv(f"{conf.llm.extraction}_MODEL", "")
 
     async def _extract_query_keywords(query: str, history: list[str] | None = None):
         history = history or []
-        resp = extract_response(
-            await chat(
+        resp = await chat(
                 model=model,
                 prompt=create_keywords_extraction_prompt(query, history),
                 client=oaclient,
-            )
         )
+        if TYPE_CHECKING:
+            resp = cast(ChatCompletion, resp)
+        resp = extract_response(resp)
+        assert isinstance(resp, str)
         try:
             keywords = json_repair.loads(resp)
             if not keywords:
@@ -98,20 +105,22 @@ async def prepare_for_searching(
             logger.error(f"LLM respond: {resp}")
             return {"high_level_keywords": [], "low_level_keywords": []}
 
+        assert isinstance(keywords, dict)
         return {
             "high_level_keywords": keywords.get("high_level_keywords", []),
             "low_level_keywords": keywords.get("low_level_keywords", []),
         }
 
     async def _extract_timings(query: str):
-        resp = extract_response(
-            await chat(
+        resp = await chat(
                 model=model,
                 prompt=create_timing_prompt(query),
                 client=oaclient,
             )
-        )
-
+        if TYPE_CHECKING:
+            resp = cast(ChatCompletion, resp)
+        resp = extract_response(resp)
+        assert isinstance(resp, str)
         try:
             as_of_time = json_repair.loads(resp)
             if not as_of_time:
@@ -121,6 +130,7 @@ async def prepare_for_searching(
             logger.error(f"LLM respond: {resp}")
             return [datetime.today()]
 
+        assert isinstance(as_of_time, list)
         timings = sorted(
             [datetime.strptime(d, "%Y-%m-%d") for d in as_of_time],
             reverse=True,
@@ -156,7 +166,7 @@ async def retrieve(
     num_hops: int | None = None,
     max_communities: int | None = None,
     max_nodes: int | None = None,
-) -> list[tuple[Knowledge, float]]:
+) -> list[list[Knowledge | float]]:
     """
     Arguments:
         query: current user query.
@@ -187,6 +197,7 @@ async def retrieve(
         mode = "mix"
 
     query_info = query_info or await prepare_for_searching(query, history=history)
+    assert query_info is not None
 
     if (
         not query_info.keywords["low_level_keywords"]
