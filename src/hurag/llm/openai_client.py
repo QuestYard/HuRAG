@@ -235,7 +235,7 @@ from tenacity import (
     wait=wait_exponential(multiplier=2, min=4, max=60),
     retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
 )
-async def chat_with_retry(*args, **kwargs):
+async def chat_with_retry(*args, **kwargs) -> ChatCompletion | AsyncStream:
     # Disable internal retries of the client to avoid nested retries
     # and let tenacity handle the backoff strategy fully.
     kwargs["max_retries"] = 0

@@ -4,71 +4,87 @@ __description__ = "SDK, CLI and API for HuRAG"
 __url__ = "https://github.com/QuestYard/HuRAG"
 
 import yaml
+import logging
 from pathlib import Path
+from typing import Any
 from dotenv import load_dotenv
 
 load_dotenv(Path.cwd() / ".env")
 
 # -- Global Variables --
 
-conf = None
-logger = None
+logger: logging.Logger = logging.getLogger("hurag")
+logger.propagate = False
+logger.setLevel(logging.DEBUG)
+
+conf: Any
 
 # -- Initialization --
 
 from .utilities import dict_to_namespace
 
-try:
-    with open(Path.cwd()/"hurag.yaml", "r", encoding="utf-8") as f:
-        conf = yaml.safe_load(f)
-    conf = dict_to_namespace(conf)
-    if (
-        conf.milvus.token is None
-        or conf.milvus.db_name is None
-        or conf.mariadb.user is None
-        or conf.mariadb.password is None
-        or conf.mariadb.database is None
-        or conf.llm.generation is None
-    ):
-        raise ValueError(
-            "Missing required configurations: milvus.token, milvus.db_name, "
-            "mariadb.user, mariadb.password, mariadb.database, llm.generation "
-            "must be provided."
-        )
-    conf.milvus.uri = conf.milvus.uri or "http://localhost:19530"
-    conf.mariadb.host = conf.mariadb.host or "localhost"
-    conf.mariadb.port = conf.mariadb.port or 3306
-    conf.log.log_in_file = bool(conf.log.log_in_file)
-    conf.log.max_bytes = conf.log.max_bytes or 10485760
-    conf.log.backup_count = conf.log.backup_count or 5
-    conf.app.org_path = conf.app.org_path or "未知机构"
-    conf.retrieval.top_k = conf.retrieval.top_k or 10
-    conf.retrieval.top_a = conf.retrieval.top_a or 50
-    conf.retrieval.top_s = conf.retrieval.top_s or 20
-    conf.retrieval.rrf_k = conf.retrieval.rrf_k or 60
-    conf.retrieval.top_g = conf.retrieval.top_g or 20
-    conf.retrieval.max_depth = conf.retrieval.max_depth or 1
-    conf.retrieval.max_comms = conf.retrieval.max_comms or 3
-    conf.retrieval.max_nodes = conf.retrieval.max_nodes or 1000
-    conf.llm.extraction = conf.llm.extraction or conf.llm.generation
-    conf.llm.embedding = conf.llm.embedding or "http://localhost:8765"
-    conf.api.host = conf.api.host or "0.0.0.0"
-    conf.api.port = conf.api.port or 5000
-except ValueError as ve:
-    raise ve
-except Exception as e:
-    raise RuntimeError(f"Config file not exists or invalid: {e}")
+def load_config() -> Any:
+    try:
+        config_path = Path.cwd() / "hurag.yaml"
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        
+        config = dict_to_namespace(data)
+        
+        # Ensure config is not a list (which dict_to_namespace can return)
+        if isinstance(config, list):
+            raise ValueError("Config file must be a dictionary, not a list")
 
-import logging
+        if (
+            config.milvus.token is None
+            or config.milvus.db_name is None
+            or config.mariadb.user is None
+            or config.mariadb.password is None
+            or config.mariadb.database is None
+            or config.llm.generation is None
+        ):
+            raise ValueError(
+                "Missing required configurations: milvus.token, milvus.db_name, "
+                "mariadb.user, mariadb.password, mariadb.database, llm.generation "
+                "must be provided."
+            )
+        config.milvus.uri = config.milvus.uri or "http://localhost:19530"
+        config.mariadb.host = config.mariadb.host or "localhost"
+        config.mariadb.port = config.mariadb.port or 3306
+        config.log.log_in_file = bool(config.log.log_in_file)
+        config.log.max_bytes = config.log.max_bytes or 10485760
+        config.log.backup_count = config.log.backup_count or 5
+        config.app.org_path = config.app.org_path or "未知机构"
+        config.retrieval.top_k = config.retrieval.top_k or 10
+        config.retrieval.top_a = config.retrieval.top_a or 50
+        config.retrieval.top_s = config.retrieval.top_s or 20
+        config.retrieval.rrf_k = config.retrieval.rrf_k or 60
+        config.retrieval.top_g = config.retrieval.top_g or 20
+        config.retrieval.max_depth = config.retrieval.max_depth or 1
+        config.retrieval.max_comms = config.retrieval.max_comms or 3
+        config.retrieval.max_nodes = config.retrieval.max_nodes or 1000
+        config.llm.extraction = config.llm.extraction or config.llm.generation
+        config.llm.embedding = config.llm.embedding or "http://localhost:8765"
+        config.api.host = config.api.host or "0.0.0.0"
+        config.api.port = config.api.port or 5000
+        
+        return config
+        
+    except ValueError as ve:
+        raise ve
+    except Exception as e:
+        raise RuntimeError(f"Config file not exists or invalid: {e}")
 
-logger = logging.getLogger("hurag")
-logger.propagate = False
-logger.setLevel(logging.DEBUG)
+# Load configuration
+conf = load_config()
+
+# Configure Logger Handlers
 fmt = logging.Formatter("%(asctime)s [%(name)s] %(levelname)s - %(message)s")
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(fmt)
 console_handler.setLevel(logging.WARNING)
 logger.addHandler(console_handler)
+
 if conf.log.log_in_file:
     from logging.handlers import RotatingFileHandler
     file_handler = RotatingFileHandler(

@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import Any, Literal, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import pandas as pd
     from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
 
@@ -25,7 +24,7 @@ SQL_INS_DOC = [
     "INSERT INTO chunks (id, segment_id, seq_no, text) VALUES (%s, %s, %s, %s)",
 ]
 
-async def stat() -> tuple:
+async def stat() -> list[tuple]:
     from .dss import rss
     stat = await rss.query(
         """
@@ -225,7 +224,9 @@ async def indexing_documents(
 from .dss import with_rdb
 
 @with_rdb(dict_cursor=True, connection_arg_name="conn", cursor_arg_name="cur")
-async def _load_metadata(doc_ids, conn, cur):
+async def _load_metadata(doc_ids, conn: Any = None, cur: Any = None):
+    assert conn is not None
+    assert cur is not None
     sql = f"""
         SELECT
             id,
@@ -289,7 +290,7 @@ async def load_knowledge(
         docs = await _load_metadata(doc_ids)
 
     results = {}
-    for sid, did, cid in sdc:
+    for sid, did, _ in sdc:
         if sid in results:
             continue
         if did not in docs:
@@ -369,7 +370,7 @@ async def load_knowledge_by_segments(
 
 
 async def load_knowledge_by_segment_ids(
-    ids: Iterable[str],
+    ids: list[str],
     docs: dict[str, dict] | None = None,
     limit: int | None = None,
 ) -> dict[str, Knowledge]:
@@ -410,7 +411,7 @@ async def search(
     num_hops: int,
     max_communities: int,
     max_nodes: int,
-) -> list[tuple[Knowledge, float]]:
+) -> list[list[Knowledge | float]]:
     """
     user_path: the organization path of current user, or None (defult) to
         use conf().app.org_path instead.
@@ -438,7 +439,6 @@ async def search(
             top_k=top_k_naive,
             rrf_k=rrf_k_naive,
         )
-        # return {chunk_id: score, ...}
         return naive_search_results
 
     async def _graph_search():
@@ -452,7 +452,6 @@ async def search(
             hops=num_hops,
             rrf_k=rrf_k_naive,
         )
-        # return {chunk_id: score, ...}
         return graph_search_results
 
     async def _associations():
@@ -468,7 +467,6 @@ async def search(
             max_nodes=max_nodes,
             rrf_k=rrf_k_naive,
         )
-        # return [(segment_id, document_id), ...] in order of distance
         return associations_results
 
     if mode in ["naive", "graph", "mix"]:
@@ -556,7 +554,7 @@ async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
             """,
             tuple([timings[0]] + paths)
         ),
-        columns=[
+        columns=pd.Index([
             "id",
             "title",
             "sn",
@@ -567,7 +565,7 @@ async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
             "pub_path",
             "localizes",
             "authors",
-        ]
+        ])
     )
     docs = pd.DataFrame(_filter_docs(pd_docs, timings))
     docs["level"] = docs["pub_path"].map(_org_level)

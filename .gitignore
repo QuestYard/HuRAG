@@ -212,3 +212,4 @@ tags
 hurag.yaml
 embedding-service.yaml
 *.env
+pyrightconfig.json

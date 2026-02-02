@@ -5,6 +5,7 @@ if TYPE_CHECKING:
     from openai import AsyncOpenAI
     from .schemas import Graph
     import igraph as ig
+    from igraph.clustering import VertexClustering
 
 from . import logger, conf
 from .llm import (
@@ -39,7 +40,7 @@ async def extract_kg_elements(
     num_gleaning_workers: int = 10,
     limit: int | None = None,
     oaclient: AsyncOpenAI | None = None,
-) -> dict[str, dict[str, str]]:
+) -> list[dict[str, str]]:
     """
     Extract entities and relations from segments of documents in the rss with
     field kg_built == False.
@@ -87,7 +88,7 @@ async def extract_kg_elements(
                 res = await chat_with_retry(model, pmt, client=oaclient)
                 _seg.history = [
                     {"role": "user", "content": pmt},
-                    extract_response(res, content_only=False),
+                    extract_response(res, content_only=False), # type: ignore
                 ]
                 await gleaning_queue.put(_seg)
             except Exception as e:
@@ -112,7 +113,7 @@ async def extract_kg_elements(
                 _seg.history.extend(
                     [
                         {"role": "user", "content": pmt},
-                        extract_response(res, content_only=False),
+                        extract_response(res, content_only=False),  # type: ignore
                     ]
                 )
                 if pbar:
@@ -133,7 +134,7 @@ async def extract_kg_elements(
         params = tuple(document_ids)
     docs = {d[0]: d[1] for d in await rss.query(sql, params)}
     if not docs:
-        return []
+        return list()
 
     chunks = await rss.query(
         f"SELECT c.id, c.segment_id, c.seq_no, c.text, s.document_id "
@@ -218,7 +219,7 @@ async def extract_kg_elements(
     for worker in gleaners:
         worker.cancel()
 
-    gathered = await asyncio.gather(*extractors, *gleaners, return_exceptions=True)
+    _ = await asyncio.gather(*extractors, *gleaners, return_exceptions=True)
 
     results = [
         {
@@ -290,7 +291,7 @@ async def normalize_kg_elements(
                     descriptions = descriptions,
                 )
                 _desc = await chat_with_retry(model, pmt, client=oaclient)
-                _element.description = extract_response(_desc)
+                _element.description = extract_response(_desc)  # type: ignore
                 if pbar:
                     pbar.update(1)
             except Exception as e:
@@ -323,27 +324,27 @@ async def normalize_kg_elements(
 
         if attempt < max_retries:
             logger.warning(
-                f"Retrying {len(failed_segs)} elements "
+                f"Retrying {len(failed_elements)} elements "
                 f"(Attempt {attempt + 1}/{max_retries})"
             )
             while failed_elements:
-                await ex_queue.put(failed_elements.pop())
+                await queue.put(failed_elements.pop())
         else:
             logger.error(
-                f"Failed to extract {len(failed_segs)} segments after "
+                f"Failed to extract {len(failed_elements)} segments after "
                 f"{max_retries} retries."
             )
 
     for worker in workers:
         worker.cancel()
 
-    gathered = await asyncio.gather(*workers, return_exceptions=True)
+    _ = await asyncio.gather(*workers, return_exceptions=True)
 
     return g
 
 async def community_leiden(resolution: float = 0.5) -> tuple[
     ig.Graph,
-    ig.clustering.VertexClustering,
+    VertexClustering,
     dict[str, tuple[str, str]]
 ]:
     """
@@ -403,7 +404,7 @@ async def community_leiden(resolution: float = 0.5) -> tuple[
 @with_oa_client(client_name="extraction", timeout=120.0)
 async def summarize_communities(
     graph: ig.Graph,
-    partitions: ig.clustering.VertexClustering,
+    partitions: VertexClustering,
     nodes: dict[str, tuple[str, str]],
     batch_size: int = 90,
     min_size: int = 10,
@@ -447,10 +448,10 @@ async def summarize_communities(
                     [{"name": nodes[x][0], "description": nodes[x][1]} for x in ids]
                 )
                 _resp = await chat_with_retry(model, pmt, client=oaclient)
-                summaries[batch["c_no"]].append(extract_response(_resp))
+                summaries[batch["c_no"]].append(extract_response(_resp))  # type: ignore
                 summarize_pbar.update(1)
             except Exception as e:
-                logger().error(f"generate community summary error: {e!r}")
+                logger.error(f"generate community summary error: {e!r}")
             finally:
                 summarize_queue.task_done()
 
@@ -467,10 +468,10 @@ async def summarize_communities(
             try:
                 pmt = create_community_summary_aggregate_prompt(item[1])
                 _resp = await chat_with_retry(model, pmt, client=oaclient)
-                item[1].append(extract_response(_resp))
+                item[1].append(extract_response(_resp))  # type: ignore
                 aggregate_pbar.update(1)
             except Exception as e:
-                logger().error(f"aggregate community summary error: {e!r}")
+                logger.error(f"aggregate community summary error: {e!r}")
             finally:
                 aggregate_queue.task_done()
 
@@ -498,7 +499,7 @@ async def summarize_communities(
     await summarize_queue.join()
     for worker in summarize_workers:
         worker.cancel()
-    gathered = await asyncio.gather(*summarize_workers, return_exceptions=True)
+    _ = await asyncio.gather(*summarize_workers, return_exceptions=True)
     summarize_pbar.close()
 
     aggregate_queue = asyncio.Queue()
@@ -513,7 +514,7 @@ async def summarize_communities(
     await aggregate_queue.join()
     for worker in aggregate_workers:
         worker.cancel()
-    gathered = await asyncio.gather(*aggregate_workers, return_exceptions=True)
+    _ = await asyncio.gather(*aggregate_workers, return_exceptions=True)
     aggregate_pbar.close()
 
     return summaries

@@ -34,7 +34,7 @@ ExecStart=/path/to/virtualenv/bin/gunicorn hurag_server.__main__:app \
     --log-level debug \
     --capture-output \
     --access-logfile - \
-    --error-logfile -
+    --error-logfile - \
     --max-requests 1000 \
     --max-requests-jitter 50
 

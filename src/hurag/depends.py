@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Annotated, TYPE_CHECKING
+from typing import Annotated, Any, AsyncGenerator, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import aiomysql
@@ -128,7 +128,7 @@ def rdb_connection(
     db: str | None = None,
     pool_name: str = "default",
 ):
-    async def _acquire() -> aiomysql.Connection:
+    async def _acquire() -> AsyncGenerator[aiomysql.Connection, Any]:
         from .dss import rss
         pool = await rss.get_pool(host, port, user, password, db, pool_name)
         async with pool.acquire() as conn:
@@ -215,12 +215,12 @@ HuragExtractionClient = Annotated[
 ]
 
 
-async def generation_model_name() -> str:
+async def generation_model_name() -> str | None:
     import os
     from . import conf
     return os.getenv(f"{conf.llm.generation}_MODEL")
 
-async def extraction_model_name() -> str:
+async def extraction_model_name() -> str | None:
     import os
     from . import conf
     return os.getenv(f"{conf.llm.extraction}_MODEL")
