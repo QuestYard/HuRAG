@@ -179,6 +179,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         show_msg(f"{len(embeddings)} 份文档向量化完成", style="info")
     except Exception as e:
         show_msg(f"文档向量化失败: {e}", style="error", err=e)
+        return
 
     show_msg("文档内容保存入数据库...", style="info")
     from ..knowledge_base import indexing_documents
@@ -187,4 +188,4 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         show_msg(f"{ds} 份文档，共 {ss} 知识段、{cs} 文本块入库完成", style="info")
     except Exception as e:
         show_msg(f"文档内容保存入库失败: {e}", style="error", err=e)
-
+        return

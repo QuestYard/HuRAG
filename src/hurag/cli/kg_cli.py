@@ -1,11 +1,8 @@
 import typer
 
-from typing import Literal
-
 from . import (
     HURAG_EPILOG,
     show_msg,
-    with_async_spinner,
     async_cmd,
 )
 
@@ -251,6 +248,7 @@ async def create_communities(
     except Exception as e:
         show_msg(f"构建知识社区失败: {e}", style="error")
 
+
 @app.command("communities", epilog=HURAG_EPILOG)
 @async_cmd
 async def communities():
@@ -290,4 +288,3 @@ async def communities():
     for cid, csum, ecnt in rows:
         table.add_row(f"{cid}", csum, f"{ecnt}")
     console.print(table)
-

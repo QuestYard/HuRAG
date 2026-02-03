@@ -10,9 +10,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from functools import wraps
 from pymilvus import AsyncMilvusClient
-from typing import Callable, Any, Coroutine, TypeVar
-
-# from .. import conf
+from typing import Callable, Any, Coroutine, TypeVar, cast
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
@@ -57,7 +55,7 @@ async def close_client(client_name: str | None = None) -> None:
         _clients.clear()
 
 @asynccontextmanager
-async def lifespan(app=None):
+async def lifespan():
     """Context manager to handle Milvus clients."""
     try:
         yield
@@ -65,7 +63,7 @@ async def lifespan(app=None):
         await close_client()
 
 def with_vdb(
-    func: T | None = None,
+    func: Callable | None = None,
     *,
     client_arg_name: str = "client",
     client_name: str = "default",
@@ -76,7 +74,7 @@ def with_vdb(
         async def wrapper(*args, **kwargs):
             kwargs[client_arg_name] = await get_client(client_name=client_name)
             return await func(*args, **kwargs)
-        return wrapper
+        return cast(T, wrapper)
     
     if func is not None:
         return decorator(func)
@@ -149,7 +147,9 @@ async def search(
         expr_params=expr_params,
         param={"metric_type": "IP"},
     )
-    ranker = RRFRanker(rrf_k)
+    # `rrf_k` should be a float number, but the type hint of the argument `k` of
+    # `pymilvus.RRFRanker` is mistaken for an 'int'.
+    ranker = RRFRanker(rrf_k)   # type: ignore
     cli = await get_client(client_name=client_name)
     res = await cli.hybrid_search(
         collection_name=collection_name,
@@ -159,4 +159,3 @@ async def search(
         output_fields=["id"],
     )
     return {x["id"]: x["distance"] for x in res[0]}
-

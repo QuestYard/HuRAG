@@ -1,11 +1,13 @@
 from functools import wraps
-from typing import Any, Callable, Coroutine, TypeVar
+from typing import Any, Callable, Coroutine, TypeVar, AsyncGenerator, cast
 import inspect
 
 from embedding_service.async_embedding_client import AsyncEmbeddingClient
 from .. import conf
 
-T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
+T = TypeVar(
+    "T", bound=Callable[..., Coroutine[Any, Any, Any] | AsyncGenerator[Any, Any]]
+)
 
 def with_es_client(
     func: Callable | None = None,
@@ -32,7 +34,7 @@ def with_es_client(
     def decorator(func: T) -> T:
         if inspect.isasyncgenfunction(func):
             @wraps(func)
-            async def wrapper(*args, **kwargs):
+            async def async_gen_wrapper(*args, **kwargs):
                 async with AsyncEmbeddingClient(
                     base_url = base_url or f"{conf.llm.embedding}",
                     timeout = timeout,
@@ -40,19 +42,20 @@ def with_es_client(
                     kwargs[client_arg_name] = embedding_client
                     async for item in func(*args, **kwargs):
                         yield item
+            return cast(T, async_gen_wrapper)
         else:
+            func_coro = cast(Callable[..., Coroutine[Any, Any, Any]], func)
             @wraps(func)
-            async def wrapper(*args, **kwargs):
+            async def async_func_wrapper(*args, **kwargs):
                 async with AsyncEmbeddingClient(
                     base_url = base_url or f"{conf.llm.embedding}",
                     timeout = timeout,
                 ) as embedding_client:
                     kwargs[client_arg_name] = embedding_client
-                    ret = await func(*args, **kwargs)
+                    ret = await func_coro(*args, **kwargs)
                 return ret
-        return wrapper
+            return cast(T, async_func_wrapper)
     
     if func is not None:
         return decorator(func)
     return decorator
-

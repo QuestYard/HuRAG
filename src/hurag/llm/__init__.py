@@ -57,4 +57,3 @@ __all__ = [
     "create_keywords_extraction_prompt",
     "create_timing_prompt",
 ]
-

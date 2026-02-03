@@ -23,8 +23,8 @@ class KnowledgeMetadata():
 
 @dataclass(kw_only=True, frozen=True)
 class Knowledge():
-    segment_id: str = field(default=None)
-    content: str = field(default=None, compare=False, hash=False)
+    segment_id: str | None = field(default=None)
+    content: str | None = field(default=None, compare=False, hash=False)
     metadata: KnowledgeMetadata = field(
         default_factory=KnowledgeMetadata,
         compare=False,
@@ -42,11 +42,15 @@ class Knowledge():
         if self.metadata.sn:
             t[-1] += f"（{self.metadata.sn}）"
         t[-1] += "\n"
-        org_name = self.metadata.pub_path.strip('*').split('/')[-1]
-        propagate = (
-            not self.metadata.pub_path.startswith("/")
-            or self.metadata.pub_path.endswith("*")
-        )
+        if not self.metadata.pub_path:
+            org_name = ""
+            propagate = False
+        else:
+            org_name = self.metadata.pub_path.strip('*').split('/')[-1]
+            propagate = (
+                not self.metadata.pub_path.startswith("/")
+                or self.metadata.pub_path.endswith("*")
+            )
         t.append(f"## 发布机构\n{org_name}\n")
         t.append(f"## 生效范围\n{'含下级' if propagate else '仅本级'}\n")
         t.append(f"## 生效日期\n{self.metadata.valid_from:%Y-%m-%d}\n")
@@ -59,5 +63,5 @@ class Knowledge():
     @property
     def brief(self) -> str:
         """create brief for print"""
-        return f"{self.metadata.title}: {' '.join(self.content[:40].split('\n'))}"
-
+        _txt = self.content or ""
+        return f"{self.metadata.title}: {' '.join(_txt[:40].split('\n'))}"

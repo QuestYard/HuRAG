@@ -4,6 +4,7 @@ from typing import Any, Literal, TYPE_CHECKING
 if TYPE_CHECKING:
     from ..schemas import Graph
     import igraph as ig
+    from igraph.clustering import VertexClustering
 
 async def upsert_graph(
     g: Graph,
@@ -85,7 +86,11 @@ async def upsert_graph(
             )
             for n in g.nodes
         ],
-        [(n.id, s) for n in g.nodes for s in set(n.seg_ids.split(GRAPH_FIELD_SEP))],
+        [
+            (n.id, s)
+            for n in g.nodes if n.seg_ids
+            for s in set(n.seg_ids.split(GRAPH_FIELD_SEP))
+        ],
         [
             (
                 e.id,
@@ -97,7 +102,11 @@ async def upsert_graph(
             )
             for e in g.edges
         ],
-        [(e.id, s) for e in g.edges for s in set(e.seg_ids.split(GRAPH_FIELD_SEP))],
+        [
+            (e.id, s)
+            for e in g.edges if e.seg_ids
+            for s in set(e.seg_ids.split(GRAPH_FIELD_SEP))
+        ],
         tuple(doc_ids),
     ]
     try:
@@ -112,7 +121,7 @@ async def upsert_graph(
 
 async def save_communities(
     graph: ig.Graph,
-    partitions: ig.clustering.VertexClustering,
+    partitions: VertexClustering,
     communities: list[dict[str, Any]],
 ) -> tuple[int, int]:
     """
@@ -256,7 +265,7 @@ async def _n_hop_search(ori_nodes, top_n, hops):
         return set()
     nodes = set(ori_nodes)
     starts = nodes.copy()
-    for hop in range(hops):
+    for _ in range(hops):
         connected = set(
             x[0] for x in await rss.query(
                 f"""
@@ -277,7 +286,7 @@ async def _n_hop_search(ori_nodes, top_n, hops):
 # --- Communities ---
 
 async def associations(
-    query: str,
+    # query: str,
     keywords: dict[str, list[str]],
     vecs: dict[str, Any],
     docs: dict[str, Any],

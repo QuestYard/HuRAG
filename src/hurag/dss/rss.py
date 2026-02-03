@@ -1,7 +1,7 @@
 import aiomysql
 import asyncio
 from functools import wraps
-from typing import Any, Callable, Coroutine, TypeVar, AsyncGenerator
+from typing import Any, Callable, Coroutine, TypeVar, AsyncGenerator, cast
 from contextlib import asynccontextmanager
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
@@ -57,7 +57,7 @@ async def close_pool(pool_name: str | None = None) -> None:
         _pools.clear()
 
 @asynccontextmanager
-async def lifespan(app=None):
+async def lifespan():
     """Context manager to handle database pool lifecycle."""
     try:
         yield
@@ -173,7 +173,7 @@ def with_rdb(
             finally:
                 await cursor.close()
                 pool.release(connection)
-        return wrapper
+        return cast(T, wrapper)
     
     if func is not None:
         return decorator(func)
@@ -268,7 +268,7 @@ async def dml(
             await conn.commit()
 
             return cur.rowcount
-        except Exception as e:
+        except Exception:
             await conn.rollback()
             raise
 
@@ -295,9 +295,9 @@ async def transact(
     """
     pool = await get_pool(pool_name=pool_name)
     async with pool.acquire() as conn, conn.cursor() as cur:
-        if data is None:
-            data = [()] * len(statements)
         ns = len(statements)
+        if data is None:
+            data = [() for _ in range(len(statements))]
         nd = len(data)
         if ns > nd:
             data.extend([()] * (ns - nd))
@@ -312,7 +312,6 @@ async def transact(
             await conn.commit()
 
             return rowcount
-        except Exception as e:
+        except Exception:
             await conn.rollback()
             raise
-

@@ -4,16 +4,20 @@ from typing import Any
 from datetime import datetime
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., example="What is an LLM?")
+    query: str = Field(examples=["What is an LLM?"])
     history: list[str] = Field(
         default_factory=list,
-        example=[
+        examples=[
             "What is artificial intelligence?",
             "What is machine learning?",
         ],
     )
-    domains: list[str] = Field(default_factory=list, example=[])
-    modes: list[str] = Field(default_factory=list, example=[])
+    domains: list[str] = Field(
+        default_factory=list,
+        examples=[],
+        deprecated="文档知识领域字段已经弃用，下一个版本中将不再提供。",
+    )
+    modes: list[str] = Field(default_factory=list, examples=[])
     graph_search: bool | str = Field(default="mix")
     rerank: bool = Field(default=True)
     user_path: str | None = Field(default=None, example="总部/大区/某市公司")

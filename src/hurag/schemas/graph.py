@@ -1,5 +1,6 @@
-from copy import deepcopy
+from __future__ import annotations
 from typing import Self, Any
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 from ..utilities import (
@@ -41,10 +42,14 @@ class Entity:
         """
         try:
             self.id = None
-            self.name += (GRAPH_FIELD_SEP + other.name)
-            self.type += (GRAPH_FIELD_SEP + other.type)
-            self.description += (GRAPH_FIELD_SEP + other.description)
-            self.seg_ids += (GRAPH_FIELD_SEP + other.seg_ids)
+            self.name = self.name or ""
+            self.type = self.type or ""
+            self.description = self.description or ""
+            self.seg_ids = self.seg_ids or ""
+            self.name += (GRAPH_FIELD_SEP + (other.name or ""))
+            self.type += (GRAPH_FIELD_SEP + (other.type or ""))
+            self.description += (GRAPH_FIELD_SEP + (other.description or ""))
+            self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
         except TypeError:
             raise
         finally:
@@ -54,6 +59,10 @@ class Entity:
         if self.id is not None and other.id is not None:
             return self.id == other.id
         return self.name == other.name and self.seg_ids == other.seg_ids
+
+    @property
+    def brief(self) -> str:
+        return f"## {self.name}: \n\n- {self.description}"
 
     def create(
         self,
@@ -125,11 +134,16 @@ class Relation:
         """
         try:
             self.id = None
-            self.source += (GRAPH_FIELD_SEP + other.source)
-            self.target += (GRAPH_FIELD_SEP + other.target)
-            self.type += (GRAPH_FIELD_SEP + other.type)
-            self.description += (GRAPH_FIELD_SEP + other.description)
-            self.seg_ids += (GRAPH_FIELD_SEP + other.seg_ids)
+            self.source = self.source or ""
+            self.target = self.target or ""
+            self.type = self.type or ""
+            self.description = self.description or ""
+            self.seg_ids = self.seg_ids or ""
+            self.source += (GRAPH_FIELD_SEP + (other.source or ""))
+            self.target += (GRAPH_FIELD_SEP + (other.target or ""))
+            self.type += (GRAPH_FIELD_SEP + (other.type or ""))
+            self.description += (GRAPH_FIELD_SEP + (other.description or ""))
+            self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
             self.strength += other.strength
         except TypeError:
             raise
@@ -144,6 +158,10 @@ class Relation:
             and self.target == other.target
             and self.seg_ids == other.seg_ids
         )
+
+    @property
+    def brief(self) -> str:
+        return f"## {self.source} - {self.target}:\n\n- {self.description}"
 
     def create(
         self,
@@ -199,7 +217,7 @@ def _process_local_graph(
     nodes: list[Entity],
     edges: list[Relation],
     blacklist: list[str] | None,
-):
+) -> tuple[Any, Any]:
     import re
     import pandas as pd
 
@@ -358,14 +376,14 @@ class Graph:
     edges: list[Relation] = field(default_factory=list, compare=False)
     _fps: set[tuple] = field(default_factory=set, compare=False, repr=False)
 
-    def append_node(self, node: Entity) -> Entity:
+    def append_node(self, node: Entity) -> Entity | None:
         if (node.name, node.seg_ids) not in self._fps:
             self.nodes.append(node)
             self._fps.add((node.name, node.seg_ids))
             return node
         return None
 
-    def append_edge(self, edge: Relation) -> Relation:
+    def append_edge(self, edge: Relation) -> Relation | None:
         if (edge.source, edge.target, edge.seg_ids) not in self._fps:
             self.edges.append(edge)
             self._fps.add((edge.source, edge.target, edge.seg_ids))
@@ -408,7 +426,7 @@ class Graph:
 
         return self
 
-    def clear(self)-> Self:
+    def clear(self) -> Self:
         """
         Clear all nodes, edges, and fingerprints from the graph.
 
@@ -421,7 +439,7 @@ class Graph:
 
         return self
 
-    def remove_orphans(self)-> Self:
+    def remove_orphans(self)-> Graph:
         """
         1. Remove edges without source or target nodes.
         2. Remove nodes without edges connected to.

@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any, Literal, Callable, Coroutine, TypeVar
+from typing import Any, cast, Callable, Coroutine, TypeVar
 from rich.console import Console
 from rich.theme import Theme
 from rich.logging import RichHandler
@@ -41,22 +41,20 @@ rich_handler = RichHandler(
 
 def show_msg(
     msg: str,
-    style: Literal["info", "warning", "error", "success", "path"] | None = None,
+    style: str | None = None,
     err: Exception | None = None,
 ) -> None:
     """Show message along with exception traceback on the console."""
     console.print(msg, style=style if style in PREDEFINED_COLORS else None)
-    if err is not None:
-        tb = err.__traceback__
-        while tb.tb_next:
-            tb = tb.tb_next
-        frame = tb.tb_frame
-        console.print(f">>> File: {frame.f_code.co_filename}")
-        console.print(f">>> Line: {tb.tb_lineno}")
-        console.print(f">>> Func: {frame.f_code.co_name}")
+    if err is None:
+        return
+
+    from rich.traceback import Traceback
+    tb = Traceback.from_exception(type(err), err, err.__traceback__)
+    console.print(tb)
 
 def with_spinner(
-    func: T | None = None,
+    func: Callable | None = None,
     *,
     text: str = "running...",
     style: str = "bold gray",
@@ -80,14 +78,14 @@ def with_spinner(
                 show_msg(f"Finished: {result}", style=style)
             reset_console_log_handler()
             return result
-        return wrapper
+        return cast(T, wrapper)
     
     if func is not None:
         return decorator(func)
     return decorator
 
 def with_async_spinner(
-    func: T | None = None,
+    func: Callable | None = None,
     *,
     text: str = "running...",
     style: str = "bold gray",
@@ -111,13 +109,13 @@ def with_async_spinner(
                 show_msg(f"Finished: {result}", style=style)
             reset_console_log_handler()
             return result
-        return wrapper
+        return cast(T, wrapper)
 
     if func is not None:
         return decorator(func)
     return decorator
 
-def async_cmd(func: T) -> Callable[..., Any]:
+def async_cmd(func: Callable) -> Callable[..., Any]:
     """Decorator to run an async command with database lifespan management."""
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -148,4 +146,3 @@ def print_regex_literal(regex_pattern: str, label: str | None = None) -> None:
     
     # Use repr() to show the string with proper escaping, similar to r-string behavior
     console.print(repr(regex_pattern), style="path")
-

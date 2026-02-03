@@ -32,6 +32,7 @@ async def embed_query(
               corresponding vector representations.
             - An EmbeddingPayloadMeta object with metadata about the embeddings.
     """
+    assert esclient is not None
     try:
         results = await esclient.embed(query, return_sparse=return_sparse)
         return results
@@ -46,7 +47,7 @@ async def embed_documents(
     batch_type: int = 1,
     return_sparse: bool = True,
     esclient: AsyncEmbeddingClient | None = None,
-) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
+) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None]:
     """
     Embed documents into vector representations in batches.
 
@@ -70,9 +71,13 @@ async def embed_documents(
     """
     from itertools import islice
 
+    assert esclient is not None
+    if not isinstance(docs, list):
+        docs = [docs]
+
     if batch_type == 0: # all-in-one
         chunks = [
-            chk.text
+            chk.text or ""
             for doc in docs
             for seg in doc.segments
             for chk in seg.chunks
@@ -85,7 +90,7 @@ async def embed_documents(
             raise
     elif batch_type == 1: # doc-by-doc
         for doc in docs:
-            chunks = [chk.text for seg in doc.segments for chk in seg.chunks]
+            chunks = [chk.text or "" for seg in doc.segments for chk in seg.chunks]
             try:
                 results = await esclient.embed(chunks, return_sparse=return_sparse)
                 yield results
@@ -94,7 +99,7 @@ async def embed_documents(
                 raise
     elif batch_type > 1: # chunk-by-chunk with chunk_size = batch_type
         all_chunks = (
-            chk.text
+            chk.text or ""
             for doc in docs
             for seg in doc.segments
             for chk in seg.chunks
@@ -132,6 +137,7 @@ async def embed_keywords(
               the corresponding vector representations.
             - An EmbeddingPayloadMeta object with metadata about the embeddings.
     """
+    assert esclient is not None
     try:
         return await esclient.embed(
             keywords["low_level_keywords"] + keywords["high_level_keywords"],
@@ -148,7 +154,7 @@ async def embed_kg_elements(
     return_sparse: bool = True,
     batch_size: int=1024,
     esclient: AsyncEmbeddingClient | None = None,
-) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None, None]:
+) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None]:
     """
     Embed knowledge graph elements (nodes and edges) into vector representations
     in batches.
@@ -170,13 +176,9 @@ async def embed_kg_elements(
     """
     from itertools import chain, batched
 
+    assert esclient is not None
     for batch in batched(chain(g.nodes, g.edges), batch_size):
-        texts = [
-            f"## {e.name}: \n\n- {e.description}"
-            if hasattr(e, "name")
-            else f"## {e.source} - {e.target}:\n\n- {e.description}"
-            for e in batch
-        ]
+        texts = [e.brief for e in batch]
         try:
             results = await esclient.embed(texts, return_sparse=return_sparse)
             yield results
@@ -206,6 +208,7 @@ async def embed_community_summaries(
         "sparse_vecs" containing the communities and their corresponding vector
         representations.
     """
+    assert esclient is not None
     table = [
         {
             "c_no": k,

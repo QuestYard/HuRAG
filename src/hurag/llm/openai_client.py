@@ -1,9 +1,21 @@
 from __future__ import annotations
-from typing import Callable, Coroutine, TypeVar, Any, TYPE_CHECKING
+from typing import (
+    Callable,
+    Coroutine,
+    AsyncGenerator, 
+    TypeVar,
+    Any,
+    TYPE_CHECKING, 
+    cast,
+)
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
-    from openai.types.chat import ChatCompletion
+    from openai.types.chat import (
+        ChatCompletion,
+        ChatCompletionChunk,
+        ChatCompletionMessageParam,
+    )
 
 import asyncio
 
@@ -53,13 +65,25 @@ async def get_oa_client(
     async with _clients_lock:
         if client_name in _clients:
             return _clients[client_name]
+
         if client_name == "extraction":
             base_url = os.getenv(f"{conf.llm.extraction}_BASE_URL")
             api_key = os.getenv(f"{conf.llm.extraction}_API_KEY")
         elif client_name == "generation":
             base_url = os.getenv(f"{conf.llm.generation}_BASE_URL")
             api_key = os.getenv(f"{conf.llm.generation}_API_KEY")
-        _clients[client_name] = create_oa_client(base_url, api_key, timeout, max_retries)
+
+        if not base_url:
+            raise ValueError("Base URL not available.")
+        if not api_key:
+            raise ValueError("API Key not available.")
+
+        _clients[client_name] = create_oa_client(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     return _clients[client_name]
 
@@ -76,7 +100,7 @@ async def close_oa_client(client_name: str | None = None) -> None:
         _clients.clear()
 
 @asynccontextmanager
-async def lifespan(app=None):
+async def lifespan():
     """Context manager to handle OpenAI clients."""
     try:
         yield
@@ -96,7 +120,11 @@ async def chat(
     temperature: float = 0.0,
     timeout: float = 60.0,
     max_retries: int = 3,
-) -> ChatCompletion | AsyncStream:
+) -> (
+    ChatCompletion
+    | AsyncStream[ChatCompletionChunk]
+    | AsyncGenerator[ChatCompletionChunk, Any]
+):
     """
     Non-blocking chat completion call to OpenAI API.
 
@@ -116,12 +144,15 @@ async def chat(
         max_retries: int -- maximum number of retries for failed requests.
 
     Returns:
-        str -- the chat completion response.
+        The chat completion response.
     """
     should_close = False
     if client is None: 
-        if not all([base_url, api_key]):
-            raise ValueError("client or base_url/api_key must be provided.")
+        if not base_url:
+            raise ValueError("Base URL not available.")
+        if not api_key:
+            raise ValueError("API Key not available.")
+
         client = create_oa_client(
             base_url=base_url,
             api_key=api_key,
@@ -136,6 +167,9 @@ async def chat(
             system_prompt=system_prompt,
             history_messages=history_messages,
         )
+
+        if TYPE_CHECKING:
+            messages = cast(list[ChatCompletionMessageParam], messages)
 
         if stream:
             astream = await client.chat.completions.create(
@@ -206,17 +240,17 @@ def with_oa_client(
                 max_retries,
                 client_name,
             ) if client_name else create_oa_client(
-                base_url=base_url,
-                api_key=api_key,
+                base_url=base_url or "",
+                api_key=api_key or "",
                 timeout=timeout,
                 max_retries=max_retries,
             )
             kwargs[client_arg_name] = _cli
             ret = await func(*args, **kwargs)
             if not client_name:
-                _cli and await _cli.close()
+                await _cli.close()
             return ret
-        return wrapper
+        return cast(T, wrapper)
     
     if func is not None:
         return decorator(func)
@@ -235,9 +269,12 @@ from tenacity import (
     wait=wait_exponential(multiplier=2, min=4, max=60),
     retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
 )
-async def chat_with_retry(*args, **kwargs) -> ChatCompletion | AsyncStream:
+async def chat_with_retry(*args, **kwargs) -> (
+    ChatCompletion
+    | AsyncStream[ChatCompletionChunk]
+    | AsyncGenerator[ChatCompletionChunk, Any]
+):
     # Disable internal retries of the client to avoid nested retries
     # and let tenacity handle the backoff strategy fully.
     kwargs["max_retries"] = 0
     return await chat(*args, **kwargs)
-
