@@ -1,30 +1,22 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Any
-
 from datetime import datetime
+from ... import RetrieveMode
 
 class QueryRequest(BaseModel):
     query: str = Field(examples=["What is an LLM?"])
     history: list[str] = Field(
         default_factory=list,
         examples=[
-            "What is artificial intelligence?",
-            "What is machine learning?",
+            ["What is artificial intelligence?", "What is machine learning?"],
         ],
+        description="只需提供用户历史查询，无需大模型的历史答复。"
     )
-    domains: list[str] = Field(
-        default_factory=list,
-        examples=[],
-        deprecated="文档知识领域字段已经弃用，下一个版本中将不再提供。",
-    )
-    modes: list[str] = Field(default_factory=list, examples=[])
-    graph_search: bool | str = Field(default="mix")
-    rerank: bool = Field(default=True)
-    user_path: str | None = Field(default=None, example="总部/大区/某市公司")
+    graph_search: bool | RetrieveMode = Field(default="mix")
+    user_path: str | None = Field(default=None, examples=["总部/大区/某市公司"])
 
 class KnowledgeRequest(BaseModel):
-    ids: list[str] = Field(..., example=["001", "002"])
-    user_path: str | None = Field(default=None, example="总部/大区/某市公司")
+    ids: list[str] = Field(examples=[["001", "002"]])
+    user_path: str | None = Field(default=None, examples=["总部/大区/某市公司"])
 
 class KnowledgeMetadataSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)

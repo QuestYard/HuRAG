@@ -5,6 +5,7 @@ if TYPE_CHECKING:
     from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
 
+from . import RetrieveMode
 from .kvcache import KVCache
 
 kn_cache = KVCache(max_size=1000, evict_ratio=0.2)
@@ -399,7 +400,7 @@ async def load_knowledge_by_segment_ids(
 
 async def search(
     query: str,
-    mode: Literal["mix", "naive", "graph", "global", "community"],
+    mode: RetrieveMode,
     query_info: QueryInfo,
     *,
     user_path: str,

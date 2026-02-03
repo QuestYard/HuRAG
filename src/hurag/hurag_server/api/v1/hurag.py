@@ -1,10 +1,9 @@
+from typing import cast
 from fastapi import APIRouter, HTTPException
-# from fastapi.responses import StreamingResponse, JSONResponse
 
 from ...schemas import (
     QueryRequest,
     KnowledgeRequest,
-    KnowledgeMetadataSchema,
     KnowledgeSchema,
 )
 
@@ -21,10 +20,7 @@ async def _retrieve(req: QueryRequest):
     {
         "query": str,               # required
         "history": list[str],       # optional, default=[]
-        "domains": list[str]|None,  # (deprecated) optional, default=None
-        "modes": list[str]|None,    # (deprecated) optional, default=None
         "graph_search": bool|str,   # optional, default="mix"
-        "rerank": bool,             # (deprecated) optional, default=True
         "user_path": str|None,      # optional, default=None
     }
     ```
@@ -102,9 +98,11 @@ async def _retrieve(req: QueryRequest):
     }
     ```
     """
+    from .... import RetrieveMode
     from ....retrievers import retrieve
 
     try:
+        mode: RetrieveMode = "mix"
         if isinstance(req.graph_search, bool):
             mode = "mix" if req.graph_search else "naive"
         else:
@@ -118,7 +116,7 @@ async def _retrieve(req: QueryRequest):
         )
         responses = [KnowledgeSchema.model_validate(kn[0]) for kn in kns]
         for response, kn in zip(responses, kns):
-            response.score = kn[1]
+            response.score = cast(float, kn[1])
         return responses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -180,3 +178,5 @@ async def _get_knowledge_by_ids(req: KnowledgeRequest):
         return [KnowledgeSchema.model_validate(kn) for kn in kns]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+__all__ = ["_retrieve", "_get_knowledge_by_ids"]

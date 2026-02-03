@@ -125,3 +125,5 @@ async def _chat(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+__all__ = ["_chat"]

@@ -117,11 +117,14 @@ def reset_console_log_handler():
     logger.addHandler(console_handler)
 
 # -- Shortcuts --
+from typing import Literal
+RetrieveMode = Literal["mix", "naive", "graph", "global", "community"]
 
 __all__ = [
     "conf",
     "logger",
     "change_console_log_handler",
     "reset_console_log_handler",
+    "RetrieveMode",
 ]
 

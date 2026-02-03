@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING, cast
+from typing import Any, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from embedding_service import AsyncEmbeddingClient
@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from dataclasses import dataclass, field
 
-from . import conf, logger
+from . import conf, logger, RetrieveMode
 from .llm import with_es_client, with_oa_client, extract_response
 
 
@@ -155,7 +155,7 @@ async def retrieve(
     query: str,
     *,
     history: list[str] | None = None,
-    mode: Literal["mix", "naive", "graph", "global", "community"] = "mix",
+    mode: RetrieveMode = "mix",
     query_info: QueryInfo | None = None,
     user_path: str | None = None,
     top_k: int | None = None,
