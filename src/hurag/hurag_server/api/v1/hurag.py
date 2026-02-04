@@ -10,7 +10,7 @@ from ...schemas import (
 router = APIRouter(prefix="/v1/hurag", tags=["知识库"])
 
 @router.post("/retrieve", response_model=list[KnowledgeSchema])
-async def _retrieve(req: QueryRequest):
+async def retrieve_v1(req: QueryRequest):
     """
     从知识库中检索与用户查询相关的知识。
 
@@ -25,41 +25,28 @@ async def _retrieve(req: QueryRequest):
     }
     ```
 
-    `domain` 和 `modes` 两个参数在 HuRAG 中已停用，为保持 API 前后兼容，
-    仍然可以接受这两个参数，但不会有任何实际作用，通常情况下不要提供即可。
-
-    `graph_search` 参数在 HuRAG 中支持 `bool` 和 `str` 两种数据类型，
+    `graph_search` 参数在 HuRAG 中支持 `bool` 和 `str` 字面量两种数据类型，
     以支持更多图搜索模式，默认值为 `"mix"`，表示图文混搜模式。
     保留 `bool` 类型以保持与早期实验性 API 版本的前后兼容。
 
     检索模式及对应的 `graph_search` 参数如下：
 
-    |graph_search |检索模式                                                                                                       |重排序|默认top_k|
-    |-------------|---------------------------------------------------------------------------------------------------------------|------|---------|
-    |`"naive"`    |文本语义检索，在全知识库文本中使用 hybrid search 搜索语义相似的段落                                            |  是  |    10   |
-    |`"graph"`    |关联子图检索，根据用户查询提取关键词，在知识图谱中定位语义关联子图，使用 hybrid search 搜索子图中语义相似的段落|  是  |    10   |
-    |`"mix"`      |图文混合检索，同时执行文本语义检索和关联子图检索，融合二者结果，返回其中排名最高的段落 **(default)**           |  是  |    10   |
-    |`"global"`   |根据用户查询提取关键词，在全知识图谱中搜索关联节点和边，按关联强弱返回引用的段落                               |  否  |    50   |
-    |`"community"`|根据用户查询提取关键词，在全知识图谱中定位最多5个相关社区，搜索社区中关联的节点和边并按关联强弱返回引用的段落  |  否  |    50   |
-    |`True`       |等同于 `mix`，确保 API 前后版本参数含义和默认模式一致                                                          |  是  |    10   |
-    |`False`      |等同于 `naive`，确保 API 前后版本参数含义一致                                                                  |  是  |    10   |
+    |graph_search |检索模式                                                          |
+    |-------------|------------------------------------------------------------------|
+    |`"naive"`    |（弃用）等同于 `mix`，仅用于兼容前后版本，下一版本中将取消        |
+    |`"graph"`    |（弃用）等同于 `mix`，仅用于兼容前后版本，下一版本中将取消        |
+    |`"mix"`      |（默认）图文混合检索，执行文本语义检索和关联子图检索，融合二者结果|
+    |`"global"`   |在全知识图谱中搜索关联节点和边，按关联强弱返回引用的段落          |
+    |`"community"`|在知识图谱相关社区中搜索关联的节点和边并按关联强弱返回引用的段落  |
+    |`True`       |（弃用）等同于 `mix`，仅用于兼容前后版本，下一版本中将取消        |
+    |`False`      |（弃用）等同于 `mix`，仅用于兼容前后版本，下一版本中将取消        |
 
     使用 `hurag corpus load` 加载入库的文档仅完成文本分块存储和语义向量化内嵌，
-    此时这些文档仅能用于 `naive` 模式检索。
-
     使用 `hurag graph build` 命令对所有尚未提取知识图谱的库内文档进行图谱构建，
-    此后这些文档可用于 `graph, mix` 模式的检索。
+    此后这些文档可用于 `mix` 模式的检索。
 
     使用 `hurag graph community` 命令对整个知识图谱应用 Leiden 算法生成社区，
     此后这些社区可用于 `global, community` 模式的检索。
-
-    当无法从用户查询中提取到有意义的关键词时，将强制使用 `naive` 模式。因此，
-    建议前端事先判断用户查询是否需要检索知识库以增强生成，若不需要可直接调用
-    `v1/llm/chat` API 进行对话。
-
-    `rerank` 参数已经停用，仅为保持 API 前后兼容而保留。HuRAG 中，`naive`,
-    `graph`, `mix` 三种模式检索结果自动重排序；`graph` 和 `community`
-    模式检索结果不重排序。
 
     `user_path` 参数为前端可选提供的参数。如果前端接入了用户与组织机构管理，
     则可以通过此参数传递当前用户所在组织机构的路径，规则同文档发布机构路径。
@@ -98,15 +85,10 @@ async def _retrieve(req: QueryRequest):
     }
     ```
     """
-    from .... import RetrieveMode
     from ....retrievers import retrieve
 
     try:
-        mode: RetrieveMode = "mix"
-        if isinstance(req.graph_search, bool):
-            mode = "mix" if req.graph_search else "naive"
-        else:
-            mode = req.graph_search
+        mode = "mix" if isinstance(req.graph_search, bool) else req.graph_search
 
         kns = await retrieve(
             req.query,
@@ -122,7 +104,7 @@ async def _retrieve(req: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/knowledge", response_model=list[KnowledgeSchema])
-async def _get_knowledge_by_ids(req: KnowledgeRequest):
+async def get_knowledge_by_ids(req: KnowledgeRequest):
     """
     根据提供的 id 列表获取知识段。
 
@@ -178,5 +160,3 @@ async def _get_knowledge_by_ids(req: KnowledgeRequest):
         return [KnowledgeSchema.model_validate(kn) for kn in kns]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-__all__ = ["_retrieve", "_get_knowledge_by_ids"]

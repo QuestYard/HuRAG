@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import json
 
+from typing import cast, TYPE_CHECKING
+
 from ...schemas import ChatRequest, ChatResponse
 from ....depends import HuragGenerationClient, HuragGenerationModel
 
@@ -27,7 +29,7 @@ router = APIRouter(prefix="/v1/llm", tags=["大模型"])
         }
     }
 )
-async def _chat(
+async def chat_with_llm(
     req: ChatRequest,
     client: HuragGenerationClient,
     model: HuragGenerationModel,
@@ -108,8 +110,15 @@ async def _chat(
             client=client,
         )
         if not req.stream:
-            return ChatResponse(content=extract_response(resp))
+            if TYPE_CHECKING:
+                from openai.types.chat import ChatCompletion
+                resp = cast(ChatCompletion, resp)
+            resp = cast(dict, extract_response(resp, content_only=False))
+            return ChatResponse(**resp)
 
+        if TYPE_CHECKING:
+            from openai import AsyncStream
+            resp = cast(AsyncStream, resp)
         async def _sse():
             async for chunk in resp:
                 # extract_chunk 返回当前 chunk 的内容增量
@@ -125,5 +134,3 @@ async def _chat(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-__all__ = ["_chat"]

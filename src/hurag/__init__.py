@@ -1,4 +1,4 @@
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __author__ = "Libin, QuestYard HuRAG Team"
 __description__ = "SDK, CLI and API for HuRAG"
 __url__ = "https://github.com/QuestYard/HuRAG"
@@ -116,9 +116,11 @@ def reset_console_log_handler():
             logger.removeHandler(h)
     logger.addHandler(console_handler)
 
-# -- Shortcuts --
+
 from typing import Literal
 RetrieveMode = Literal["mix", "naive", "graph", "global", "community"]
+
+# -- Shortcuts --
 
 __all__ = [
     "conf",

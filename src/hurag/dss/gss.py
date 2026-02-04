@@ -286,7 +286,6 @@ async def _n_hop_search(ori_nodes, top_n, hops):
 # --- Communities ---
 
 async def associations(
-    # query: str,
     keywords: dict[str, list[str]],
     vecs: dict[str, Any],
     docs: dict[str, Any],

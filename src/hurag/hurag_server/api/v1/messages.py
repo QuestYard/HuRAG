@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from ...schemas import MessageSchema
 from .... import (
     __version__ as hurag_version,

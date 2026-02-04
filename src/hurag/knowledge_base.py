@@ -458,7 +458,6 @@ async def search(
     async def _associations():
         from .dss import gss
         associations_results = await gss.associations(
-            query=query,
             keywords=query_info.keywords,
             vecs=embeddings,
             docs=docs,
