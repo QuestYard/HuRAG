@@ -10,7 +10,8 @@ import asyncio
 from contextlib import asynccontextmanager
 from functools import wraps
 from pymilvus import AsyncMilvusClient
-from typing import Callable, Any, Coroutine, TypeVar, cast
+from typing import Any, TypeVar, cast
+from collections.abc import Callable, Coroutine
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 

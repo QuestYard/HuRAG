@@ -1,9 +1,8 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
-    from openai.types.chat import ChatCompletion
     from .schemas import Graph
     import igraph as ig
     from igraph.clustering import VertexClustering
@@ -16,8 +15,8 @@ from .llm import (
     create_community_summarize_prompt,
     create_community_summary_aggregate_prompt,
     with_oa_client,
-    chat_with_retry,
-    extract_response,
+    chat_completion,
+    extract_from_chat,
 )
 from .utilities import generate_id
 from .constants import GRAPH_FIELD_SEP
@@ -36,11 +35,12 @@ class _Segment:
 
 @with_oa_client(client_name="extraction", timeout=120.0)
 async def extract_kg_elements(
-    document_ids: str | list[str] | None = None,
+    document_ids: str | list[str],
+    *,
     num_extracting_workers: int = 10,
     num_gleaning_workers: int = 10,
     limit: int | None = None,
-    oaclient: AsyncOpenAI | None = None,
+    oaclient: AsyncOpenAI,
 ) -> list[dict[str, str]]:
     """
     Extract entities and relations from segments of documents in the rss with
@@ -76,7 +76,7 @@ async def extract_kg_elements(
             "gleaning": str,
         }
     """
-    model = os.getenv(f"{conf.llm.extraction}_MODEL")
+    model = os.getenv(f"{conf.llm.extraction}_MODEL", "")
 
     async def _extractor(queue, gleaning_queue):
         while True:
@@ -86,12 +86,10 @@ async def extract_kg_elements(
                 return
             try:
                 pmt = create_entity_extraction_prompt(_seg.text)
-                res = await chat_with_retry(model, pmt, client=oaclient)
-                if TYPE_CHECKING:
-                    res = cast(ChatCompletion, res)
+                res = await chat_completion(client=oaclient, model=model, prompt=pmt)
                 _seg.history = [
                     {"role": "user", "content": pmt},
-                    extract_response(res, content_only=False),
+                    extract_from_chat(res),
                 ]
                 await gleaning_queue.put(_seg)
             except Exception as e:
@@ -107,18 +105,16 @@ async def extract_kg_elements(
                 return
             try:
                 pmt = create_entity_gleaning_prompt()
-                res = await chat_with_retry(
-                    model,
-                    pmt,
-                    history_messages=_seg.history,
+                res = await chat_completion(
                     client=oaclient,
+                    model=model,
+                    prompt=pmt,
+                    history_messages=_seg.history,
                 )
-                if TYPE_CHECKING:
-                    res = cast(ChatCompletion, res)
                 _seg.history.extend(
                     [
                         {"role": "user", "content": pmt},
-                        extract_response(res, content_only=False),
+                        extract_from_chat(res),
                     ]
                 )
                 if pbar:
@@ -243,8 +239,9 @@ async def extract_kg_elements(
 @with_oa_client(client_name="extraction", timeout=120.0)
 async def normalize_kg_elements(
     g: Graph,
+    *,
     num_workers: int = 20,
-    oaclient: AsyncOpenAI | None = None,
+    oaclient: AsyncOpenAI,
 ) -> Graph:
     """
     Normalize the knowledge graph elements in the graph.
@@ -261,7 +258,8 @@ async def normalize_kg_elements(
     Returns:
         The normalized knowledge graph.
     """
-    model = os.getenv(f"{conf.llm.extraction}_MODEL")
+    model = os.getenv(f"{conf.llm.extraction}_MODEL", "")
+
     failed_elements = []
 
     async def _normalize_single_element(queue, pbar=None):
@@ -295,10 +293,8 @@ async def normalize_kg_elements(
                     entity_name = entity_name,
                     descriptions = descriptions,
                 )
-                _desc = await chat_with_retry(model, pmt, client=oaclient)
-                if TYPE_CHECKING:
-                    _desc = cast(ChatCompletion, _desc)
-                _element.description = extract_response(_desc)
+                _desc = await chat_completion(client=oaclient, model=model, prompt=pmt)
+                _element.description = extract_from_chat(_desc)["content"]
                 if pbar:
                     pbar.update(1)
             except Exception as e:
@@ -413,10 +409,11 @@ async def summarize_communities(
     graph: ig.Graph,
     partitions: VertexClustering,
     nodes: dict[str, tuple[str, str]],
+    *,
     batch_size: int = 90,
     min_size: int = 10,
     num_workers: int = 20,
-    oaclient: AsyncOpenAI | None = None,
+    oaclient: AsyncOpenAI,
 ) -> dict[int, list[str]]:
     """
     Summarize each community in the graph by using LLM.
@@ -432,7 +429,7 @@ async def summarize_communities(
     import asyncio
     from tqdm.asyncio import tqdm
 
-    model = os.getenv(f"{conf.llm.extraction}_MODEL")
+    model = os.getenv(f"{conf.llm.extraction}_MODEL", "")
 
     def _nodes_batch_generator(community):
         size = len(community)
@@ -454,10 +451,8 @@ async def summarize_communities(
                 pmt = create_community_summarize_prompt(
                     [{"name": nodes[x][0], "description": nodes[x][1]} for x in ids]
                 )
-                _resp = await chat_with_retry(model, pmt, client=oaclient)
-                if TYPE_CHECKING:
-                    _resp = cast(ChatCompletion, _resp)
-                summaries[batch["c_no"]].append(extract_response(_resp))
+                _resp = await chat_completion(client=oaclient, model=model, prompt=pmt)
+                summaries[batch["c_no"]].append(extract_from_chat(_resp)["content"])
                 summarize_pbar.update(1)
             except Exception as e:
                 logger.error(f"generate community summary error: {e!r}")
@@ -476,10 +471,8 @@ async def summarize_communities(
                 continue
             try:
                 pmt = create_community_summary_aggregate_prompt(item[1])
-                _resp = await chat_with_retry(model, pmt, client=oaclient)
-                if TYPE_CHECKING:
-                    _resp = cast(ChatCompletion, _resp)
-                item[1].append(extract_response(_resp))
+                _resp = await chat_completion(client=oaclient, model=model, prompt=pmt)
+                item[1].append(extract_from_chat(_resp)["content"])
                 aggregate_pbar.update(1)
             except Exception as e:
                 logger.error(f"aggregate community summary error: {e!r}")

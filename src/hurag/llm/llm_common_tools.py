@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import get_args, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletion, ChatCompletionChunk
+
+from deprecated import deprecated
 
 def build_messages(
     prompt: str,
@@ -20,7 +22,8 @@ def build_messages(
     Returns:
         list[dict[str, str]] -- the constructed messages.
     """
-    msgs: list[dict[str, str]] = []
+    from openai.types.chat import ChatCompletionRole
+    msgs = []
     if system_prompt:
         msgs.append({"role": "system", "content": system_prompt})
     if history_messages:
@@ -33,10 +36,16 @@ def build_messages(
                 raise ValueError(
                     "History message missing 'role' or 'content'."
                 )
-            msgs.append(m)
+            if m["role"] not in get_args(ChatCompletionRole):
+                continue
+            msgs.append({"role": m["role"], "content": m["content"]})
     msgs.append({"role": "user", "content": prompt})
     return msgs
 
+@deprecated(
+    version="0.2.1",
+    reason="Using `extract_from_chat` instead, will be removed at 0.3.0.",
+)
 def extract_response(
     response: ChatCompletion,
     content_only: bool = True,
@@ -45,11 +54,13 @@ def extract_response(
     Extract the response content from a ChatCompletion object.
 
     Args:
-        response: ChatCompletion -- the chat completion response object.
-        content_only: bool -- whether to return only the content string or include the role.
+        response: ChatCompletion: the chat completion response object.
+        content_only: bool:
+            whether to return only the content string or include the role.
 
     Returns:
-        str | dict[str, str] -- the extracted content or a dictionary with role and content.
+        str | dict[str, str]:
+            the extracted content or a dictionary with role and content.
     """
     if response.choices and response.choices[0].message.content is not None:
         return (
@@ -62,6 +73,10 @@ def extract_response(
         )
     return ""
 
+@deprecated(
+    version="0.2.1",
+    reason="Using `extract_from_chat` instead, will be removed at 0.3.0.",
+)
 def extract_chunk(
     chunk: ChatCompletionChunk,
     previous_content: str | None = None,
@@ -83,3 +98,16 @@ def extract_chunk(
             return f"{previous_content}{chunk.choices[0].delta.content}"
     return ""
 
+def extract_from_chat(
+    response: ChatCompletion | ChatCompletionChunk
+) -> dict[str, str]:
+    from openai.types.chat import ChatCompletion
+    if isinstance(response, ChatCompletion):
+        return {
+            "role": response.choices[0].message.role,
+            "content": response.choices[0].message.content or "",
+        }
+    return {
+            "role": response.choices[0].delta.role or "assistant",
+            "content": response.choices[0].delta.content or "",
+        }

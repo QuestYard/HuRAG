@@ -1,5 +1,6 @@
 from functools import wraps
-from typing import Any, Callable, Coroutine, TypeVar, AsyncGenerator, cast
+from typing import Any, TypeVar, cast
+from collections.abc import Callable, Coroutine, AsyncGenerator
 import inspect
 
 from embedding_service.async_embedding_client import AsyncEmbeddingClient

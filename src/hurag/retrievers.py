@@ -1,10 +1,9 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, cast
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from embedding_service import AsyncEmbeddingClient
     from openai import AsyncOpenAI
-    from openai.types.chat import ChatCompletion
     from .schemas import Knowledge
 
 import os
@@ -12,7 +11,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 
 from . import conf, logger, RetrieveMode
-from .llm import with_es_client, with_oa_client, extract_response
+from .llm import with_es_client, with_oa_client, extract_from_chat
 
 
 @dataclass
@@ -33,7 +32,7 @@ class QueryInfo:
 async def rerank_knowledge(
     query: str,
     knowledge_dict: dict[str, Knowledge],
-    esclient: AsyncEmbeddingClient | None = None,
+    esclient: AsyncEmbeddingClient,
 ) -> list[list[Knowledge | float]]:
     """
     Rerank the input knowledge objects based on the query by using embedding-service.
@@ -45,7 +44,6 @@ async def rerank_knowledge(
     Returns:
         A list like [[Knowledge, score], ...]
     """
-    assert esclient is not None
     contents = [k.context for k in knowledge_dict.values()]
     response = await esclient.rerank(query, contents)
     if not response.scores:
@@ -61,8 +59,9 @@ async def rerank_knowledge(
 @with_oa_client(client_name="extraction")
 async def prepare_for_searching(
     query: str,
+    *,
     history: list[str] | None = None,
-    oaclient: AsyncOpenAI | None = None,
+    oaclient: AsyncOpenAI,
 ) -> QueryInfo:
     """
     Extract keywords, timings from the query and embed the query.
@@ -80,57 +79,49 @@ async def prepare_for_searching(
         embed_query,
         create_keywords_extraction_prompt,
         create_timing_prompt,
-        chat,
+        chat_completion,
     )
 
     model = os.getenv(f"{conf.llm.extraction}_MODEL", "")
 
     async def _extract_query_keywords(query: str, history: list[str] | None = None):
         history = history or []
-        resp = await chat(
+        resp = await chat_completion(
+                client=oaclient,
                 model=model,
                 prompt=create_keywords_extraction_prompt(query, history),
-                client=oaclient,
         )
-        if TYPE_CHECKING:
-            resp = cast(ChatCompletion, resp)
-        resp = extract_response(resp)
-        assert isinstance(resp, str)
+        resp = extract_from_chat(resp)["content"]
         try:
             keywords = json_repair.loads(resp)
-            if not keywords:
+            if not keywords or not isinstance(keywords, dict):
                 return {"high_level_keywords": [], "low_level_keywords": []}
         except Exception as e:
             logger.error(f"JSON parsing error while extract keywords: {e}")
             logger.error(f"LLM respond: {resp}")
             return {"high_level_keywords": [], "low_level_keywords": []}
 
-        assert isinstance(keywords, dict)
         return {
             "high_level_keywords": keywords.get("high_level_keywords", []),
             "low_level_keywords": keywords.get("low_level_keywords", []),
         }
 
     async def _extract_timings(query: str):
-        resp = await chat(
+        resp = await chat_completion(
+                client=oaclient,
                 model=model,
                 prompt=create_timing_prompt(query),
-                client=oaclient,
             )
-        if TYPE_CHECKING:
-            resp = cast(ChatCompletion, resp)
-        resp = extract_response(resp)
-        assert isinstance(resp, str)
+        resp = extract_from_chat(resp)["content"]
         try:
             as_of_time = json_repair.loads(resp)
-            if not as_of_time:
+            if not as_of_time or not isinstance(as_of_time, list):
                 return [datetime.today()]
         except Exception as e:
             logger.error(f"JSON parsing error while extract timings: {e}")
             logger.error(f"LLM respond: {resp}")
             return [datetime.today()]
 
-        assert isinstance(as_of_time, list)
         timings = sorted(
             [datetime.strptime(d, "%Y-%m-%d") for d in as_of_time],
             reverse=True,
@@ -193,28 +184,12 @@ async def retrieve(
     """
     from .knowledge_base import search
 
-    if mode not in ["mix", "naive", "graph", "global", "community"]:
-        mode = "mix"
-
-    query_info = query_info or await prepare_for_searching(query, history=history)
-    assert query_info is not None
-
-    if (
-        not query_info.keywords["low_level_keywords"]
-        and not query_info.keywords["high_level_keywords"]
-    ):
-        logger.warning("No keyword extracted, force to 'naive' mode")
-        mode = "naive"
-
-    logger.info(
-        f"[QUERY]: {query} [MODE]: {mode}, [TIMINGS]: {query_info.timings}, "
-        f"[KEYWORDS]: {query_info.keywords}"
-    )
+    logger.info(f"[QUERY]: {query} [MODE]: {mode}")
 
     return await search(
         query,
         mode=mode,
-        query_info=query_info,
+        query_info=query_info or await prepare_for_searching(query, history=history),
         user_path=user_path or conf.app.org_path,
         top_k=top_k or conf.retrieval.top_k,
         top_a=top_a or conf.retrieval.top_a,

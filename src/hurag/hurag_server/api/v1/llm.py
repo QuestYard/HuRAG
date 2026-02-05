@@ -2,8 +2,6 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import json
 
-from typing import cast, TYPE_CHECKING
-
 from ...schemas import ChatRequest, ChatResponse
 from ....depends import HuragGenerationClient, HuragGenerationModel
 
@@ -96,41 +94,40 @@ async def chat_with_llm(
     asyncio.run(main())
     ```
     """
-    from ....llm import chat, extract_response, extract_chunk
+    from ....llm import chat_completion, chat_stream, extract_from_chat
 
     try:
-        resp = await chat(
-            model,
-            req.prompt,
-            system_prompt=req.system_prompt,
-            history_messages=req.history,
-            stream=req.stream,
-            temperature=req.temperature,
-            timeout=req.timeout,
-            client=client,
-        )
-        if not req.stream:
-            if TYPE_CHECKING:
-                from openai.types.chat import ChatCompletion
-                resp = cast(ChatCompletion, resp)
-            resp = cast(dict, extract_response(resp, content_only=False))
+        if req.stream:
+            astream = await chat_stream(
+                client=client,
+                model=model,
+                prompt=req.prompt,
+                system_prompt=req.system_prompt,
+                history_messages=req.history,
+                temperature=req.temperature,
+            )
+            async def _sse():
+                async for chunk in astream:
+                    delta = extract_from_chat(chunk)["content"]
+                    payload = {"delta": delta}
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                _sse(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache"}
+            )
+        else:
+            aresp = await chat_completion(
+                client=client,
+                model=model,
+                prompt=req.prompt,
+                system_prompt=req.system_prompt,
+                history_messages=req.history,
+                temperature=req.temperature,
+            )
+            resp = extract_from_chat(aresp)
             return ChatResponse(**resp)
-
-        if TYPE_CHECKING:
-            from openai import AsyncStream
-            resp = cast(AsyncStream, resp)
-        async def _sse():
-            async for chunk in resp:
-                # extract_chunk 返回当前 chunk 的内容增量
-                delta = extract_chunk(chunk)
-                payload = {"delta": delta}
-                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(
-            _sse(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache"}
-        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

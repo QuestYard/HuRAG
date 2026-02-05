@@ -118,6 +118,7 @@ def reset_console_log_handler():
 
 
 from typing import Literal
+
 RetrieveMode = Literal["mix", "naive", "graph", "global", "community"]
 
 # -- Shortcuts --

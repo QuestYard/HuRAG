@@ -1,5 +1,6 @@
 from functools import wraps
-from typing import Any, cast, Callable, Coroutine, TypeVar
+from typing import Any, cast, TypeVar
+from collections.abc import Callable, Coroutine
 from rich.console import Console
 from rich.theme import Theme
 from rich.logging import RichHandler

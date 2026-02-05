@@ -10,6 +10,7 @@ from .llm_common_tools import (
     build_messages,
     extract_response,
     extract_chunk,
+    extract_from_chat,
 )
 from .openai_client import (
     create_oa_client,
@@ -19,6 +20,8 @@ from .openai_client import (
     chat,
     chat_with_retry,
     with_oa_client,
+    chat_completion,
+    chat_stream,
 )
 from .prompts import (
     PROMPTS,
@@ -41,6 +44,7 @@ __all__ = [
     "build_messages",
     "extract_chunk",
     "extract_response",
+    "extract_from_chat",
     "create_oa_client",
     "get_oa_client",
     "close_oa_client",
@@ -48,6 +52,8 @@ __all__ = [
     "chat",
     "chat_with_retry",
     "with_oa_client",
+    "chat_completion",
+    "chat_stream",
     "PROMPTS",
     "create_entity_extraction_prompt",
     "create_entity_gleaning_prompt",

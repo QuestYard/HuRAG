@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import Any, Literal, Iterable, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING
+from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
+    from aiomysql import Cursor
 
 from . import RetrieveMode
 from .kvcache import KVCache
@@ -225,9 +227,8 @@ async def indexing_documents(
 from .dss import with_rdb
 
 @with_rdb(dict_cursor=True, connection_arg_name="conn", cursor_arg_name="cur")
-async def _load_metadata(doc_ids, conn: Any = None, cur: Any = None):
-    assert conn is not None
-    assert cur is not None
+async def _load_metadata(doc_ids, cur: Cursor, **kwargs):
+    _ = kwargs
     sql = f"""
         SELECT
             id,

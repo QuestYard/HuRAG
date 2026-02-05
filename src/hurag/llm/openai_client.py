@@ -1,26 +1,26 @@
 from __future__ import annotations
 from typing import (
-    Callable,
-    Coroutine,
-    AsyncGenerator, 
     TypeVar,
     Any,
     TYPE_CHECKING, 
     cast,
 )
+from collections.abc import (
+    Callable,
+    Coroutine,
+    AsyncGenerator, 
+)
+from openai.types.chat import ChatCompletionMessageParam
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
-    from openai.types.chat import (
-        ChatCompletion,
-        ChatCompletionChunk,
-        ChatCompletionMessageParam,
-    )
+    from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 import asyncio
 
 from contextlib import asynccontextmanager
 from functools import wraps
+from deprecated import deprecated
 from . import build_messages
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
@@ -31,15 +31,13 @@ _clients_lock: asyncio.Lock = asyncio.Lock()
 def create_oa_client(
     base_url: str,
     api_key: str,
-    timeout: float = 180.0,
-    max_retries: int = 3,
+    timeout: float = 60.0,
 ) -> AsyncOpenAI:
     import httpx
     from openai import AsyncOpenAI
     return AsyncOpenAI(
         base_url=base_url,
         api_key=api_key,
-        max_retries=max_retries,
         http_client=httpx.AsyncClient(
             timeout=httpx.Timeout(connect=10.0, read=timeout, write=30.0, pool=10.0),
             limits=httpx.Limits(keepalive_expiry=60.0),
@@ -49,8 +47,7 @@ def create_oa_client(
 async def get_oa_client(
     base_url: str | None = None,
     api_key: str | None = None,
-    timeout: float = 180.0,
-    max_retries: int = 3,
+    timeout: float = 60.0,
     client_name: str = "extraction",
 ) -> AsyncOpenAI:
     """Get or create an AsyncOpenAI client."""
@@ -82,7 +79,6 @@ async def get_oa_client(
             base_url=base_url,
             api_key=api_key,
             timeout=timeout,
-            max_retries=max_retries,
         )
 
     return _clients[client_name]
@@ -107,6 +103,10 @@ async def lifespan():
     finally:
         await close_oa_client()
 
+@deprecated(
+    version="0.2.1",
+    reason="Using chat_completion or chat_stream instead, will be removed at 0.3.0.",
+)
 async def chat(
     model: str,
     prompt: str,
@@ -119,7 +119,6 @@ async def chat(
     api_key: str | None = None,
     temperature: float = 0.0,
     timeout: float = 60.0,
-    max_retries: int = 3,
 ) -> (
     ChatCompletion
     | AsyncStream[ChatCompletionChunk]
@@ -157,7 +156,6 @@ async def chat(
             base_url=base_url,
             api_key=api_key,
             timeout=timeout,
-            max_retries=max_retries,
         )
         should_close = True
 
@@ -168,13 +166,10 @@ async def chat(
             history_messages=history_messages,
         )
 
-        if TYPE_CHECKING:
-            messages = cast(list[ChatCompletionMessageParam], messages)
-
         if stream:
             astream = await client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=cast(list[ChatCompletionMessageParam], messages),
                 temperature=temperature,
                 stream=True,
             )
@@ -190,7 +185,7 @@ async def chat(
         else:
             response = await client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=cast(list[ChatCompletionMessageParam], messages),
                 temperature=temperature,
             )
             if should_close:
@@ -208,8 +203,7 @@ def with_oa_client(
     api_key: str | None = None,
     client_name: str | None = None,
     timeout: float = 180.0,
-    max_retries: int = 3,
-    client_arg_name: str = "oaclient"
+    client_arg_name: str = "oaclient",
 ) -> Callable[..., Any]:
     """
     Decorator to provide an AsyncOpenAI client to the decorated async function.
@@ -234,16 +228,14 @@ def with_oa_client(
         @wraps(func)
         async def wrapper(*args, **kwargs):
             _cli = await get_oa_client(
-                base_url,
-                api_key,
-                timeout,
-                max_retries,
-                client_name,
+                base_url=base_url,
+                api_key=api_key,
+                timeout=timeout,
+                client_name=client_name,
             ) if client_name else create_oa_client(
                 base_url=base_url or "",
                 api_key=api_key or "",
                 timeout=timeout,
-                max_retries=max_retries,
             )
             kwargs[client_arg_name] = _cli
             ret = await func(*args, **kwargs)
@@ -264,6 +256,10 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+@deprecated(
+    version="0.2.1",
+    reason="Using chat_completion or chat_stream instead, will be removed at 0.3.0.",
+)
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=2, min=4, max=60),
@@ -278,3 +274,91 @@ async def chat_with_retry(*args, **kwargs) -> (
     # and let tenacity handle the backoff strategy fully.
     kwargs["max_retries"] = 0
     return await chat(*args, **kwargs)
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
+)
+async def chat_completion(
+    client: AsyncOpenAI,
+    model: str,
+    prompt: str,
+    *,
+    system_prompt: str | None = None,
+    history_messages: list[dict[str, str]] | None = None,
+    temperature: float = 0.0,
+) -> ChatCompletion:
+    """
+    Non-blocking chat completion call to OpenAI API.
+
+    Args:
+        client: AsyncOpenAI -- pre-created AsyncOpenAI client.
+        model: str -- the model to use.
+        prompt: str -- the user prompt.
+        system_prompt: str | None -- optional system prompt.
+        history_messages: list[dict[str, str]] | None -- optional chat history.
+        temperature: float -- sampling temperature.
+
+    Returns:
+        The chat completion response.
+    """
+    try:
+        messages = build_messages(
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+        )
+        response = await client.chat.completions.create(
+            model=model,
+            messages=cast(list[ChatCompletionMessageParam], messages),
+            temperature=temperature,
+            stream=False,
+        )
+        return response
+    except Exception:
+        raise
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
+)
+async def chat_stream(
+    client: AsyncOpenAI,
+    model: str,
+    prompt: str,
+    *,
+    system_prompt: str | None = None,
+    history_messages: list[dict[str, str]] | None = None,
+    temperature: float = 0.0,
+) -> AsyncStream:
+    """
+    Non-blocking stream chat completion call to OpenAI API.
+
+    Args:
+        client: AsyncOpenAI -- pre-created AsyncOpenAI client.
+        model: str -- the model to use.
+        prompt: str -- the user prompt.
+        system_prompt: str | None -- optional system prompt.
+        history_messages: list[dict[str, str]] | None -- optional chat history.
+        temperature: float -- sampling temperature.
+
+    Returns:
+        The chat completion response.
+    """
+    try:
+        messages = build_messages(
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+        )
+        response = await client.chat.completions.create(
+            model=model,
+            messages=cast(list[ChatCompletionMessageParam], messages),
+            temperature=temperature,
+            stream=True,
+        )
+        return response
+    except Exception:
+        raise

@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Annotated, Any, AsyncGenerator, TYPE_CHECKING
+from typing import Annotated, Any, TYPE_CHECKING
+from collections.abc import AsyncGenerator
 
 if TYPE_CHECKING:
     import aiomysql
