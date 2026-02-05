@@ -224,11 +224,8 @@ async def indexing_documents(
 
 # --- Knowledge Management ---
 
-from .dss import with_rdb
-
-@with_rdb(dict_cursor=True, connection_arg_name="conn", cursor_arg_name="cur")
-async def _load_metadata(doc_ids, cur: Cursor, **kwargs):
-    _ = kwargs
+async def _load_metadata(doc_ids: list[str]):
+    from .dss import rss
     sql = f"""
         SELECT
             id,
@@ -244,8 +241,7 @@ async def _load_metadata(doc_ids, cur: Cursor, **kwargs):
         FROM documents
         WHERE id IN ({','.join(['%s'] * len(doc_ids))})
     """
-    await cur.execute(sql, tuple(doc_ids))
-    rows = await cur.fetchall()
+    rows = await rss.query(sql, tuple(doc_ids), as_dict=True)
     return {row["id"]: row for row in rows}
 
 

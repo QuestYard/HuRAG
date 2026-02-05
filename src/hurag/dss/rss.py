@@ -1,11 +1,9 @@
 import aiomysql
 import asyncio
 from functools import wraps
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar, ParamSpec, TypeAlias
 from collections.abc import Callable, Coroutine, AsyncGenerator
 from contextlib import asynccontextmanager
-
-T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 _pools: dict[str, aiomysql.Pool] = {}
 _pools_lock: asyncio.Lock = asyncio.Lock()
@@ -65,15 +63,19 @@ async def lifespan():
     finally:
         await close_pool()
 
+P = ParamSpec("P")
+R = TypeVar("R")
+AsyncFunc: TypeAlias = Callable[P, Coroutine[Any, Any, R]]
+
 def with_rdb(
-    func: Callable | None = None,
+    func: AsyncFunc[P, R] | None = None,
     *,
     connection_arg_name: str = "connection",
     cursor_arg_name: str = "cursor",
     dict_cursor: bool = False,
     ss_cursor: bool = False,
     pool_name: str = "default",
-) -> Callable:
+) -> AsyncFunc[P, R] | Callable[[AsyncFunc[P, R]], AsyncFunc[P, R]]:
     """
     Decorator for injection of rss connection and cursor.
 
@@ -147,9 +149,9 @@ def with_rdb(
     Returns:
         The decorated function.
     """
-    def decorator(func: T)-> T:
+    def decorator(func: AsyncFunc[P, R]) -> AsyncFunc[P, R]:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             pool = await get_pool(pool_name=pool_name)
             connection = await pool.acquire()
             if dict_cursor:
@@ -174,7 +176,7 @@ def with_rdb(
             finally:
                 await cursor.close()
                 pool.release(connection)
-        return cast(T, wrapper)
+        return wrapper
     
     if func is not None:
         return decorator(func)
@@ -183,8 +185,9 @@ def with_rdb(
 async def query(
     statement: str,
     data: tuple = (),
+    as_dict: bool = False,
     pool_name: str = "default",
-) -> list[tuple]:
+) -> list[Any]:
     """
     Execute a SQL query statement (SELECT) and return all results.
 
@@ -193,14 +196,19 @@ async def query(
             The SQL query statement to be executed.
         data:
             The data to be used in the query statement.
+        as_dict:
+            Whether returns rows in list of dict or not.
         pool_name:
             The name of the connection pool to use. Default is "default".
 
     Returns:
-        A list of tuples representing the query results.
+        A list of tuples or dicts representing the query results.
     """
     pool = await get_pool(pool_name=pool_name)
-    async with pool.acquire() as conn, conn.cursor() as cur:
+    async with (
+        pool.acquire() as conn,
+        conn.cursor(aiomysql.DictCursor) if as_dict else conn.cursor() as cur
+    ):
         await cur.execute(statement, data)
         ret = await cur.fetchall()
         return list(ret)
@@ -209,8 +217,9 @@ async def query_iter(
     statement: str,
     data: tuple = (),
     batch_size: int = 1000,
+    as_dict: bool = False,
     pool_name: str = "default",
-) -> AsyncGenerator[tuple | dict, None]:
+) -> AsyncGenerator[Any]:
     """
     Execute a SQL query statement (SELECT) and yield results iteratively.
     Uses a server-side cursor to avoid loading all results into memory.
@@ -222,6 +231,8 @@ async def query_iter(
             The data to be used in the query statement.
         batch_size:
             The number of rows to fetch at a time. Default is 1000.
+        as_dict:
+            Whether returns rows in list of dict or not.
         pool_name:
             The name of the connection pool to use. Default is "default".
 
@@ -229,15 +240,19 @@ async def query_iter(
         A tuple or a dict representing a row in the query results.
     """
     pool = await get_pool(pool_name=pool_name)
-    async with pool.acquire() as conn:
-        async with conn.cursor(aiomysql.SSCursor) as cur:
-            await cur.execute(statement, data)
-            while True:
-                rows = await cur.fetchmany(batch_size)
-                if not rows:
-                    break
-                for row in rows:
-                    yield row
+    async with (
+        pool.acquire() as conn,
+        conn.cursor(aiomysql.SSDictCursor)
+        if as_dict
+        else conn.cursor(aiomysql.SSCursor) as cur
+    ):
+        await cur.execute(statement, data)
+        while True:
+            rows = await cur.fetchmany(batch_size)
+            if not rows:
+                break
+            for row in rows:
+                yield row
 
 async def dml(
     statement: str,
