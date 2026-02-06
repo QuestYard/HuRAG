@@ -3,8 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from collections.abc import AsyncGenerator
 
 if TYPE_CHECKING:
-    from embedding_service.async_embedding_client import AsyncEmbeddingClient
-    from embedding_service.schemas import EmbeddingPayloadMeta
+    from .embedding_service_client import AsyncEmbeddingClient, EmbeddingPayloadMeta
     from ..schemas import Document, Graph
 
 from . import with_es_client

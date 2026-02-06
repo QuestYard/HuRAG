@@ -3,7 +3,7 @@ from typing import Any
 from collections.abc import Callable
 import inspect
 
-from .. import conf
+from .. import conf, logger
 
 # -- Schemas for calling Embedding Service API --
 
@@ -93,23 +93,22 @@ def unpack_unified_embeddings_from_bytes(
     colbert = None
 
     if meta.has_dense:
-        dense = np.asarray(
-            npz["dense_data"], dtype=meta.dense_dtype).reshape(meta.dense_shape)
+        raw = npz["dense_data"]
+        dense = np.asarray(raw, dtype=meta.dense_dtype).reshape(meta.dense_shape)
 
-    if meta.has_sparse:
+    if meta.has_sparse and meta.sparse_meta:
         data = npz["sparse_data"].astype(meta.sparse_meta.dtype)
         indices = npz["sparse_indices"].astype(np.int32)
         indptr = npz["sparse_indptr"].astype(np.int32)
-        shape = tuple(meta.sparse_meta.shape)
+        shape = meta.sparse_meta.shape
         sparse = csr_matrix((data, indices, indptr), shape=shape)
 
-    if meta.has_colbert:
-        cm = meta.colbert_meta
-        count = int(cm.count)
-        dtype = cm.dtype
+    if meta.has_colbert and meta.colbert_meta:
+        count = int(meta.colbert_meta.count)
+        dtype = meta.colbert_meta.dtype
         colbert = []
         for i in range(count):
-            shape = tuple(cm.shapes[i])
+            shape = tuple(meta.colbert_meta.shapes[i])
             raw = npz[f"colbert_{i}"]
             arr = np.asarray(raw, dtype=dtype).reshape(shape)
             colbert.append(arr)
@@ -139,14 +138,13 @@ class AsyncEmbeddingClient:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            logger.error(
+                "Error while invoking embedding-service API",
+                exc_info=(exc_type, exc_val, exc_tb),
+            )
         if self._client:
             await self._client.aclose()
-
-    def _ensure_client(self):
-        if not self._client:
-            raise RuntimeError(
-                "Client not initialized. Use 'async with' context manager."
-            )
 
     async def embed(
         self,
@@ -180,7 +178,8 @@ class AsyncEmbeddingClient:
                 - A dictionary with the encoded embeddings.
                 - An EmbeddingPayloadMeta object with metadata.
         """
-        self._ensure_client()
+        if not self._client:
+            raise RuntimeError("Client not initialized.")
 
         request = EmbeddingRequest(
             sentences=sentences,
@@ -238,7 +237,9 @@ class AsyncEmbeddingClient:
             RerankResponse:
                 An RerankResponse object containing the reranked scores.
         """
-        self._ensure_client()
+        if not self._client:
+            raise RuntimeError("Client not initialized.")
+
 
         request = RerankRequest(
             query=query,

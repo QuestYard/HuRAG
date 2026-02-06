@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from embedding_service import AsyncEmbeddingClient
+    from .llm import AsyncEmbeddingClient
     from openai import AsyncOpenAI
     from .schemas import Knowledge
 

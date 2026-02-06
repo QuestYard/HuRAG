@@ -1,4 +1,7 @@
-from .embedding_service_client import with_es_client
+from .embedding_service_client import (
+    with_es_client,
+    AsyncEmbeddingClient,
+)
 from .embedder import (
     embed_documents,
     embed_query,
@@ -36,6 +39,7 @@ from .prompts import (
 
 __all__ = [
     "with_es_client",
+    "AsyncEmbeddingClient",
     "embed_documents",
     "embed_query",
     "embed_keywords",

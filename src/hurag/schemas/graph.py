@@ -40,20 +40,20 @@ class Entity:
         directly stored into the knowledge graph before being recreated to
         single name, single type and single description.
         """
-        try:
-            self.id = None
-            self.name = self.name or ""
-            self.type = self.type or ""
-            self.description = self.description or ""
-            self.seg_ids = self.seg_ids or ""
-            self.name += (GRAPH_FIELD_SEP + (other.name or ""))
-            self.type += (GRAPH_FIELD_SEP + (other.type or ""))
-            self.description += (GRAPH_FIELD_SEP + (other.description or ""))
-            self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
-        except TypeError:
-            raise
-        finally:
-            return self
+        if not isinstance(other, type(self)):
+            return NotImplemented
+
+        self.id = None
+        self.name = self.name or ""
+        self.type = self.type or ""
+        self.description = self.description or ""
+        self.seg_ids = self.seg_ids or ""
+        self.name += (GRAPH_FIELD_SEP + (other.name or ""))
+        self.type += (GRAPH_FIELD_SEP + (other.type or ""))
+        self.description += (GRAPH_FIELD_SEP + (other.description or ""))
+        self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
+
+        return self
 
     def __eq__(self, other) -> bool:
         if self.id is not None and other.id is not None:
@@ -132,23 +132,24 @@ class Relation:
         directly stored into the knowledge graph before being recreated to
         single source, single target, single type and single description.
         """
-        try:
-            self.id = None
-            self.source = self.source or ""
-            self.target = self.target or ""
-            self.type = self.type or ""
-            self.description = self.description or ""
-            self.seg_ids = self.seg_ids or ""
-            self.source += (GRAPH_FIELD_SEP + (other.source or ""))
-            self.target += (GRAPH_FIELD_SEP + (other.target or ""))
-            self.type += (GRAPH_FIELD_SEP + (other.type or ""))
-            self.description += (GRAPH_FIELD_SEP + (other.description or ""))
-            self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
-            self.strength += other.strength
-        except TypeError:
-            raise
-        finally:
-            return self
+        if not isinstance(other, type(self)):
+            return NotImplemented
+
+        self.id = None
+        self.source = self.source or ""
+        self.target = self.target or ""
+        self.type = self.type or ""
+        self.description = self.description or ""
+        self.seg_ids = self.seg_ids or ""
+        self.source += (GRAPH_FIELD_SEP + (other.source or ""))
+        self.target += (GRAPH_FIELD_SEP + (other.target or ""))
+        self.type += (GRAPH_FIELD_SEP + (other.type or ""))
+        self.description += (GRAPH_FIELD_SEP + (other.description or ""))
+        self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
+        self.strength += other.strength
+
+        return self
+
 
     def __eq__(self, other) -> bool:
         if self.id is not None and other.id is not None:
