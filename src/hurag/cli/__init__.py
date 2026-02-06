@@ -1,6 +1,6 @@
 from functools import wraps
-from typing import Any, cast, TypeVar
-from collections.abc import Callable, Coroutine
+from typing import Any
+from collections.abc import Callable
 from rich.console import Console
 from rich.theme import Theme
 from rich.logging import RichHandler
@@ -12,8 +12,6 @@ from .. import (
     change_console_log_handler,
     reset_console_log_handler,
 )
-
-T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 HURAG_EPILOG = f"""
 HuRAG {__version__}, {__author__}, 2025-2026.
@@ -55,11 +53,11 @@ def show_msg(
     console.print(tb)
 
 def with_spinner(
-    func: Callable | None = None,
+    func=None,
     *,
-    text: str = "running...",
-    style: str = "bold gray",
-    print_result: bool = False,
+    text="running...",
+    style="bold gray",
+    print_result=False,
 ) -> Callable[..., Any]:
     """
     Decorator: display a sinpper while the decorated function is running.
@@ -69,7 +67,7 @@ def with_spinner(
         style: rich style
         print_result: print return message
     """
-    def decorator(func: T) -> T:
+    def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             change_console_log_handler(rich_handler)
@@ -79,18 +77,18 @@ def with_spinner(
                 show_msg(f"Finished: {result}", style=style)
             reset_console_log_handler()
             return result
-        return cast(T, wrapper)
+        return wrapper
     
     if func is not None:
         return decorator(func)
     return decorator
 
 def with_async_spinner(
-    func: Callable | None = None,
+    func=None,
     *,
-    text: str = "running...",
-    style: str = "bold gray",
-    print_result: bool = False,
+    text="running...",
+    style="bold gray",
+    print_result=False,
 ) -> Callable[..., Any]:
     """
     Decorator: display a sinpper while the decorated async function is running.
@@ -100,7 +98,7 @@ def with_async_spinner(
         style: rich style
         print_result: print return message
     """
-    def decorator(func: T) -> T:
+    def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             change_console_log_handler(rich_handler)
@@ -110,13 +108,13 @@ def with_async_spinner(
                 show_msg(f"Finished: {result}", style=style)
             reset_console_log_handler()
             return result
-        return cast(T, wrapper)
+        return wrapper
 
     if func is not None:
         return decorator(func)
     return decorator
 
-def async_cmd(func: Callable) -> Callable[..., Any]:
+def async_cmd(func) -> Callable[..., Any]:
     """Decorator to run an async command with database lifespan management."""
     @wraps(func)
     def wrapper(*args, **kwargs):

@@ -1,4 +1,3 @@
-from typing import cast
 from fastapi import APIRouter, HTTPException
 
 from ...schemas import (
@@ -98,7 +97,7 @@ async def retrieve_v1(req: QueryRequest):
         )
         responses = [KnowledgeSchema.model_validate(kn[0]) for kn in kns]
         for response, kn in zip(responses, kns):
-            response.score = cast(float, kn[1])
+            response.score = kn[1]
         return responses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

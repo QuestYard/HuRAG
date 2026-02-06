@@ -6,14 +6,12 @@ warnings.filterwarnings(
 )
 
 import asyncio
+from typing import Any
+from collections.abc import Callable
 
 from contextlib import asynccontextmanager
 from functools import wraps
 from pymilvus import AsyncMilvusClient
-from typing import Any, TypeVar, cast
-from collections.abc import Callable, Coroutine
-
-T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 _clients: dict[str, AsyncMilvusClient] = {}
 _clients_lock: asyncio.Lock = asyncio.Lock()
@@ -64,18 +62,18 @@ async def lifespan():
         await close_client()
 
 def with_vdb(
-    func: Callable | None = None,
+    func=None,
     *,
-    client_arg_name: str = "client",
-    client_name: str = "default",
+    client_arg_name="client",
+    client_name="default",
 ) -> Callable[..., Any]:
     """Decorator to provide a VSS client to the decorated function."""
-    def decorator(func: T) -> T:
+    def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             kwargs[client_arg_name] = await get_client(client_name=client_name)
             return await func(*args, **kwargs)
-        return cast(T, wrapper)
+        return wrapper
     
     if func is not None:
         return decorator(func)

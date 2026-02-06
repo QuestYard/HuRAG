@@ -1,15 +1,6 @@
 from __future__ import annotations
-from typing import (
-    TypeVar,
-    Any,
-    TYPE_CHECKING, 
-    cast,
-)
-from collections.abc import (
-    Callable,
-    Coroutine,
-    AsyncGenerator, 
-)
+from typing import Any, TYPE_CHECKING, cast
+from collections.abc import Callable, AsyncGenerator
 from openai.types.chat import ChatCompletionMessageParam
 
 if TYPE_CHECKING:
@@ -22,8 +13,6 @@ from contextlib import asynccontextmanager
 from functools import wraps
 from deprecated import deprecated
 from . import build_messages
-
-T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 _clients: dict[str, AsyncOpenAI] = {}
 _clients_lock: asyncio.Lock = asyncio.Lock()
@@ -140,7 +129,6 @@ async def chat(
         api_key: str | None -- API key for OpenAI API.
         temperature: float -- sampling temperature.
         timeout: float -- request timeout in seconds.
-        max_retries: int -- maximum number of retries for failed requests.
 
     Returns:
         The chat completion response.
@@ -197,13 +185,13 @@ async def chat(
         raise
 
 def with_oa_client(
-    func: Callable | None = None,
+    func=None,
     *,
-    base_url: str | None = None,
-    api_key: str | None = None,
-    client_name: str | None = None,
-    timeout: float = 180.0,
-    client_arg_name: str = "oaclient",
+    base_url=None,
+    api_key=None,
+    client_name=None,
+    timeout=180.0,
+    client_arg_name="oaclient",
 ) -> Callable[..., Any]:
     """
     Decorator to provide an AsyncOpenAI client to the decorated async function.
@@ -218,13 +206,12 @@ def with_oa_client(
             create a permenant client. base_url and api_key can be None if a client
             with the given client_name is "extraction" or "generation".
         timeout: float -- request timeout in seconds.
-        max_retries: int -- maximum number of retries for failed requests.
         client_arg_name: str -- the name of the parameter to pass the client as.
 
     Returns:
         Callable[..., Any] -- the decorated function.
     """
-    def decorator(func: T) -> T:
+    def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             _cli = await get_oa_client(
@@ -242,7 +229,7 @@ def with_oa_client(
             if not client_name:
                 await _cli.close()
             return ret
-        return cast(T, wrapper)
+        return wrapper
     
     if func is not None:
         return decorator(func)
@@ -270,9 +257,6 @@ async def chat_with_retry(*args, **kwargs) -> (
     | AsyncStream[ChatCompletionChunk]
     | AsyncGenerator[ChatCompletionChunk, Any]
 ):
-    # Disable internal retries of the client to avoid nested retries
-    # and let tenacity handle the backoff strategy fully.
-    kwargs["max_retries"] = 0
     return await chat(*args, **kwargs)
 
 @retry(

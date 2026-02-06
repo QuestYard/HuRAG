@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from ... import RetrieveMode
+from ...types import RetrieveMode
 
 class QueryRequest(BaseModel):
     query: str = Field(examples=["What is an LLM?"])

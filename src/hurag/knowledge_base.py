@@ -1,13 +1,12 @@
 from __future__ import annotations
 from typing import Any, Literal, TYPE_CHECKING
-from collections.abc import Iterable
+from collections.abc import Collection
 
 if TYPE_CHECKING:
     from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
-    from aiomysql import Cursor
 
-from . import RetrieveMode
+from .types import RetrieveMode
 from .kvcache import KVCache
 
 kn_cache = KVCache(max_size=1000, evict_ratio=0.2)
@@ -224,7 +223,7 @@ async def indexing_documents(
 
 # --- Knowledge Management ---
 
-async def _load_metadata(doc_ids: list[str]):
+async def _load_metadata(doc_ids: Collection[str]):
     from .dss import rss
     sql = f"""
         SELECT
@@ -246,7 +245,7 @@ async def _load_metadata(doc_ids: list[str]):
 
 
 async def load_knowledge(
-    chunks: Iterable[str],
+    chunks: Collection[str],
     docs: dict[str, dict] | None = None,
     limit: int | None = None,
 ) -> dict[str, Knowledge]:
@@ -254,7 +253,7 @@ async def load_knowledge(
     Load knowledge by chunk IDs.
 
     Arguments:
-        chunks: Iterable of chunk IDs.
+        chunks: Collection of chunk IDs.
         docs: Optional dictionary of document metadata.
         limit: Optional limit on number of chunks to process.
 
@@ -314,7 +313,7 @@ async def load_knowledge(
 
 
 async def load_knowledge_by_segments(
-    segments: Iterable[tuple[str, str]],
+    segments: Collection[tuple[str, str]],
     docs: dict[str, dict] | None = None,
     limit: int | None = None,
 ) -> dict[str, Knowledge]:
@@ -322,7 +321,7 @@ async def load_knowledge_by_segments(
     Load knowledge by segment IDs along with document ID that the segment belongs to.
 
     Arguments:
-        segments: Iterable[tuple[str, str]], list of (segment_id, document_id).
+        segments: Collection[tuple[str, str]], list of (segment_id, document_id).
         docs: Optional dictionary of document metadata.
         limit: Optional limit on number of segments to process.
 
@@ -368,7 +367,7 @@ async def load_knowledge_by_segments(
 
 
 async def load_knowledge_by_segment_ids(
-    ids: list[str],
+    ids: Collection[str],
     docs: dict[str, dict] | None = None,
     limit: int | None = None,
 ) -> dict[str, Knowledge]:
@@ -376,7 +375,7 @@ async def load_knowledge_by_segment_ids(
     Load knowledge by segment IDs.
 
     Arguments:
-        ids: Iterable of segment IDs.
+        ids: Collection of segment IDs.
         docs: Optional dictionary of document metadata.
         limit: Optional limit on number of segments to process.
 
@@ -409,7 +408,7 @@ async def search(
     num_hops: int,
     max_communities: int,
     max_nodes: int,
-) -> list[list[Knowledge | float]]:
+) -> list[tuple[Knowledge, float]]:
     """
     user_path: the organization path of current user, or None (defult) to
         use conf().app.org_path instead.
@@ -483,7 +482,7 @@ async def search(
         entry[1] = sc * docs[kn.metadata.id]["decrease_factor"]
     final = sorted(kn_scores, key=lambda x: x[1], reverse=True)
 
-    return final
+    return [tuple(f) for f in final]
 
 
 # --- Inner functions ---
@@ -593,14 +592,14 @@ async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
 # --- Tool Functions for API Server or MCP/Tool Calling
 
 async def get_knowledge_by_segment_ids(
-    seg_ids: list[str],
+    seg_ids: Collection[str],
     user_path: str | None = None,
 ) -> list[Knowledge]:
     """
     Get Knowledge objects by segment IDs.
 
     Arguments:
-        seg_ids (list[str]): required, the list of segment IDs to load as Knowledge.
+        seg_ids (Collection[str]): required, the segment IDs to load as Knowledge.
         user_path (str): required, the organization path of current user to determent
             the documents to search in.
 

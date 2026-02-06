@@ -10,7 +10,8 @@ import os
 from datetime import datetime
 from dataclasses import dataclass, field
 
-from . import conf, logger, RetrieveMode
+from . import conf, logger
+from .types import RetrieveMode
 from .llm import with_es_client, with_oa_client, extract_from_chat
 
 
@@ -157,7 +158,7 @@ async def retrieve(
     num_hops: int | None = None,
     max_communities: int | None = None,
     max_nodes: int | None = None,
-) -> list[list[Knowledge | float]]:
+) -> list[tuple[Knowledge, float]]:
     """
     Arguments:
         query: current user query.

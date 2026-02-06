@@ -1,8 +1,8 @@
 import aiomysql
 import asyncio
 from functools import wraps
-from typing import Any, TypeVar, ParamSpec, TypeAlias
-from collections.abc import Callable, Coroutine, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 
 _pools: dict[str, aiomysql.Pool] = {}
@@ -63,19 +63,15 @@ async def lifespan():
     finally:
         await close_pool()
 
-P = ParamSpec("P")
-R = TypeVar("R")
-AsyncFunc: TypeAlias = Callable[P, Coroutine[Any, Any, R]]
-
 def with_rdb(
-    func: AsyncFunc[P, R] | None = None,
+    func=None,
     *,
-    connection_arg_name: str = "connection",
-    cursor_arg_name: str = "cursor",
-    dict_cursor: bool = False,
-    ss_cursor: bool = False,
-    pool_name: str = "default",
-) -> AsyncFunc[P, R] | Callable[[AsyncFunc[P, R]], AsyncFunc[P, R]]:
+    connection_arg_name="connection",
+    cursor_arg_name="cursor",
+    dict_cursor=False,
+    ss_cursor=False,
+    pool_name="default",
+) -> Callable[..., Any]:
     """
     Decorator for injection of rss connection and cursor.
 
@@ -149,9 +145,9 @@ def with_rdb(
     Returns:
         The decorated function.
     """
-    def decorator(func: AsyncFunc[P, R]) -> AsyncFunc[P, R]:
+    def decorator(func):
         @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        async def wrapper(*args, **kwargs):
             pool = await get_pool(pool_name=pool_name)
             connection = await pool.acquire()
             if dict_cursor:
