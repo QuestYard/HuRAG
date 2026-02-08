@@ -1,6 +1,6 @@
 __version__ = "0.2.1"
 __author__ = "Libin, QuestYard HuRAG Team"
-__description__ = "SDK, CLI and API for HuRAG"
+__description__ = "HuRAG, A TH-GraphRAG Application From QuestYard."
 __url__ = "https://github.com/QuestYard/HuRAG"
 
 import yaml

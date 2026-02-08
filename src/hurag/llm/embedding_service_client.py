@@ -96,19 +96,19 @@ def unpack_unified_embeddings_from_bytes(
         raw = npz["dense_data"]
         dense = np.asarray(raw, dtype=meta.dense_dtype).reshape(meta.dense_shape)
 
-    if meta.has_sparse and meta.sparse_meta:
+    if meta.has_sparse and meta.sparse_meta is not None:
         data = npz["sparse_data"].astype(meta.sparse_meta.dtype)
         indices = npz["sparse_indices"].astype(np.int32)
         indptr = npz["sparse_indptr"].astype(np.int32)
         shape = meta.sparse_meta.shape
         sparse = csr_matrix((data, indices, indptr), shape=shape)
 
-    if meta.has_colbert and meta.colbert_meta:
-        count = int(meta.colbert_meta.count)
+    if meta.has_colbert and meta.colbert_meta is not None:
+        count = meta.colbert_meta.count
         dtype = meta.colbert_meta.dtype
         colbert = []
         for i in range(count):
-            shape = tuple(meta.colbert_meta.shapes[i])
+            shape = meta.colbert_meta.shapes[i]
             raw = npz[f"colbert_{i}"]
             arr = np.asarray(raw, dtype=dtype).reshape(shape)
             colbert.append(arr)

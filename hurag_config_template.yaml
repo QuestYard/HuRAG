@@ -46,4 +46,18 @@ llm:
 api:
   host:               # API server 监听地址，默认 0.0.0.0
   port:               # API server 监听端口，默认 5000
-  
+
+# WebUI 数据库配置
+webui_db:
+  host:               # 默认 "localhost"
+  port:               # 默认 3306
+  user:               # 必配项，无默认值
+  password:           # 必配项，无默认值
+  database:           # 必配项，HuRAG WebUI 使用的 MySQL/MairaDB 数据库名称，无默认值
+
+# WebUI 应用环境配置
+webui_app:
+  sso:                # 用户认证服务，若有则配置接口信息，默认采用简单模式则无需配置
+  ctx_size:           # 3种生成模型上下文规模："tiny", "medium", "large"，默认 large
+  host:               # WebUI App 监听地址，默认 0.0.0.0
+  port:               # API server 监听端口，默认 8000

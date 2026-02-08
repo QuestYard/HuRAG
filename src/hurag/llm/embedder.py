@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from collections.abc import AsyncGenerator
 
 if TYPE_CHECKING:
@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 from . import with_es_client
 from .. import logger
+from ..types import KeywordType
 
 @with_es_client
 async def embed_query(
@@ -112,7 +113,7 @@ async def embed_documents(
 
 @with_es_client
 async def embed_keywords(
-    keywords: dict[Literal["low_level_keywords", "high_level_keywords"], list[str]],
+    keywords: dict[KeywordType, list[str]],
     *,
     return_sparse: bool = True,
     esclient: AsyncEmbeddingClient,

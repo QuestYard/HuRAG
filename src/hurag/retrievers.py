@@ -165,10 +165,11 @@ async def retrieve(
         history: history queries, history responses are not needed.
         mode:
             "mix" (default): naive + graph;
-            "naive": only naive;
-            "graph": only graph search with top_k_graph segments;
+            "naive": (deprecated) only naive;
+            "graph": (deprecated) only graph search with top_k_graph segments;
             "global": nodes and edges in the whole graph;
-            "community": nodes and edges inside communities.
+            "community": nodes and edges inside communities;
+            "agentic": retrieve knowledge via some agentic skill.
         query_info: returned values of prepare_for_searching.
         user_path: the organization path of current user.
         top_k: number of knowledges in final results in K-RAG search,
@@ -181,11 +182,15 @@ async def retrieve(
         max_nodes: (BPS) maximum number of nodes.
 
     Returns:
-        A list like [[Knowledge, score], ...], descending ordered by scores.
+        A list like [(Knowledge, score), ...], descending ordered by scores.
     """
     from .knowledge_base import search
 
     logger.info(f"[QUERY]: {query} [MODE]: {mode}")
+
+    # TODO implement later
+    if mode == "agentic":
+        return []
 
     return await search(
         query,

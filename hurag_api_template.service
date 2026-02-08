@@ -1,5 +1,5 @@
 [Unit]
-Description=HuRAG-Server API Service 0.1.0
+Description=HuRAG-Server API Service
 After=network.target
 
 [Service]

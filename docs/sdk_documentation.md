@@ -12,7 +12,7 @@ HuRAG SDK 提供了一些常用的工具函数、工具类和单例模式的工�
 
 HuRAG SDK 使用 `hurag.yaml` 配置文件进行配置管理，开发者可以通过 `hurag` 模块中的单例全局变量 `conf` 获取全部配置项。
 
-`conf` 是一个嵌套的 `namespace` 对象，成员和结构与 `hurag.yaml` 配置文件中的内容一一对应。例如，可以通过 `conf.milvus.uri` 获取 Milvus 的连接 URI。
+`conf` 是一个嵌套的 `SimpleNamespace` 对象，成员和结构与 `hurag.yaml` 配置文件中的内容一一对应。例如，可以通过 `conf.milvus.uri` 获取 Milvus 的连接 URI。
 
 ```python
 from hurag import conf
@@ -147,23 +147,17 @@ async def embed_community_summaries(
 
 ### Reranker Service 调用
 
-HuRAG 使用 QuestYard Reranker Service 调用 Reranker 模型。HuRAG SDK 在 `hurag.llm` 模块中封装了对重排序服务的调用，提供了简化的接口，方便开发者进行文本块重排序。
+HuRAG 使用 QuestYard Embedding Service 调用 Reranker 模型，通过装饰器 `with_es_client` 即可调用客户端的 `rerank` 函数实现重排序功能。
 
-#### QuestYard Reranker 接口
-
-QuestYard Reranker Service 与 Embedding Service 为同一服务，通过装饰器 `with_es_client` 即可调用客户端的 `rerank` 函数实现重排序功能。
-
-在 `hurag.yaml` 配置文件中，可以通过 `llm.reranker` 参数选择使用 `ES`（Embedding Service）作为重排序器。
-
-以对知识对象的重排序为例：
+以对知识对象的重排序为例，`hurag.retrievers` 模块中提供了这一功能的 SDK 函数如下：
 
 ```python
 @with_es_client
-async def rerank_knowledge_by_es(
+async def rerank_knowledge(
     query: str,
     knowledge_dict: dict[str, Knowledge],
-    esclient: AsyncEmbeddingClient | None = None,
-) -> list[tuple[Knowledge, float]]:
+    esclient: AsyncEmbeddingClient,
+) -> list[list[Knowledge | float]]:
     """
     Rerank the input knowledge objects based on the query by using embedding-service.
 
@@ -176,12 +170,18 @@ async def rerank_knowledge_by_es(
     """
     contents = [k.context for k in knowledge_dict.values()]
     response = await esclient.rerank(query, contents)
-    return sorted(
-        [[k, s] for k, s in zip(knowledge_dict.values(), response.scores)],
+    if not response.scores:
+        response.scores = [0.0] * len(contents)
+    results = sorted(
+        zip(knowledge_dict.values(), response.scores),
         key=lambda x: x[1],
         reverse=True,
     )
+    return [[k, s] for k, s in results]
 ```
+
+*注意：`rerank_knowledge(...)` 函数的返回值中，每一个知识对象和它对应的分值采用 list 存储，而非 tuple 类型。*
+这是为了方便后续如有需要可以原地修改。例如 HuRAG 的检索结果，在 Rerank 结果的基础上还需要根据知识文档发布的机构层级进行得分衰减调整，若直接返回 tuple 则无法原地修改。
 
 ### OpenAI LLM 调用
 
@@ -191,51 +191,56 @@ HuRAG 采用 OpenAI SDK 作为大语言模型（LLM）的调用接口，所有�
 
 #### 基础调用
 
-`hurag.llm.openai_client` 模块提供了 `chat` 函数，用于调用 LLM 模型。该函数支持非流式和流式两种调用方式。
+`hurag.llm` 模块提供了 `chat_completion(...)`, `chat_stream(...)` 两个函数，分别用于以非流式和流式两种返回模式调用 LLM 模型。
 
 **函数签名**
 
 ```python
-async def chat(
+async def chat_completion(
+    client: AsyncOpenAI,
     model: str,
     prompt: str,
     *,
     system_prompt: str | None = None,
     history_messages: list[dict[str, str]] | None = None,
-    stream: bool = False,
-    client: AsyncOpenAI | None = None,
-    base_url: str | None = None,
-    api_key: str | None = None,
     temperature: float = 0.0,
-    timeout: float = 60.0,
-    max_retries: int = 3,
-) -> ChatCompletion | AsyncStream:
+) -> ChatCompletion:
+    ...
+
+async def chat_stream(
+    client: AsyncOpenAI,
+    model: str,
+    prompt: str,
+    *,
+    system_prompt: str | None = None,
+    history_messages: list[dict[str, str]] | None = None,
+    temperature: float = 0.0,
+) -> AsyncStream:
+    ...
 ```
 
 **参数说明**
 
+- `client`: `AsyncOpenAI` 客户端实例。
 - `model`: 模型名称。
 - `prompt`: 用户输入的提示词。
 - `system_prompt`: 可选的系统提示词。
 - `history_messages`: 可选的历史对话记录，格式为 `[{"role": "user", "content": "..."}, ...]`。
-- `stream`: 是否开启流式输出，默认为 `False`。
-- `client`: 可选的 `AsyncOpenAI` 客户端实例。如果未提供，则需提供 `base_url` 和 `api_key`。
-- `base_url`: OpenAI API 的基础 URL。
-- `api_key`: OpenAI API 的密钥。
 - `temperature`: 采样温度，默认为 0.0。
-- `timeout`: 请求超时时间（秒），默认为 60.0。
-- `max_retries`: 最大重试次数，默认为 3。
 
-注意，`client`、`base_url` 和 `api_key` 三者中必须提供 `client`，或者同时提供 `base_url` 和 `api_key`。如果提供了 `client`，则忽略 `base_url` 和 `api_key`。
+*函数退出不会关闭客户端连接，客户端的生命周期由调用方管理。*
 
-*提供 `client` 参数时，函数退出不会关闭客户端连接，客户端的生命周期由调用方管理。提供 `base_url` 和 `api_key` 参数时，函数内部会自动创建和关闭客户端实例。*
+*v0.1.0 版本提供的 `chat(...)`, `chat_with_retries(...)` 两个函数已经弃用，后续版本将予以删除。*
 
 #### 结果提取
 
-`hurag.llm.llm_common_tools` 模块提供了两个工具函数，用于从 LLM 返回的结果中提取内容：
+`hurag.llm` 模块提供了一个工具函数，用于从 LLM 返回的结果中提取内容：
 
-- `extract_response(response: ChatCompletion, content_only: bool = True) -> str | dict[str, str]`: 用于提取非流式调用的结果。
-- `extract_chunk(chunk: ChatCompletionChunk, previous_content: str | None = None) -> str`: 用于提取流式调用的结果块。
+`extract_from_chat(response: ChatCompletion | ChatCompletionChunk) -> dict[str, str]`
+
+此函数在提取内容时，会检查 `role` 值，以确保返回值符合 `openai.types.chat.ChatCompletionMessageParam` 的格式规范。
+
+*v0.1.0 版本提供的 `extract_response(...)`, `extract_chunk(...)` 两个函数已经弃用，后续版本将予以删除。*
 
 #### 使用示例
 
@@ -243,19 +248,17 @@ async def chat(
 
 ```python
 import asyncio
-from hurag.llm.openai_client import chat
-from hurag.llm.llm_common_tools import extract_response
+from hurag.llm import chat_completion, exract_from_chat
 
+# 此处需提供一个已经创建的客户端对象 my_client，客户端创建、获取、关闭等生命周期管理见下节说明
 async def main():
-    # 假设已有 base_url 和 api_key
-    response = await chat(
-        model="gpt-3.5-turbo",
-        prompt="你好，请介绍一下你自己。",
-        base_url="https://api.openai.com/v1",
-        api_key="your-api-key"
+    response = await chat_completion(
+        client=my_client,
+        model="model-name",
+        prompt="hello world",
     )
-    content = extract_response(response)
-    print(content)
+    message = extract_from_chat(response)
+    print(message["content"])
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -265,23 +268,19 @@ if __name__ == "__main__":
 
 ```python
 import asyncio
-from hurag.llm.openai_client import chat
-from hurag.llm.llm_common_tools import extract_chunk
+from hurag.llm import chat_stream, exract_from_chat
 
 async def main():
-    stream = await chat(
-        model="gpt-3.5-turbo",
-        prompt="讲一个关于AI的故事。",
-        stream=True,
-        base_url="https://api.openai.com/v1",
-        api_key="your-api-key"
+    stream = await chat_stream(
+        client=my_client,
+        model="model-name",
+        prompt="tell me something about AI",
     )
     
     print("Response:")
     async for chunk in stream:
-        # extract_chunk 返回当前 chunk 的内容增量
-        delta = extract_chunk(chunk)
-        print(delta, end="", flush=True)
+        delta = extract_from_chat(chunk)
+        print(delta["content"], end="", flush=True)
     print()
 
 if __name__ == "__main__":
@@ -290,20 +289,19 @@ if __name__ == "__main__":
 
 #### 客户端装饰器
 
-`hurag.llm.openai_client` 模块还提供了 `with_oa_client` 装饰器，用于自动创建和管理 `AsyncOpenAI` 客户端实例，并将其注入到被装饰的异步函数中。这在需要频繁创建客户端或希望简化客户端生命周期管理的场景下非常有用。
+`hurag.llm` 模块还提供了 `with_oa_client` 装饰器，用于自动创建和管理 `AsyncOpenAI` 客户端实例，并将其注入到被装饰的异步函数中。这在需要频繁创建客户端或希望简化客户端生命周期管理的场景下非常有用。
 
 **函数签名**
 
 ```python
 def with_oa_client(
-    func: Callable | None = None,
+    func=None,
     *,
-    base_url: str | None = None,
-    api_key: str | None = None,
-    client_name: str | None = None,
-    timeout: float = 180.0,
-    max_retries: int = 3,
-    client_arg_name: str = "oaclient"
+    base_url=None,
+    api_key=None,
+    client_name=None,
+    timeout=180.0,
+    client_arg_name="oaclient",
 ) -> Callable[..., Any]:
 ```
 
@@ -313,16 +311,13 @@ def with_oa_client(
 - `api_key`: OpenAI API 的密钥。
 - `client_name`: 可复用的 AsyncOpenAI 客户端的标签名。如果提供，则会获取或创建一个可复用的客户端，否则创建一个临时客户端，此时必须提供有效的 `base_url` 和 `api_key` 两个参数，且该临时客户端在被装饰函数退出后立即被关闭和清理，今后不能复用。如果提供的标签名为保留的 `extraction` 或者 `generation`，则不需要提供 `base_url` 和 `api_key`，这两个参数会从配置信息中读取；如果提供了其他标签名，除非能够确定对应的可复用客户端已经创建过，否则也应当提供 `base_url` 和 `api_key`。
 - `timeout`: 请求超时时间（秒），用于设置 `read` 超时，默认为 180.0。
-- `max_retries`: 最大重试次数，默认为 3。
 - `client_arg_name`: 注入到被装饰函数中的参数名称，默认为 `"oaclient"`。
 
 **使用示例**
 
 ```python
 import asyncio
-from hurag.llm.openai_client import with_oa_client, chat
-from hurag.llm.llm_common_tools import extract_response
-from openai import AsyncOpenAI
+from hurag.llm import with_oa_client, chat_completion, extract_from_chat
 
 # 使用装饰器自动注入 client，本例中注入临时客户端，退出时会关闭。如指定 client_name
 # 以注入可复用的客户端，则退出时不会关闭。
@@ -334,12 +329,12 @@ from openai import AsyncOpenAI
 )
 async def custom_chat_task(prompt: str, client: AsyncOpenAI):
     # 直接使用注入的 client 调用 chat 函数
-    response = await chat(
+    response = await chat_completion(
+        client=client 
         model="gpt-3.5-turbo",
         prompt=prompt,
-        client=client 
     )
-    return extract_response(response)
+    return extract_from_chat(response)
 
 async def main():
     result = await custom_chat_task("简单介绍一下 Python 装饰器")
@@ -511,7 +506,7 @@ async def retrieve(
     query: str,
     *,
     history: list[str] | None = None,
-    mode: Literal["mix", "naive", "graph", "global", "community"] = "mix",
+    mode: RetrieveMode = "mix",
     query_info: QueryInfo | None = None,
     user_path: str | None = None,
     top_k: int | None = None,
@@ -522,15 +517,15 @@ async def retrieve(
     num_hops: int | None = None,
     max_communities: int | None = None,
     max_nodes: int | None = None,
-) -> list[list[Knowledge, float]]:
+) -> list[tuple[Knowledge, float]]:
     """
     Arguments:
         query: current user query.
         history: history queries, history responses are not needed.
         mode:
             "mix" (default): naive + graph;
-            "naive": only naive;
-            "graph": only graph search with top_k_graph segments;
+            "naive": (deprecated) only naive;
+            "graph": (deprecated) only graph search with top_k_graph segments;
             "global": nodes and edges in the whole graph;
             "community": nodes and edges inside communities.
         query_info: returned values of prepare_for_searching.
@@ -545,10 +540,12 @@ async def retrieve(
         max_nodes: (BPS) maximum number of nodes.
 
     Returns:
-        A list like [[Knowledge, score], ...], descending ordered by scores.
+        A list like [(Knowledge, score), ...], descending ordered by scores.
     """
     ...
 ```
+
+*v0.1.0 版本支持的 `naive`, `graph` 两种检索模式已经弃用，为确保 API/SDK 的前后兼容，在 `RetrieveMode` 类型中仍然保持其二者存在，但检索时将统一采用 `mix` 模式替代。*
 
 该函数根据指定的检索模式，结合 `QueryInfo` 对象中的预处理结果，执行相应的检索操作，并返回排序后的知识对象列表。
 

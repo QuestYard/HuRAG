@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from ..types import EmbeddingType
 
 if TYPE_CHECKING:
     from ..schemas import Graph
@@ -8,7 +9,7 @@ if TYPE_CHECKING:
 
 async def upsert_graph(
     g: Graph,
-    embeddings: list[dict[Literal["dense_vecs", "sparse_vecs"], Any]],
+    embeddings: list[dict[EmbeddingType, Any]],
     doc_ids: list[str],
 ) -> None:
     """

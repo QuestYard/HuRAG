@@ -440,7 +440,7 @@ class Graph:
 
         return self
 
-    def remove_orphans(self)-> Graph:
+    def remove_orphans(self) -> Graph:
         """
         1. Remove edges without source or target nodes.
         2. Remove nodes without edges connected to.

@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Collection
 
 if TYPE_CHECKING:
     from .schemas import Document, Knowledge
     from .retrievers import QueryInfo
 
-from .types import RetrieveMode
+from .types import RetrieveMode, DocumentOrder, EmbeddingType
 from .kvcache import KVCache
 
 kn_cache = KVCache(max_size=1000, evict_ratio=0.2)
@@ -47,7 +47,7 @@ async def stat() -> list[tuple]:
 
 async def list_documents(
     keyword: str | None = None,
-    order: Literal["title", "date", "org"] = "title",
+    order: DocumentOrder = "title",
 ) -> list[tuple]:
     """
     List documents in the knowledge base with optional keyword filtering and ordering.
@@ -107,7 +107,7 @@ async def list_documents(
 
 async def indexing_documents(
     docs: list[Document],
-    embeddings: list[dict[Literal["dense_vecs", "sparse_vecs"], Any]],
+    embeddings: list[dict[EmbeddingType, Any]],
 ) -> tuple[int, int, int]:
     """
     Indexing documents into the knowledge base with provided embeddings.
@@ -418,8 +418,9 @@ async def search(
         "graph": only graph
         "global": nodes and edges in the whole graph
         "community": nodes and edges inside communities
+        "agentic": retrieve knowledge via some agentic skill
     Returns:
-        A list like [[Knowledge, score], ...], descending ordered by scores.
+        A list like [(Knowledge, score), ...], descending ordered by scores.
     """
     docs, scope = await _th_scope(query_info.timings, user_path)
     embeddings = query_info.embeddings
@@ -465,7 +466,7 @@ async def search(
         )
         return associations_results
 
-    if mode in ["naive", "graph", "mix"]:
+    if mode in ["naive", "graph", "mix", "agentic"]:
         from .retrievers import rerank_knowledge
         naive_search_results = await _naive_search()
         graph_search_results = await _graph_search()

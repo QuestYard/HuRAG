@@ -14,29 +14,30 @@ HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应
 
 ### Key Features
 
-- 支持4种检索模式，包括朴素搜索、混合搜索、图搜索和社区图搜索。
+- 支持3种检索模式，包括图文混合搜索、全图谱搜索和社区图搜索。
 - 根据用户在组织机构树中的位置检索文档。
 - 从用户查询中解析时间信息，并在检索时用于选择正确版本的文档。
-- 使用Microsoft MarkItDown读取PDF、Word、Excel、PowerPoint、CSV、HTML、JSON、XML文档并转换为markdown格式。
-- 自动分割和索引TXT、Markdown以及8种表格布局的CSV文件。
+- 使用 Microsoft MarkItDown 读取 PDF、Word、Excel、PowerPoint、CSV、HTML、JSON、XML 文档并转换为 markdown 格式。
+- 自动分割和索引 TXT、Markdown 以及多达 8 种布局方式的 CSV 表格。
 - 为法律、法规和其他类似法规的文档定义了良好的文本格式。
 
 ## News and Changelog
 
+- [x] 2026-01-27: v0.2.0 版发布，内部资源统一采用池化管理，Embedding 和 Reranker 模型统一为调用 EmbeddingService API，不再内置模型调用。
 - [x] 2026-01-13: API Server 重构完毕，与测试阶段的 HuRAG WebUI 前段适配完成。第一阶段开发结束，将启动新版 WebUI 重构。
 - [x] 2026-01-12: Python SDK (Indexing, Retrieval) 部分全部构建完毕，基础功能完成。
 - [x] 2025-12-01: 仓库创建，HuRAG即将到来！
 
 ## Quick Start
 
-HuRAG支持通过源代码安装部署。在部署之前，请确保您的环境中已安装以下依赖环境：
+HuRAG支持通过源代码安装部署。在部署之前，请确保您的环境中已安装以下环境：
 
 - Python 3.12 或更高版本
 - uv 3.0 或更高版本
 - Git 2.0 或更高版本
 - 可通过网络访问的 MariaDB 或 MySQL 数据库
 - 可通过网络访问的 Milvus 向量数据库
-- QuestYard/embedding-service for HuRAG 服务：[embedding-service for HuRAG](https://github.com/QuestYard/embedding-service)
+- 可通过网络访问的 QuestYard/embedding-service for HuRAG 服务：[embedding-service for HuRAG](https://github.com/QuestYard/embedding-service)
 
 ### Deployment
 
@@ -50,7 +51,7 @@ cd HuRAG
 uv sync --no-dev
 ```
 
-目前HuRAG仅支持通过源代码安装部署，未来可能会提供更多的安装方式。
+目前 HuRAG 仅支持通过源代码安装部署，未来可能会提供更多的安装方式。
 
 #### Create Database
 
@@ -121,11 +122,11 @@ cd /path/to/your-working-directory  # 切换到工作目录
 hurag-server # 启动 HuRAG API Server 测试环境
 ```
 
-测试环境会在代码发生改变时自动重加载，适用于开发和调试。若要启动生产环境，请使用 gunicorn 并在服务器（Linux）环境下配置为 systemctl 服务。
+测试环境会在代码发生改变时自动重加载，适用于开发和调试。若要启动生产环境，建议使用 gunicorn 并在服务器（Linux）环境下配置为 systemctl 服务。
 
 gunicorn 服务启动脚本模板见 [HuRAG API Server 服务单元文件模板](hurag_api_template.service)
 
-HuRAG API Server 默认监听 5002 端口，提供以下 API 接口：
+HuRAG API Server 提供以下 API 接口：
 
 - `/docs` : HuRAG API 文档页面，基于 OpenAPI 规范生成，提供接口说明和在线测试功能。
 - `/health` : (GET) 健康检查接口，用于检查服务状态。
@@ -136,7 +137,7 @@ HuRAG API Server 默认监听 5002 端口，提供以下 API 接口：
 - `/v1/hurag/retrieve` : (POST) 检索接口，提供基于 RAG 的文档检索功能。
 - `/v1/hurag/knowledge` : 知识查询接口，提供根据 ID 查询知识段的功能。
 
-服务启动后，即可通过 `http://<server_host>:5002/docs` 访问 HuRAG API 文档页面。
+服务启动后，即可通过 `http://<server_host>:<port>/docs` 访问 HuRAG API 文档页面。
 
 ## Usages
 

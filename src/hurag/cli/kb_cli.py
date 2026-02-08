@@ -1,13 +1,12 @@
 import typer
 
-from typing import Literal
-
 from . import (
     HURAG_EPILOG,
     show_msg,
     with_async_spinner,
     async_cmd,
 )
+from ..types import DocumentOrder
 
 app = typer.Typer(
     help = "QuestYard HuRAG CLI - KnowledgeBase Management Tools",
@@ -32,6 +31,26 @@ def init():
             show_msg("HuRAG 知识库初始化完成", style="info")
         except Exception as e:
             show_msg(f"HuRAG 知识库初始化失败: {e}", style="error", err=e)
+
+    _init()
+
+@app.command("init-webui", epilog=HURAG_EPILOG)
+def init_webui():
+    """初始化 HuRAG WebUI 应用，原有数据将被全部清除，请慎重操作。"""
+    ensure = input("WebUI 初始化将清空数据、重建数据库和缓存，请输入 Y 确认: ")
+    if not ensure.strip().lower().startswith("y"):
+        show_msg("用户取消 WebUI 初始化操作", style="info")
+        return
+
+    @async_cmd
+    @with_async_spinner(text="初始化 WebUI 应用...", style="info")
+    async def _init():
+        from ..hurag_webui import init_webui
+        try:
+            await init_webui()
+            show_msg("HuRAG WebUI 初始化完成", style="info")
+        except Exception as e:
+            show_msg(f"HuRAG WebUI 初始化失败: {e!r}", style="error", err=e)
 
     _init()
 
@@ -76,7 +95,7 @@ async def list(
         "-k",
         help="文档标题关键词, 支持模糊匹配",
     ),
-    order: Literal["title", "date", "org"] = typer.Option(
+    order: DocumentOrder = typer.Option(
         "title",
         "--order",
         "-o",
