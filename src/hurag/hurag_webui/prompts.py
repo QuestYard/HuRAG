@@ -40,6 +40,7 @@ RAG_PROMPT_TEMPLATE = """你是一名知识库问答助手，能够根据提供�
 ## 请回答：
 """
 
+
 def create_rag_prompt(
     query: str,
     knowledge_list: list[tuple[Knowledge, float]],
@@ -77,7 +78,7 @@ def create_rag_prompt(
             f"- **相关性分数**: {score:.4f}\n"
             f"- **文档元数据**: \n"
             f"  - **文档标题**: {_title}\n"
-            f"  - **法令号/文号**: { _sn if _sn else '无' }\n"
+            f"  - **法令号/文号**: {_sn if _sn else '无'}\n"
             f"  - **发布日期**: {_date:%Y-%m-%d}\n"
             f"  - **生效日期**: {_valid_from:%Y-%m-%d}\n"
             f"  - **废止日期**: {_valid_to}\n"

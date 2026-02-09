@@ -9,6 +9,7 @@ from .api.v1.messages import router as info_router
 from .api.v1.llm import router as llm_router
 from .api.v1.hurag import router as hurag_router
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _ = app
@@ -22,21 +23,23 @@ async def lifespan(app: FastAPI):
         raise
     finally:
         from ..dss import rss, vss
+
         logger.info("Closing MySQL/MariaDB connection pool...")
         await rss.close_pool()
         logger.info("Closing Milvus clients...")
         await vss.close_client()
         from ..llm import close_oa_client
+
         logger.info("Closing LLM clients...")
         await close_oa_client()
         logger.info("HuRAG API Server shutdown completed.")
 
 
 app = FastAPI(
-    title = "HuRAG-Server",
-    description = "HuRAG API Server",
-    version = hurag_version,
-    openai_tags = [
+    title="HuRAG-Server",
+    description="HuRAG API Server",
+    version=hurag_version,
+    openai_tags=[
         {"name": "项目信息", "description": "获取项目相关的一些常用信息"},
         {"name": "大模型", "description": "与HuRAG使用的大模型进行交互"},
         {"name": "知识库", "description": "在HuRAG的知识库中进行检索查询"},
@@ -70,6 +73,7 @@ async def root():
 def main():
     # change to gunicorn + uvicorn.workers.UvicornWorker in product environment
     import os
+
     src_dir = os.path.dirname(os.path.abspath(__file__))
     uvicorn.run(
         "hurag.hurag_server.server:app",
@@ -79,6 +83,6 @@ def main():
         reload_dirs=[src_dir],
     )
 
+
 if __name__ == "__main__":
     main()
-

@@ -19,18 +19,22 @@ def dict_to_namespace(data):
         # Return all other types (strings, integers, etc.) unchanged
         return data
 
+
 def generate_id() -> str:
     from uuid6 import uuid7
 
     return str(uuid7())
 
+
 def merge_num_fields(fields: list[float]) -> float:
     return sum(fields)
+
 
 def merge_set_fields(fields: list[str], sep: str) -> str:
     return sep.join(
         sorted(set([it for sl in [f.split(sep) for f in fields] for it in sl]))
     )
+
 
 def split_string_by_markers(content: str, markers: list[str]) -> list[str]:
     """Split a string by multiple markers"""
@@ -42,15 +46,20 @@ def split_string_by_markers(content: str, markers: list[str]) -> list[str]:
     results = re.split("|".join(re.escape(mk) for mk in markers), content)
     return [r.strip() for r in results if r.strip()]
 
+
 def is_float(s: str) -> bool:
     import re
+
     return bool(re.match(r"^[-+]?[0-9]*\.?[0-9]+$", s))
+
 
 def clean_str(s: str) -> str:
     import re
     import html
+
     return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", html.unescape(s.strip()))
-    
+
+
 def normalize_extracted_info(name: str, is_entity=False) -> str:
     """
     Normalize entity/relation names and description with the following rules:
@@ -70,6 +79,7 @@ def normalize_extracted_info(name: str, is_entity=False) -> str:
         Normalized entity name
     """
     import re
+
     # Replace Chinese parentheses with English parentheses
     name = name.replace("（", "(").replace("）", ")")
 
@@ -85,14 +95,10 @@ def normalize_extracted_info(name: str, is_entity=False) -> str:
 
     # Remove spaces between Chinese and English/numbers/symbols
     name = re.sub(
-        r"(?<=[\u4e00-\u9fa5])\s+(?=[a-zA-Z0-9\(\)\[\]@#$%!&\*\-=+_])",
-        "",
-        name
+        r"(?<=[\u4e00-\u9fa5])\s+(?=[a-zA-Z0-9\(\)\[\]@#$%!&\*\-=+_])", "", name
     )
     name = re.sub(
-        r"(?<=[a-zA-Z0-9\(\)\[\]@#$%!&\*\-=+_])\s+(?=[\u4e00-\u9fa5])",
-        "",
-        name
+        r"(?<=[a-zA-Z0-9\(\)\[\]@#$%!&\*\-=+_])\s+(?=[\u4e00-\u9fa5])", "", name
     )
 
     # Remove English quotation marks from the beginning and end
@@ -103,17 +109,20 @@ def normalize_extracted_info(name: str, is_entity=False) -> str:
 
     if is_entity:
         # remove Chinese quotes and English quotes
-        name = (name.replace("“", "")
-                    .replace("”", "")
-                    .replace("‘", "")
-                    .replace("’", "")
-                    .replace('"', "")
-                    .replace("'", ""))
+        name = (
+            name.replace("“", "")
+            .replace("”", "")
+            .replace("‘", "")
+            .replace("’", "")
+            .replace('"', "")
+            .replace("'", "")
+        )
         # remove English queotes in and around chinese
         # name = re.sub(r"['\"]+(?=[\u4e00-\u9fa5])", "", name)
         # name = re.sub(r"(?<=[\u4e00-\u9fa5])['\"]+", "", name)
 
     return name
+
 
 def str2int(inp: str) -> list[int]:
     sp = inp.split("-")
@@ -125,4 +134,3 @@ def str2int(inp: str) -> list[int]:
         return list(range(st, ed))
     else:
         raise ValueError("invalid input")
-

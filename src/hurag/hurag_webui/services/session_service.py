@@ -33,6 +33,7 @@ async def load_session_by_id(session_id: str) -> Session | None:
     session = Session(**rows[0])
     return session
 
+
 async def load_sessions_by_user(user_id: str, limit: int = 100) -> list[Session]:
     """
     Load recent sessions for a given user. Load all sessions if limit <= 0.
@@ -289,6 +290,7 @@ async def load_citation_ids_by_session(session_id: str) -> dict[str, list[str]]:
         citation_ids.setdefault(qid, []).append(sid)
 
     return citation_ids
+
 
 @with_oa_client(client_name=oa_client_name)
 async def generate_session_title(

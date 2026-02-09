@@ -2,12 +2,14 @@ from .. import logger
 from .rss import with_rdb
 from .vss import with_vdb
 
+
 @with_vdb(client_arg_name="vdb_client")
 @with_rdb(connection_arg_name="rdb_connection", cursor_arg_name="rdb_cursor")
 async def init_ds(rdb_connection, rdb_cursor, vdb_client):
     """Initialize the data storage of the HuRAG knowledge base."""
     import warnings
     from aiomysql import Warning as mysql_warning
+
     warnings.filterwarnings("ignore", category=mysql_warning)
 
     from ..constants import INIT_RSS_STATEMENTS, INIT_VSS_PARAMS
@@ -42,6 +44,7 @@ async def init_ds(rdb_connection, rdb_cursor, vdb_client):
             logger.error(f"{i}: {error}")
         raise eg
 
+
 async def _create_collection(cli, name, fields, indice):
     if await cli.has_collection(name):
         await cli.drop_collection(name)
@@ -53,6 +56,7 @@ async def _create_collection(cli, name, fields, indice):
     for index in indice:
         index_params.add_index(**index)
     await cli.create_collection(name, schema=schema, index_params=index_params)
+
 
 @with_vdb(client_arg_name="vdb_client")
 @with_rdb(connection_arg_name="rdb_connection", cursor_arg_name="rdb_cursor")
@@ -88,6 +92,7 @@ async def clear_graph(rdb_connection, rdb_cursor, vdb_client):
     except Exception as e:
         logger.error(f"Error while cleaning the vdb graph data: {e}")
         raise
+
 
 __all__ = [
     "with_rdb",

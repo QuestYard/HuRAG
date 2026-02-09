@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .constants import CHK_DELIMITER, SEG_DELIMITER, TXT_SEPARATORS
 
+
 async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
     """
     Split given plain text document and save into the 'tgt' file if given,
@@ -39,6 +40,7 @@ async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) ->
 
     return tgt.as_posix()
 
+
 async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
     """
     Split given markdown document and save into the 'tgt' file if given,
@@ -60,6 +62,7 @@ async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> s
     # split
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     from langchain_text_splitters import MarkdownHeaderTextSplitter
+
     headers_to_split_on = [
         ("#", "#"),
         ("##", "##"),
@@ -94,15 +97,17 @@ async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> s
 
     return tgt.as_posix()
 
+
 async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
     """
-    Split given regulation-like document and save into the 'tgt' file if given,  
+    Split given regulation-like document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
 
     The whole text will be splitted by clauses, one segment per clause.
     Segments longer than 500 characters will be splitted into several chunks.
     """
     import re
+
     if isinstance(src, str):
         src = Path(src)
     if tgt is None:

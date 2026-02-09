@@ -8,6 +8,7 @@ from ...schemas import (
 
 router = APIRouter(prefix="/v1/hurag", tags=["知识库"])
 
+
 @router.post("/retrieve", response_model=list[KnowledgeSchema])
 async def retrieve_v1(req: QueryRequest):
     """
@@ -101,6 +102,7 @@ async def retrieve_v1(req: QueryRequest):
         return responses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/knowledge", response_model=list[KnowledgeSchema])
 async def get_knowledge_by_ids(req: KnowledgeRequest):

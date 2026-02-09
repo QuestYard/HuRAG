@@ -7,10 +7,11 @@ from . import (
 )
 
 app = typer.Typer(
-    help = "QuestYard HuRAG CLI - Knowledge Graph Management Tools",
-    add_completion = False,
-    epilog = HURAG_EPILOG,
+    help="QuestYard HuRAG CLI - Knowledge Graph Management Tools",
+    add_completion=False,
+    epilog=HURAG_EPILOG,
 )
+
 
 @app.command("criteria", epilog=HURAG_EPILOG)
 def criteria(
@@ -25,6 +26,7 @@ def criteria(
     列出当前配置文件中的知识图谱提取规则，包括实体名称阻止模式和实体名称-别名对应表。
     """
     from pathlib import Path
+
     path = Path.cwd() if criteria_path is None else Path(criteria_path)
     if path.is_dir():
         path = path / "kgraph.toml"
@@ -33,11 +35,13 @@ def criteria(
         return
 
     from ..constants import KGExtractionCriteria
+
     criteria = KGExtractionCriteria.load_criteria(path)
 
     from . import print_regex_literal
     from rich.table import Table
     from . import console
+
     show_msg(f"规则文件：{path.as_posix()}", style="info")
     console.print()
     show_msg("实体名称阻止规则，名称匹配以下规则的实体将被忽略：", style="info")
@@ -66,6 +70,7 @@ def criteria(
     for alias, name in criteria.entity_aliases.items():
         table.add_row(alias, name)
     console.print(table)
+
 
 @app.command("build", epilog=HURAG_EPILOG)
 @async_cmd
@@ -103,24 +108,22 @@ async def build(
     # 1.2 show documents list and choose documents, elsewise
     if force_rebuild:
         from ..dss import clear_graph
+
         await clear_graph()
 
     from ..knowledge_base import list_documents
+
     docs = await list_documents()
     doc_info = [
         (f"{doc[0]}（{doc[1]}）" if doc[1] else doc[0], doc[7])
-        for doc in docs if doc[6] == 0
-    ] # doc_info := [(fullname, id), ...]
+        for doc in docs
+        if doc[6] == 0
+    ]  # doc_info := [(fullname, id), ...]
     from rich.table import Table
-    table = Table(
-        title="尚未构建知识图谱文档清单",
-        title_style="bold italic",
-        box=None
-    )
-    table.add_column(
-        "序号", header_style="underline", width=6, justify="right")
-    table.add_column(
-        "文档", header_style="underline", width=100, no_wrap=True)
+
+    table = Table(title="尚未构建知识图谱文档清单", title_style="bold italic", box=None)
+    table.add_column("序号", header_style="underline", width=6, justify="right")
+    table.add_column("文档", header_style="underline", width=100, no_wrap=True)
     for ind, inf in enumerate(doc_info):
         table.add_row(f"{ind + 1}", inf[0])
     console.print(table)
@@ -129,12 +132,13 @@ async def build(
         "连续多个文档用 n-m 表示，例如 1,3,7-12，不输入表示全选："
     ).strip()
     from ..utilities import str2int
+
     if choices:
         choices = choices.split(",")
         indice = []
         for choice in choices:
             try:
-                indice.extend(str2int(choice)) 
+                indice.extend(str2int(choice))
             except:
                 pass
         indice = set(ind - 1 for ind in indice if 1 <= ind <= len(doc_info))
@@ -150,6 +154,7 @@ async def build(
     # 2. extract from LLM
     from ..schemas import Graph
     from ..knowledge_graph import extract_kg_elements, normalize_kg_elements
+
     console.print("2. 提取实体与实体间关系")
     resp = await extract_kg_elements([d[1] for d in doc_info])
     # 3. Graph.from_responses
@@ -180,6 +185,7 @@ async def build(
         TimeRemainingColumn,
         MofNCompleteColumn,
     )
+
     total_elements = len(g.nodes) + len(g.edges)
     try:
         with Progress(
@@ -188,7 +194,7 @@ async def build(
             BarColumn(),
             TaskProgressColumn(),
             TimeRemainingColumn(elapsed_when_finished=True),
-            MofNCompleteColumn()
+            MofNCompleteColumn(),
         ) as progress:
             task = progress.add_task("图谱元素向量化", total=total_elements)
             embeddings = []
@@ -202,12 +208,14 @@ async def build(
     # 7. saving to database
     console.print("7. 保存知识图谱")
     from ..dss import gss
+
     try:
         await gss.upsert_graph(g, embeddings, [d[1] for d in doc_info])
         show_msg("知识图谱构建全部完成", style="success")
     except Exception as e:
         show_msg(f"保存知识图谱失败: {e}", style="error", err=e)
         show_msg("知识图谱构建未完成，建议下次使用 -f 参数重建", style="error")
+
 
 @app.command("create-communities", epilog=HURAG_EPILOG)
 @async_cmd
@@ -216,13 +224,13 @@ async def create_communities(
         0.5,
         "--resolution-gamma",
         "-r",
-        help="Leiden算法聚类参数，数值越大聚类越细，建议介于0.5至1.0之间。"
+        help="Leiden算法聚类参数，数值越大聚类越细，建议介于0.5至1.0之间。",
     ),
     min_size: int = typer.Option(
         10,
         "--min-size",
         "-m",
-        help="社区中实体数量下限，少于此限的分区不视为有效社区。"
+        help="社区中实体数量下限，少于此限的分区不视为有效社区。",
     ),
 ):
     """根据已有的知识图谱，采用 Leiden 算法构建知识社区。"""
@@ -233,7 +241,7 @@ async def create_communities(
 
     try:
         console.print("1. 聚类生成社区")
-        g, p, n= await community_leiden(resolution=resolution)
+        g, p, n = await community_leiden(resolution=resolution)
         console.print("2. 生成社区摘要")
         summarise = await summarize_communities(g, p, n, min_size=min_size)
         console.print()

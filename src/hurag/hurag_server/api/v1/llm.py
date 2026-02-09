@@ -7,6 +7,7 @@ from ....depends import HuragGenerationClient, HuragGenerationModel
 
 router = APIRouter(prefix="/v1/llm", tags=["大模型"])
 
+
 @router.post(
     "/chat",
     response_model=ChatResponse,
@@ -14,18 +15,15 @@ router = APIRouter(prefix="/v1/llm", tags=["大模型"])
         200: {
             "content": {
                 "text/event-stream": {  # 流式 SSE 响应
-                    "schema": {
-                        "type": "string",
-                        "example": "data: {...}\\n\\n..."
-                    }
+                    "schema": {"type": "string", "example": "data: {...}\\n\\n..."}
                 },
                 "application/json": {  # 普通 JSON 响应
                     "schema": ChatResponse.model_json_schema()
-                }
+                },
             },
-            "description": "根据请求参数 stream 返回 JSON 或 SSE"
+            "description": "根据请求参数 stream 返回 JSON 或 SSE",
         }
-    }
+    },
 )
 async def chat_with_llm(
     req: ChatRequest,
@@ -106,6 +104,7 @@ async def chat_with_llm(
                 history_messages=req.history,
                 temperature=req.temperature,
             )
+
             async def _sse():
                 async for chunk in astream:
                     delta = extract_from_chat(chunk)["content"]
@@ -116,7 +115,7 @@ async def chat_with_llm(
             return StreamingResponse(
                 _sse(),
                 media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache"}
+                headers={"Cache-Control": "no-cache"},
             )
         else:
             aresp = await chat_completion(

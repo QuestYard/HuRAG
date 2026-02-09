@@ -11,6 +11,7 @@ from ..utilities import (
 )
 from ..constants import GRAPH_FIELD_SEP
 
+
 @dataclass
 class Entity:
     id: str | None = field(default=None)
@@ -48,10 +49,10 @@ class Entity:
         self.type = self.type or ""
         self.description = self.description or ""
         self.seg_ids = self.seg_ids or ""
-        self.name += (GRAPH_FIELD_SEP + (other.name or ""))
-        self.type += (GRAPH_FIELD_SEP + (other.type or ""))
-        self.description += (GRAPH_FIELD_SEP + (other.description or ""))
-        self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
+        self.name += GRAPH_FIELD_SEP + (other.name or "")
+        self.type += GRAPH_FIELD_SEP + (other.type or "")
+        self.description += GRAPH_FIELD_SEP + (other.description or "")
+        self.seg_ids += GRAPH_FIELD_SEP + (other.seg_ids or "")
 
         return self
 
@@ -101,6 +102,7 @@ class Entity:
 
         return self
 
+
 @dataclass
 class Relation:
     id: str | None = field(default=None)
@@ -141,15 +143,14 @@ class Relation:
         self.type = self.type or ""
         self.description = self.description or ""
         self.seg_ids = self.seg_ids or ""
-        self.source += (GRAPH_FIELD_SEP + (other.source or ""))
-        self.target += (GRAPH_FIELD_SEP + (other.target or ""))
-        self.type += (GRAPH_FIELD_SEP + (other.type or ""))
-        self.description += (GRAPH_FIELD_SEP + (other.description or ""))
-        self.seg_ids += (GRAPH_FIELD_SEP + (other.seg_ids or ""))
+        self.source += GRAPH_FIELD_SEP + (other.source or "")
+        self.target += GRAPH_FIELD_SEP + (other.target or "")
+        self.type += GRAPH_FIELD_SEP + (other.type or "")
+        self.description += GRAPH_FIELD_SEP + (other.description or "")
+        self.seg_ids += GRAPH_FIELD_SEP + (other.seg_ids or "")
         self.strength += other.strength
 
         return self
-
 
     def __eq__(self, other) -> bool:
         if self.id is not None and other.id is not None:
@@ -189,7 +190,7 @@ class Relation:
                 _source = alias[_source]
             if _target in alias:
                 _target = alias[_target]
-        
+
         _description = clean_str(fields[3])
         _description = normalize_extracted_info(_description)
         if not _description.strip():
@@ -213,6 +214,7 @@ class Relation:
         self.seg_ids = segment_id or ""
 
         return self
+
 
 def _process_local_graph(
     nodes: list[Entity],
@@ -255,48 +257,40 @@ def _process_local_graph(
         ]
     )
     to_drop_entities_mask = entities["name"].str.contains(
-        BLACKLIST_REGEX,
-        regex=True,
-        na=False
+        BLACKLIST_REGEX, regex=True, na=False
     )
     entities = entities[~to_drop_entities_mask].reset_index(drop=True)
     ent_set = set(zip(entities["name"], entities["seg_ids"]))
-    remain_relations_mask = (
-        pd.Series(zip(relations["source"], relations["seg_ids"])).isin(ent_set)
-        &
-        pd.Series(zip(relations["target"], relations["seg_ids"])).isin(ent_set)
+    remain_relations_mask = pd.Series(
+        zip(relations["source"], relations["seg_ids"])
+    ).isin(ent_set) & pd.Series(zip(relations["target"], relations["seg_ids"])).isin(
+        ent_set
     )
     relations = relations[remain_relations_mask].reset_index(drop=True)
     # group and aggregate
-    entities = (
-        entities
-        .groupby("name", as_index=False)
-        .agg(
-            {
-                "id": lambda _: None,
-                "type": GRAPH_FIELD_SEP.join,
-                "description": GRAPH_FIELD_SEP.join,
-                "seg_ids": GRAPH_FIELD_SEP.join,
-            }
-        )
+    entities = entities.groupby("name", as_index=False).agg(
+        {
+            "id": lambda _: None,
+            "type": GRAPH_FIELD_SEP.join,
+            "description": GRAPH_FIELD_SEP.join,
+            "seg_ids": GRAPH_FIELD_SEP.join,
+        }
     )
-    relations = (
-        relations
-        .groupby(["source", "target"], as_index=False)
-        .agg(
-            {
-                "id": lambda _: None,
-                "type": GRAPH_FIELD_SEP.join,
-                "description": GRAPH_FIELD_SEP.join,
-                "strength": "sum",
-                "seg_ids": GRAPH_FIELD_SEP.join,
-            }
-        )
+    relations = relations.groupby(["source", "target"], as_index=False).agg(
+        {
+            "id": lambda _: None,
+            "type": GRAPH_FIELD_SEP.join,
+            "description": GRAPH_FIELD_SEP.join,
+            "strength": "sum",
+            "seg_ids": GRAPH_FIELD_SEP.join,
+        }
     )
     return entities, relations
 
+
 async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
     from ..dss import rss
+
     pool = await rss.get_pool()
     async with pool.acquire() as conn, conn.cursor() as cur:
         await cur.execute("SET note_verbosity = ''")
@@ -341,7 +335,7 @@ async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
         )
         await cur.executemany(
             "INSERT INTO temp_edges (source, target) VALUES (%s, %s)",
-            [(x.source, x.target) for x in edges]
+            [(x.source, x.target) for x in edges],
         )
         await cur.execute(
             """
@@ -370,6 +364,7 @@ async def _fetch_db_graph(nodes: list[Entity], edges: list[Relation]):
             for edge in await cur.fetchall()
         }
     return exists_nodes, exists_edges
+
 
 @dataclass
 class Graph:
@@ -413,6 +408,7 @@ class Graph:
         """
         import re
         from ..llm import PROMPTS
+
         RECORD_SEPS = [PROMPTS["TUPLE_DELIMITER"]]
 
         lines = split_string_by_markers(response, ["\n"])
@@ -498,14 +494,14 @@ class Graph:
             asyncio.to_thread(_process_local_graph, self.nodes, self.edges, blacklist),
             _fetch_db_graph(self.nodes, self.edges),
         )
-        
+
         # merge, appending 'seg_ids' is not needed.
         for name, props in exists_nodes.items():
             indices = entities.index[entities["name"] == name]
             if len(indices) > 0:
                 idx = indices[0]
                 entities.at[idx, "id"] = props["id"]
-                entities.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
+                entities.at[idx, "type"] += GRAPH_FIELD_SEP + props["type"]
                 entities.at[idx, "description"] += (
                     GRAPH_FIELD_SEP + props["description"]
                 )
@@ -516,7 +512,7 @@ class Graph:
             if len(indices) > 0:
                 idx = indices[0]
                 relations.at[idx, "id"] = props["id"]
-                relations.at[idx, "type"] += (GRAPH_FIELD_SEP + props["type"])
+                relations.at[idx, "type"] += GRAPH_FIELD_SEP + props["type"]
                 relations.at[idx, "description"] += (
                     GRAPH_FIELD_SEP + props["description"]
                 )
@@ -572,6 +568,7 @@ class Graph:
             return cls()
 
         from ..dss import rss
+
         pool = await rss.get_pool()
         async with pool.acquire() as conn, conn.cursor() as cur:
             # locate document IDs
@@ -589,7 +586,7 @@ class Graph:
                 FROM entities e
                 JOIN entity_cite ec ON e.id = ec.entity_id
                 JOIN segments s ON ec.segment_id = s.id
-                WHERE s.document_id IN ({','.join(['%s'] * len(doc_ids))})
+                WHERE s.document_id IN ({",".join(["%s"] * len(doc_ids))})
                 """,
                 doc_ids,
             )
@@ -605,7 +602,7 @@ class Graph:
                         seg_ids=row[4],
                     )
                 else:
-                    nodes[row[0]].seg_ids += (GRAPH_FIELD_SEP + row[4])
+                    nodes[row[0]].seg_ids += GRAPH_FIELD_SEP + row[4]
             # load relations
             await cur.execute(
                 f"""
@@ -616,7 +613,7 @@ class Graph:
                 JOIN entities se ON r.source_id = se.id
                 JOIN entities te ON r.target_id = te.id
                 JOIN segments s ON rc.segment_id = s.id
-                WHERE s.document_id IN ({','.join(['%s'] * len(doc_ids))})
+                WHERE s.document_id IN ({",".join(["%s"] * len(doc_ids))})
                 """,
                 doc_ids,
             )
@@ -634,7 +631,7 @@ class Graph:
                         seg_ids=row[6],
                     )
                 else:
-                    edges[row[0]].seg_ids += (GRAPH_FIELD_SEP + row[6])
+                    edges[row[0]].seg_ids += GRAPH_FIELD_SEP + row[6]
         return cls(
             nodes=list(nodes.values()),
             edges=list(edges.values()),

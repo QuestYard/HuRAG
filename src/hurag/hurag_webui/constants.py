@@ -1,14 +1,17 @@
 from typing import get_args
 from . import RagMode
 
-CHAT_MODES = { 0: "专家", 1: "联想", 2: "拓展", 3: "智能", 4: "对话" }
-CHAT_MODE_RAG_MODES = { idx: name for idx, name in enumerate(get_args(RagMode)) }
+# CHAT_MODES = {0: "专家", 1: "联想", 2: "拓展", 3: "智能", 4: "对话"}
+CHAT_MODES = {0: "专家", 1: "联想", 2: "拓展", 3: "对话"}  # temporary for v0.3.0
+CHAT_MODE_RAG_MODES: dict[int, RagMode] = {
+    idx: name for idx, name in enumerate(get_args(RagMode))
+}
 CHAT_MODE_DESCRIPTIONS = {
-    0: "垂直领域的专业解读",    # mix mode
-    1: "基于联想的深入思考",    # community mode
-    2: "发散思维的广泛探索",    # global mode
-    3: "领域专家的精研深究",    # agentic mode
-    4: "无知识库的普通对话",    # no mode, simply chat with LLM
+    0: "垂直领域的专业解读",  # mix mode
+    1: "基于联想的深入思考",  # community mode
+    2: "发散思维的广泛探索",  # global mode
+    # 3: "领域专家的精研深究(comming soon)",  # placeholder for agentic mode
+    3: "无知识库的普通对话",  # no mode, simply chat with LLM
 }
 
 MAIN_PAGE_STYLES = """

@@ -27,8 +27,8 @@ try:
         conf.webui_app.ctx_size = "large"
     conf.webui_db.host = conf.webui_db.host or "localhost"
     conf.webui_db.port = conf.webui_db.port or 3306
-    conf.webui_app.host = conf.webui_db.host or "0.0.0.0"
-    conf.webui_app.port = conf.webui_db.port or 8000
+    conf.webui_app.host = conf.webui_app.host or "0.0.0.0"
+    conf.webui_app.port = conf.webui_app.port or 8000
 except ValueError as ve:
     raise ve
 except Exception as e:

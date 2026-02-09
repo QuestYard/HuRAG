@@ -51,7 +51,7 @@ def user_manager(ui_app):
     def logout(e):
         _ = e
         ui_app.storage.user["current_user"] = User().model_dump()
-        User_logged_in.emit("Guest")
+        User_logged_in.emit(ui_app.storage.user["current_user"]["account"])
         dialog.close()
 
     # --- Binding properties and callbacks ---

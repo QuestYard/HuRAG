@@ -23,14 +23,15 @@ conf: Any
 
 from .utilities import dict_to_namespace
 
+
 def load_config() -> Any:
     try:
         config_path = Path.cwd() / "hurag.yaml"
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        
+
         config = dict_to_namespace(data)
-        
+
         # Ensure config is not a list (which dict_to_namespace can return)
         if isinstance(config, list):
             raise ValueError("Config file must be a dictionary, not a list")
@@ -67,13 +68,14 @@ def load_config() -> Any:
         config.llm.embedding = config.llm.embedding or "http://localhost:8765"
         config.api.host = config.api.host or "0.0.0.0"
         config.api.port = config.api.port or 5000
-        
+
         return config
-        
+
     except ValueError as ve:
         raise ve
     except Exception as e:
         raise RuntimeError(f"Config file not exists or invalid: {e}")
+
 
 # Load configuration
 conf = load_config()
@@ -87,6 +89,7 @@ logger.addHandler(console_handler)
 
 if conf.log.log_in_file:
     from logging.handlers import RotatingFileHandler
+
     file_handler = RotatingFileHandler(
         filename=Path.cwd() / "hurag.log",
         maxBytes=conf.log.max_bytes,
@@ -97,6 +100,7 @@ if conf.log.log_in_file:
     file_handler.setLevel(logging.DEBUG)
     logger.addHandler(file_handler)
 
+
 def change_console_log_handler(handler: logging.Handler):
     """Change the console log handler."""
     global logger
@@ -106,6 +110,7 @@ def change_console_log_handler(handler: logging.Handler):
             logger.removeHandler(h)
     handler.setFormatter(console_handler.formatter)
     logger.addHandler(handler)
+
 
 def reset_console_log_handler():
     """Reset the console log handler to default."""

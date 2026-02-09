@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 _pools: dict[str, aiomysql.Pool] = {}
 _pools_lock: asyncio.Lock = asyncio.Lock()
 
+
 async def get_pool(
     host: str | None = None,
     port: int | None = None,
@@ -41,6 +42,7 @@ async def get_pool(
 
     return _pools[pool_name]
 
+
 async def close_pool(pool_name: str | None = None) -> None:
     """Close the database connection pool."""
     global _pools
@@ -55,6 +57,7 @@ async def close_pool(pool_name: str | None = None) -> None:
             await pool.wait_closed()
         _pools.clear()
 
+
 @asynccontextmanager
 async def lifespan():
     """Context manager to handle database pool lifecycle."""
@@ -62,6 +65,7 @@ async def lifespan():
         yield
     finally:
         await close_pool()
+
 
 def with_rdb(
     func=None,
@@ -106,7 +110,7 @@ def with_rdb(
     ```
 
     Connection and cursor can also be injected into the decorated function
-    as keyword arguments. 
+    as keyword arguments.
 
     ```python
     @with_rdb
@@ -145,6 +149,7 @@ def with_rdb(
     Returns:
         The decorated function.
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -172,11 +177,13 @@ def with_rdb(
             finally:
                 await cursor.close()
                 pool.release(connection)
+
         return wrapper
-    
+
     if func is not None:
         return decorator(func)
     return decorator
+
 
 async def query(
     statement: str,
@@ -203,11 +210,12 @@ async def query(
     pool = await get_pool(pool_name=pool_name)
     async with (
         pool.acquire() as conn,
-        conn.cursor(aiomysql.DictCursor) if as_dict else conn.cursor() as cur
+        conn.cursor(aiomysql.DictCursor) if as_dict else conn.cursor() as cur,
     ):
         await cur.execute(statement, data)
         ret = await cur.fetchall()
         return list(ret)
+
 
 async def query_iter(
     statement: str,
@@ -240,7 +248,7 @@ async def query_iter(
         pool.acquire() as conn,
         conn.cursor(aiomysql.SSDictCursor)
         if as_dict
-        else conn.cursor(aiomysql.SSCursor) as cur
+        else conn.cursor(aiomysql.SSCursor) as cur,
     ):
         await cur.execute(statement, data)
         while True:
@@ -250,6 +258,7 @@ async def query_iter(
             for row in rows:
                 yield row
 
+
 async def dml(
     statement: str,
     data: tuple | list[tuple] | None = (),
@@ -257,7 +266,7 @@ async def dml(
 ) -> int:
     """
     Execute a DML statement (INSERT, UPDATE, DELETE).
-    
+
     Args:
         statement:
             The DML statement to be executed.
@@ -283,6 +292,7 @@ async def dml(
         except Exception:
             await conn.rollback()
             raise
+
 
 async def transact(
     statements: list[str],

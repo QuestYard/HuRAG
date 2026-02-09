@@ -22,8 +22,9 @@ async def build_index_for_user(
     """
     sessions = await load_sessions_by_user(user_id)
     session_docs = {
-        s.id: f"{s.title}\n{'\n'.join(
-            [m.content for m in await load_messages_by_session(s.id)])}"
+        s.id: f"{s.title}\n{
+            '\n'.join([m.content for m in await load_messages_by_session(s.id)])
+        }"
         for s in sessions
     }
     corpus = list(session_docs.values())

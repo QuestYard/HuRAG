@@ -15,18 +15,17 @@ class Citation(BaseModel):
     content: str
 
     def __repr__(self):
-        return (
-            f"Citation(id='{self.id}', doc='{self.doc}', content='{' '.join(
-                self.content.split('\n'))[:40]}')"
-        )
+        return f"Citation(id='{self.id}', doc='{self.doc}', content='{
+            ' '.join(self.content.split('\n'))[:40]
+        }')"
 
     @classmethod
     def from_knowledge(cls, knowledge: Knowledge) -> Self:
         ct = cls(
-            id = knowledge.segment_id or "",
-            doc_id = knowledge.metadata.id or "",
-            doc = knowledge.metadata.title or "",
-            content = knowledge.content or "",
+            id=knowledge.segment_id or "",
+            doc_id=knowledge.metadata.id or "",
+            doc=knowledge.metadata.title or "",
+            content=knowledge.content or "",
         )
         return ct
 
@@ -69,8 +68,11 @@ def sanitize_markdown(content: str) -> str:
         text = re.sub(r"<(\w+)([^>]*)/>", r"[\1\2/]", text)  # self-closing tags
         text = re.sub(
             r"<(\w+)([^>]*)>(.*?)</\1>",
-            lambda m: f"[{m.group(1)}{m.group(2)}]{_replace_tag_brackets(
-                m.group(3))}[/{m.group(1)}]",
+            lambda m: (
+                f"[{m.group(1)}{m.group(2)}]{_replace_tag_brackets(m.group(3))}[/{
+                    m.group(1)
+                }]"
+            ),
             text,
             flags=re.DOTALL,
         )

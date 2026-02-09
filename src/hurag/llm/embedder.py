@@ -10,6 +10,7 @@ from . import with_es_client
 from .. import logger
 from ..types import KeywordType
 
+
 @with_es_client
 async def embed_query(
     query: str | list[str],
@@ -39,6 +40,7 @@ async def embed_query(
     except Exception as e:
         logger.error(f"Failed embedding query: {e}")
         raise
+
 
 @with_es_client
 async def embed_documents(
@@ -74,12 +76,9 @@ async def embed_documents(
     if not isinstance(docs, list):
         docs = [docs]
 
-    if batch_type == 0: # all-in-one
+    if batch_type == 0:  # all-in-one
         chunks = [
-            chk.text or ""
-            for doc in docs
-            for seg in doc.segments
-            for chk in seg.chunks
+            chk.text or "" for doc in docs for seg in doc.segments for chk in seg.chunks
         ]
         try:
             results = await esclient.embed(chunks, return_sparse=return_sparse)
@@ -87,7 +86,7 @@ async def embed_documents(
         except Exception as e:
             logger.error(f"Failed embedding documents: {e}")
             raise
-    elif batch_type == 1: # doc-by-doc
+    elif batch_type == 1:  # doc-by-doc
         for doc in docs:
             chunks = [chk.text or "" for seg in doc.segments for chk in seg.chunks]
             try:
@@ -96,12 +95,9 @@ async def embed_documents(
             except Exception as e:
                 logger.error(f"Failed embedding documents: {e}")
                 raise
-    elif batch_type > 1: # chunk-by-chunk with chunk_size = batch_type
+    elif batch_type > 1:  # chunk-by-chunk with chunk_size = batch_type
         all_chunks = (
-            chk.text or ""
-            for doc in docs
-            for seg in doc.segments
-            for chk in seg.chunks
+            chk.text or "" for doc in docs for seg in doc.segments for chk in seg.chunks
         )
         while batch := list(islice(all_chunks, batch_type)):
             try:
@@ -110,6 +106,7 @@ async def embed_documents(
             except Exception as e:
                 logger.error(f"Failed embedding documents: {e}")
                 raise
+
 
 @with_es_client
 async def embed_keywords(
@@ -145,12 +142,13 @@ async def embed_keywords(
         logger.error(f"Failed embedding keywords: {e}")
         raise
 
+
 @with_es_client
 async def embed_kg_elements(
     g: Graph,
     *,
     return_sparse: bool = True,
-    batch_size: int=1024,
+    batch_size: int = 1024,
     esclient: AsyncEmbeddingClient,
 ) -> AsyncGenerator[tuple[dict[str, Any], EmbeddingPayloadMeta], None]:
     """
@@ -182,6 +180,7 @@ async def embed_kg_elements(
         except Exception as e:
             logger.error(f"Failed embedding graph elements: {e}")
             raise
+
 
 @with_es_client
 async def embed_community_summaries(

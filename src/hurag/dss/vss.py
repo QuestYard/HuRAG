@@ -1,4 +1,5 @@
 import warnings
+
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,
@@ -15,6 +16,7 @@ from pymilvus import AsyncMilvusClient
 
 _clients: dict[str, AsyncMilvusClient] = {}
 _clients_lock: asyncio.Lock = asyncio.Lock()
+
 
 async def get_client(
     uri: str | None = None,
@@ -41,6 +43,7 @@ async def get_client(
 
     return _clients[client_name]
 
+
 async def close_client(client_name: str | None = None) -> None:
     """Close the Milvus client."""
     global _clients
@@ -53,6 +56,7 @@ async def close_client(client_name: str | None = None) -> None:
             await client.close()
         _clients.clear()
 
+
 @asynccontextmanager
 async def lifespan():
     """Context manager to handle Milvus clients."""
@@ -61,6 +65,7 @@ async def lifespan():
     finally:
         await close_client()
 
+
 def with_vdb(
     func=None,
     *,
@@ -68,24 +73,29 @@ def with_vdb(
     client_name="default",
 ) -> Callable[..., Any]:
     """Decorator to provide a VSS client to the decorated function."""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             kwargs[client_arg_name] = await get_client(client_name=client_name)
             return await func(*args, **kwargs)
+
         return wrapper
-    
+
     if func is not None:
         return decorator(func)
     return decorator
+
 
 async def upsert(collection: str, data: list[dict], client_name: str = "default"):
     cli = await get_client(client_name=client_name)
     return await cli.upsert(collection_name=collection, data=data)
 
+
 async def insert(collection: str, data: list[dict], client_name: str = "default"):
     cli = await get_client(client_name=client_name)
     return await cli.insert(collection_name=collection, data=data)
+
 
 async def query(
     collection_name: str,
@@ -101,6 +111,7 @@ async def query(
         output_fields=output_fields,
         **kwargs,
     )
+
 
 async def search(
     collection_name: str,
@@ -133,7 +144,7 @@ async def search(
     dense_request = AnnSearchRequest(
         data=vecs["dense"],
         anns_field="dense_vec",
-        limit=top_k*2,
+        limit=top_k * 2,
         expr=expr,
         expr_params=expr_params,
         param={"metric_type": "COSINE"},
@@ -141,20 +152,20 @@ async def search(
     sparse_request = AnnSearchRequest(
         data=vecs["sparse"],
         anns_field="sparse_vec",
-        limit=top_k*2,
+        limit=top_k * 2,
         expr=expr,
         expr_params=expr_params,
         param={"metric_type": "IP"},
     )
     # `rrf_k` should be a float number, but the type hint of the argument `k` of
     # `pymilvus.RRFRanker` is mistaken for an 'int'.
-    ranker = RRFRanker(rrf_k)   # type: ignore
+    ranker = RRFRanker(rrf_k)  # type: ignore
     cli = await get_client(client_name=client_name)
     res = await cli.hybrid_search(
         collection_name=collection_name,
         reqs=[dense_request, sparse_request],
         ranker=ranker,
-        limit = top_k,
+        limit=top_k,
         output_fields=["id"],
     )
     return {x["id"]: x["distance"] for x in res[0]}

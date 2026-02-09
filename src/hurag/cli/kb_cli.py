@@ -9,10 +9,11 @@ from . import (
 from ..types import DocumentOrder
 
 app = typer.Typer(
-    help = "QuestYard HuRAG CLI - KnowledgeBase Management Tools",
-    add_completion = False,
-    epilog = HURAG_EPILOG,
+    help="QuestYard HuRAG CLI - KnowledgeBase Management Tools",
+    add_completion=False,
+    epilog=HURAG_EPILOG,
 )
+
 
 @app.command("init", epilog=HURAG_EPILOG)
 def init():
@@ -26,6 +27,7 @@ def init():
     @with_async_spinner(text="初始化知识库中...", style="info")
     async def _init():
         from ..dss import init_ds
+
         try:
             await init_ds()
             show_msg("HuRAG 知识库初始化完成", style="info")
@@ -33,6 +35,7 @@ def init():
             show_msg(f"HuRAG 知识库初始化失败: {e}", style="error", err=e)
 
     _init()
+
 
 @app.command("init-webui", epilog=HURAG_EPILOG)
 def init_webui():
@@ -46,6 +49,7 @@ def init_webui():
     @with_async_spinner(text="初始化 WebUI 应用...", style="info")
     async def _init():
         from ..hurag_webui import init_webui
+
         try:
             await init_webui()
             show_msg("HuRAG WebUI 初始化完成", style="info")
@@ -54,11 +58,13 @@ def init_webui():
 
     _init()
 
+
 @app.command("info", epilog=HURAG_EPILOG)
 @async_cmd
 async def info():
     """查看后台知识库信息。"""
     from ..knowledge_base import stat
+
     try:
         stat = await stat()
     except Exception:
@@ -67,6 +73,7 @@ async def info():
 
     from rich.table import Table
     from . import console
+
     table = Table(title="知识库统计信息", title_style="bold italic", box=None)
     table.add_column(
         "类别",
@@ -86,6 +93,7 @@ async def info():
         table.add_row(catalog, f"{count:,}")
     console.print(table)
 
+
 @app.command("list", epilog=HURAG_EPILOG)
 @async_cmd
 async def list(
@@ -104,6 +112,7 @@ async def list(
 ):
     """列出后台知识库中的文档列表及文档相关信息。"""
     from ..knowledge_base import list_documents
+
     try:
         docs = await list_documents(keyword=keyword, order=order)
     except Exception:
@@ -112,13 +121,14 @@ async def list(
 
     from rich.table import Table
     from . import console
+
     doc_info = [
         (
             f"{doc[0]}（{doc[1]}）" if doc[1] else doc[0],  # title + sn
-            doc[2].strftime("%Y-%m-%d"),    # valid_from
+            doc[2].strftime("%Y-%m-%d"),  # valid_from
             doc[3].strftime("%Y-%m-%d") if doc[3] else "",  # valid_to
             doc[4].split("/")[-1].rstrip("*"),  # pub_org
-            doc[4][0] == "/" and doc[4][-1] != "*",    # not propagate
+            doc[4][0] == "/" and doc[4][-1] != "*",  # not propagate
             f"{doc[5]:,}",  # segments
             f"{doc[6]:,}",  # entities
         )
@@ -147,6 +157,7 @@ async def list(
         )
     console.print(table)
 
+
 @app.command("store", epilog=HURAG_EPILOG)
 @async_cmd
 async def store(path: str = typer.Argument(..., help="需要入库的文集所在目录")):
@@ -156,6 +167,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
     注意：仅完成向量化入库，不提取知识图谱，图谱管理请使用 kgraph 命令。
     """
     from pathlib import Path
+
     corpus = Path(path).expanduser().resolve()
     if not corpus.is_dir():
         show_msg(f"指定的文集目录 {path} 不存在或不是一个目录", style="error")
@@ -163,6 +175,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
 
     show_msg(f"加载文集 {path} 中的文档...", style="info")
     from ..corpus import corpus_load
+
     try:
         docs = await corpus_load(corpus, exclude_kb_docs=True)
         show_msg(f"加载完成，共 {len(docs)} 份文档待入库", style="info")
@@ -181,6 +194,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         TimeRemainingColumn,
         MofNCompleteColumn,
     )
+
     try:
         with Progress(
             SpinnerColumn(),
@@ -188,7 +202,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
             BarColumn(),
             TaskProgressColumn(),
             TimeRemainingColumn(elapsed_when_finished=True),
-            MofNCompleteColumn()
+            MofNCompleteColumn(),
         ) as progress:
             task = progress.add_task("文档文本向量化", total=len(docs))
             embeddings = []
@@ -202,6 +216,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
 
     show_msg("文档内容保存入数据库...", style="info")
     from ..knowledge_base import indexing_documents
+
     try:
         ds, ss, cs = await indexing_documents(docs, embeddings)
         show_msg(f"{ds} 份文档，共 {ss} 知识段、{cs} 文本块入库完成", style="info")

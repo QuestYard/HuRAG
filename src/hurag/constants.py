@@ -3,6 +3,7 @@ from typing import Self
 from pymilvus import DataType
 from pathlib import Path
 
+
 @dataclass
 class KGExtractionCriteria:
     blocked_entities: list[str] = field(default_factory=list)
@@ -24,6 +25,7 @@ class KGExtractionCriteria:
             pass
 
         return cls(**data)
+
 
 GRAPH_FIELD_SEP = "<SEP>"
 
@@ -263,4 +265,3 @@ INIT_VSS_PARAMS = [
         ],
     },
 ]
-

@@ -7,7 +7,21 @@ PROMPTS = {}
 
 PROMPTS["TUPLE_DELIMITER"] = "<|>"
 
-PROMPTS["ENTITY_TYPES"] = ["组织", "角色", "概念", "类别", "任务", "事件", "活动", "流程", "步骤", "数据", "资料", "制度", "规则"]
+PROMPTS["ENTITY_TYPES"] = [
+    "组织",
+    "角色",
+    "概念",
+    "类别",
+    "任务",
+    "事件",
+    "活动",
+    "流程",
+    "步骤",
+    "数据",
+    "资料",
+    "制度",
+    "规则",
+]
 
 PROMPTS["entity_extraction"] = """你是一个专业的信息提取助手，专门从事以下工作：
 
@@ -126,7 +140,9 @@ PROMPTS["entity_gleaning"] = """上一次识别的实体和关系可能有遗漏
 输出:
 """
 
-PROMPTS["summarize_descriptions"] = """你是一名专业的知识处理专家，你的职责是对下面所提供的数据生成一段全面、综合的缩写。
+PROMPTS[
+    "summarize_descriptions"
+] = """你是一名专业的知识处理专家，你的职责是对下面所提供的数据生成一段全面、综合的缩写。
 给定一个或两个实体，以及一系列与该实体或实体组相关的描述，请将所有这些描述串联起来，缩写成一单段全面的、综合性的描述，确保涵盖从所提供的全部描述中收集到的所有信息。
 如果所提供的描述中存在矛盾，请分析解决该矛盾，提供一致的、条理清晰的缩写。
 请确保采用第三人称进行缩写，不分段，完全使用中文并严格控制在200字以内。
@@ -352,6 +368,7 @@ PROMPTS["time_with_effectivity_examples"] = [
 """,
 ]
 
+
 def create_entity_extraction_prompt(text: str) -> str:
     entity_extract_prompt = PROMPTS["entity_extraction"]
     context_base = {
@@ -361,6 +378,7 @@ def create_entity_extraction_prompt(text: str) -> str:
     }
     return entity_extract_prompt.format(**context_base)
 
+
 def create_entity_gleaning_prompt() -> str:
     entity_gleaning_prompt = PROMPTS["entity_gleaning"]
     context_base = {
@@ -369,9 +387,9 @@ def create_entity_gleaning_prompt() -> str:
     }
     return entity_gleaning_prompt.format(**context_base)
 
+
 def create_summarize_descriptions_prompt(
-    entity_name: list[str],
-    descriptions: set[str]
+    entity_name: list[str], descriptions: set[str]
 ) -> str:
     summarize_descriptions_prompt = PROMPTS["summarize_descriptions"]
     context_base = {
@@ -380,20 +398,21 @@ def create_summarize_descriptions_prompt(
     }
     return summarize_descriptions_prompt.format(**context_base)
 
+
 def create_community_summarize_prompt(entities) -> str:
     return PROMPTS["community_summarize"].format(
         input_text=json.dumps(entities, ensure_ascii=False, indent=2)
     )
+
 
 def create_community_summary_aggregate_prompt(texts) -> str:
     return PROMPTS["community_summary_aggregate"].format(
         input_text=json.dumps(texts, ensure_ascii=False, indent=2)
     )
 
+
 def create_keywords_extraction_prompt(
-    query: str,
-    history: list[str]=[],
-    ex_num: int=3
+    query: str, history: list[str] = [], ex_num: int = 3
 ) -> str:
     keywords_extraction_prompt = PROMPTS["keywords_extraction"]
     context_base = {
@@ -403,7 +422,7 @@ def create_keywords_extraction_prompt(
     }
     return keywords_extraction_prompt.format(**context_base)
 
+
 def create_timing_prompt(query: str) -> str:
     td = datetime.strftime(datetime.today(), "%Y-%m-%d")
     return PROMPTS["time_with_effectivity"].format(today=td, query=query)
-

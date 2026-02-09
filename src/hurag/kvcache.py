@@ -2,6 +2,7 @@ from typing import Any
 import asyncio
 import threading
 
+
 class KVCache:
     """
     In-memory key-value cache.
@@ -12,7 +13,7 @@ class KVCache:
     - O(1) read/probe with asyncio serialisation
     """
 
-    def __init__(self, max_size: int=100, evict_ratio: float=0.2) -> None:
+    def __init__(self, max_size: int = 100, evict_ratio: float = 0.2) -> None:
         if max_size <= 0:
             raise ValueError("max_size must be positive")
         self.max_size: int = max_size
@@ -78,4 +79,3 @@ class KVCache:
 
     def __repr__(self) -> str:
         return f"KVCache({len(self._data)}/{self.max_size})"
-

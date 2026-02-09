@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 from dataclasses import dataclass, field
 from datetime import datetime
 
+
 @dataclass
 class Chunk:
     id: str | None = field(default=None)
@@ -20,6 +21,7 @@ class Chunk:
             f"Chunk(id={self.id}, seq_no={self.seq_no}, brief="
             f"'{' '.join(_txt.split('\n'))[:40]}{'...' if len(_txt) > 40 else ''}')"
         )
+
 
 @dataclass
 class Segment:
@@ -39,6 +41,7 @@ class Segment:
     def text(self) -> str:
         return "".join([chk.text or "" for chk in self.chunks])
 
+
 @dataclass
 class Document:
     id: str | None = field(default=None)
@@ -49,7 +52,7 @@ class Document:
     valid_to: datetime | None = field(default=None, compare=False, repr=False)
     replaces: str | None = field(default=None, compare=False, repr=False)  # title
     pub_path: str | None = field(default=None, compare=False)
-    localizes: str | None = field(default=None, compare=False, repr=False) # title
+    localizes: str | None = field(default=None, compare=False, repr=False)  # title
     authors: str | None = field(default=None, compare=False, repr=False)
     segments: list[Segment] = field(default_factory=list, compare=False, repr=False)
     kg_built: bool = field(default=False, compare=False, repr=False)
@@ -115,8 +118,8 @@ class Document:
         if layout == "plain":
             for row in x:
                 for cell in row:
-                    seg = Segment(seq_no = si)
-                    chk = Chunk(text = cell)
+                    seg = Segment(seq_no=si)
+                    chk = Chunk(text=cell)
                     seg.chunks.append(chk)
                     self.segments.append(seg)
                     si += 1
@@ -124,8 +127,8 @@ class Document:
             for i in range(1, len(x)):
                 for j in range(1, len(x[i])):
                     t = f"{x[0][j]}, {x[i][0]}: {x[i][j]}"
-                    seg = Segment(seq_no = si)
-                    chk = Chunk(text = t)
+                    seg = Segment(seq_no=si)
+                    chk = Chunk(text=t)
                     seg.chunks.append(chk)
                     self.segments.append(seg)
                     si += 1
@@ -134,11 +137,11 @@ class Document:
             _list.append(len(x))
             for h in range(len(_list) - 1):
                 head = x[_list[h]]
-                for row in x[_list[h]+1:_list[h+1]]:
+                for row in x[_list[h] + 1 : _list[h + 1]]:
                     dic = dict(zip(head, row))
                     t = "\n".join([f"{k}: {v}" for k, v in dic.items()])
-                    seg = Segment(seq_no = si)
-                    chk = Chunk(text = t)
+                    seg = Segment(seq_no=si)
+                    chk = Chunk(text=t)
                     seg.chunks.append(chk)
                     self.segments.append(seg)
                     si += 1
@@ -146,10 +149,10 @@ class Document:
             for h in range(0, len(x), 2):
                 if h == len(x) - 1:
                     break
-                dic = dict(zip(x[h], x[h+1]))
+                dic = dict(zip(x[h], x[h + 1]))
                 t = "\n".join([f"{k}: {v}" for k, v in dic.items()])
-                seg = Segment(seq_no = si)
-                chk = Chunk(text = t)
+                seg = Segment(seq_no=si)
+                chk = Chunk(text=t)
                 seg.chunks.append(chk)
                 self.segments.append(seg)
                 si += 1
@@ -158,8 +161,8 @@ class Document:
             for row in x[1:]:
                 dic = dict(zip(head, row))
                 t = "\n".join([f"{k}: {v}" for k, v in dic.items()])
-                seg = Segment(seq_no = si)
-                chk = Chunk(text = t)
+                seg = Segment(seq_no=si)
+                chk = Chunk(text=t)
                 seg.chunks.append(chk)
                 self.segments.append(seg)
                 si += 1
@@ -199,6 +202,7 @@ class Document:
 
         from ..dss import rss
         from aiomysql import DictCursor
+
         pool = await rss.get_pool()
         async with pool.acquire() as conn, conn.cursor(DictCursor) as cur:
             select = "SELECT * FROM documents WHERE "
@@ -213,7 +217,7 @@ class Document:
             sql_seg = f"""
             SELECT id, document_id as doc_id, seq_no
             FROM segments
-            WHERE document_id IN ({','.join(['%s'] * len(doc_ids))})
+            WHERE document_id IN ({",".join(["%s"] * len(doc_ids))})
             ORDER BY doc_id, seq_no
             """
             await cur.execute(sql_seg, doc_ids)
@@ -223,7 +227,7 @@ class Document:
             sql_chk = f"""
             SELECT id, segment_id as seg_id, text, seq_no
             FROM chunks
-            WHERE segment_id IN ({','.join(['%s'] * len(seg_ids))})
+            WHERE segment_id IN ({",".join(["%s"] * len(seg_ids))})
             ORDER BY seg_id, seq_no
             """
             await cur.execute(sql_chk, seg_ids)

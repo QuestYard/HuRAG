@@ -528,6 +528,7 @@ async def retrieve(
             "graph": (deprecated) only graph search with top_k_graph segments;
             "global": nodes and edges in the whole graph;
             "community": nodes and edges inside communities.
+            "agentic": retrieve knowledge via some agentic skill.
         query_info: returned values of prepare_for_searching.
         user_path: the organization path of current user.
         top_k: number of knowledges in final results in K-RAG search,
@@ -546,6 +547,8 @@ async def retrieve(
 ```
 
 *v0.1.0 版本支持的 `naive`, `graph` 两种检索模式已经弃用，为确保 API/SDK 的前后兼容，在 `RetrieveMode` 类型中仍然保持其二者存在，但检索时将统一采用 `mix` 模式替代。*
+
+*`agentic` 为 HuRAG 下一个大版本时计划实现的 AI Agent 模式的检索模式，目前仅为一个占位的模式名，功能尚未支持。*
 
 该函数根据指定的检索模式，结合 `QueryInfo` 对象中的预处理结果，执行相应的检索操作，并返回排序后的知识对象列表。
 

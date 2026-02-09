@@ -88,9 +88,9 @@ async def prepare_for_searching(
     async def _extract_query_keywords(query: str, history: list[str] | None = None):
         history = history or []
         resp = await chat_completion(
-                client=oaclient,
-                model=model,
-                prompt=create_keywords_extraction_prompt(query, history),
+            client=oaclient,
+            model=model,
+            prompt=create_keywords_extraction_prompt(query, history),
         )
         resp = extract_from_chat(resp)["content"]
         try:
@@ -109,10 +109,10 @@ async def prepare_for_searching(
 
     async def _extract_timings(query: str):
         resp = await chat_completion(
-                client=oaclient,
-                model=model,
-                prompt=create_timing_prompt(query),
-            )
+            client=oaclient,
+            model=model,
+            prompt=create_timing_prompt(query),
+        )
         resp = extract_from_chat(resp)["content"]
         try:
             as_of_time = json_repair.loads(resp)
@@ -189,7 +189,7 @@ async def retrieve(
     logger.info(f"[QUERY]: {query} [MODE]: {mode}")
 
     # TODO implement later
-    if mode == "agentic":
+    if mode in ["agentic", "none"]:
         return []
 
     return await search(

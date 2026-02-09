@@ -6,6 +6,7 @@ if TYPE_CHECKING:
 
 from deprecated import deprecated
 
+
 def build_messages(
     prompt: str,
     system_prompt: str | None = None,
@@ -13,16 +14,17 @@ def build_messages(
 ) -> list[dict[str, str]]:
     """
     Build messages for chat completion.
-    
+
     Args:
         prompt: str -- the user prompt.
         system_prompt: str | None -- optional system prompt.
         history_messages: list[dict[str, str]] | None -- optional chat history.
-        
+
     Returns:
         list[dict[str, str]] -- the constructed messages.
     """
     from openai.types.chat import ChatCompletionRole
+
     msgs = []
     if system_prompt:
         msgs.append({"role": "system", "content": system_prompt})
@@ -33,14 +35,13 @@ def build_messages(
                     "History message must be dict with 'role' and 'content'."
                 )
             if "role" not in m or "content" not in m:
-                raise ValueError(
-                    "History message missing 'role' or 'content'."
-                )
+                raise ValueError("History message missing 'role' or 'content'.")
             if m["role"] not in get_args(ChatCompletionRole):
                 continue
             msgs.append({"role": m["role"], "content": m["content"]})
     msgs.append({"role": "user", "content": prompt})
     return msgs
+
 
 @deprecated(
     version="0.2.1",
@@ -73,6 +74,7 @@ def extract_response(
         )
     return ""
 
+
 @deprecated(
     version="0.2.1",
     reason="Using `extract_from_chat` instead, will be removed at 0.3.0.",
@@ -98,16 +100,16 @@ def extract_chunk(
             return f"{previous_content}{chunk.choices[0].delta.content}"
     return ""
 
-def extract_from_chat(
-    response: ChatCompletion | ChatCompletionChunk
-) -> dict[str, str]:
+
+def extract_from_chat(response: ChatCompletion | ChatCompletionChunk) -> dict[str, str]:
     from openai.types.chat import ChatCompletion
+
     if isinstance(response, ChatCompletion):
         return {
             "role": response.choices[0].message.role,
             "content": response.choices[0].message.content or "",
         }
     return {
-            "role": response.choices[0].delta.role or "assistant",
-            "content": response.choices[0].delta.content or "",
-        }
+        "role": response.choices[0].delta.role or "assistant",
+        "content": response.choices[0].delta.content or "",
+    }

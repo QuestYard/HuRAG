@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 from pathlib import Path
 from . import logger
 
+
 def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
     """
     Convert document to UTF-8 encoded text or Markdown.
@@ -43,6 +44,7 @@ def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
     with open(tgt, "w", encoding="utf-8", newline="\n") as f:
         f.write(result)
     return tgt.as_posix()
+
 
 def corpus_markup(path: str) -> list[dict]:
     """
@@ -104,7 +106,7 @@ def corpus_markup(path: str) -> list[dict]:
             if "authors" in meta:
                 markup["authors"] = meta["authors"] or None
             if meta and file.suffix.lower() != ".csv":
-                markup["layout"] = "v1_doc"     # actually a HuRAG-pre document
+                markup["layout"] = "v1_doc"  # actually a HuRAG-pre document
         markups.append(markup)
     # write markup file
     markup_file = folder / "corpus.json"
@@ -114,9 +116,10 @@ def corpus_markup(path: str) -> list[dict]:
             f,
             indent=4,
             ensure_ascii=False,
-            default=lambda x: f"{x:%Y-%m-%d}" if isinstance(x, datetime) else x
+            default=lambda x: f"{x:%Y-%m-%d}" if isinstance(x, datetime) else x,
         )
     return markups
+
 
 def _fetch_v1_meta(file: Path) -> dict:
     """
@@ -144,6 +147,7 @@ def _fetch_v1_meta(file: Path) -> dict:
                 meta[k] = v.strip()
     return meta
 
+
 async def corpus_split(path: str) -> tuple:
     """
     Split documents with layout of 'text' or 'regu' in the given corpus.
@@ -161,14 +165,15 @@ async def corpus_split(path: str) -> tuple:
         regulation_splitter,
         markdown_splitter,
     )
+
     # check for corpus.json
     folder = Path(path).expanduser().resolve()
     corpus = folder / "corpus.json"
     # load corpus.json, loop for 'text' and 'regu' documents
     with open(corpus, "r", encoding="utf-8") as f:
         docs = json.load(f)
-    count = [0, 0, 0] # success, skipped, failed
-    
+    count = [0, 0, 0]  # success, skipped, failed
+
     # Prepare tasks for documents that need splitting
     tasks_to_run = []
     for doc in docs:
@@ -183,7 +188,7 @@ async def corpus_split(path: str) -> tuple:
             logger.warning(f"{doc['filename']}: not exists, skipped.")
             count[1] += 1
             continue
-        
+
         # Determine which splitter to use
         match doc["layout"]:
             case "regu":
@@ -194,9 +199,9 @@ async def corpus_split(path: str) -> tuple:
                 splitter_func = markdown_splitter
             case _:
                 splitter_func = plain_text_splitter
-        
+
         tasks_to_run.append((splitter_func, src, src.with_suffix(".idx")))
-    
+
     # Execute tasks using TaskGroup
     async def run_splitter_task(splitter_func, src, tgt):
         try:
@@ -204,14 +209,14 @@ async def corpus_split(path: str) -> tuple:
             return True, ret
         except Exception as e:
             return False, str(e)
-    
+
     if tasks_to_run:
         async with asyncio.TaskGroup() as tg:
             tasks = []
             for splitter_func, src, tgt in tasks_to_run:
                 task = tg.create_task(run_splitter_task(splitter_func, src, tgt))
                 tasks.append(task)
-            
+
         # Wait for all tasks to complete and collect results
         for task in tasks:
             success, error = task.result()
@@ -222,6 +227,7 @@ async def corpus_split(path: str) -> tuple:
                 count[2] += 1
 
     return tuple(count)
+
 
 async def corpus_load(path: Path, exclude_kb_docs: bool = False) -> list[Document]:
     """
@@ -245,25 +251,26 @@ async def corpus_load(path: Path, exclude_kb_docs: bool = False) -> list[Documen
         markups = json.load(f)
     if exclude_kb_docs:
         from .dss import rss
+
         docs_in_kb = {x[0] for x in await rss.query("SELECT title FROM documents")}
         markups = [m for m in markups if m["title"] not in docs_in_kb]
-    
+
     loop = asyncio.get_running_loop()
     docs = []
-    
+
     with concurrent.futures.ThreadPoolExecutor() as pool:
         tasks = [
             loop.run_in_executor(pool, Document().read, path, markup)
             for markup in markups
         ]
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 title = markups[i]["title"]
                 logger.warning(f"Failed loading {title} and skipped: {result}")
             else:
                 docs.append(result)
-                
+
     return docs

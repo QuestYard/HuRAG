@@ -25,6 +25,7 @@ import os
 from dataclasses import dataclass, field
 from collections import Counter, defaultdict
 
+
 @dataclass
 class _Segment:
     id: str
@@ -32,6 +33,7 @@ class _Segment:
     text: str
     chk_ids: list[str] = field(default_factory=list)
     history: list[dict[str, str]] = field(default_factory=list)
+
 
 @with_oa_client(client_name="extraction", timeout=120.0)
 async def extract_kg_elements(
@@ -143,7 +145,7 @@ async def extract_kg_elements(
         f"INNER JOIN segments AS s ON c.segment_id = s.id "
         f"WHERE s.document_id IN ({','.join(['%s'] * len(docs))}) "
         f"ORDER BY c.segment_id, c.seq_no",
-        tuple(docs)
+        tuple(docs),
     )
     segs = []
     for chk in chunks:
@@ -152,12 +154,7 @@ async def extract_kg_elements(
             segs[-1].chk_ids.append(chk[0])
         else:
             segs.append(
-                _Segment(
-                    id=chk[1],
-                    doc_id=chk[4],
-                    text=chk[3],
-                    chk_ids=[chk[0]]
-                )
+                _Segment(id=chk[1], doc_id=chk[4], text=chk[3], chk_ids=[chk[0]])
             )
             if limit and len(segs) >= limit:
                 break
@@ -236,6 +233,7 @@ async def extract_kg_elements(
 
     return results
 
+
 @with_oa_client(client_name="extraction", timeout=120.0)
 async def normalize_kg_elements(
     g: Graph,
@@ -272,8 +270,8 @@ async def normalize_kg_elements(
                 _element.id = generate_id()
             _element.type = sorted(
                 Counter(_element.type.split(GRAPH_FIELD_SEP)).items(),
-                key = lambda x: x[1],
-                reverse = True,
+                key=lambda x: x[1],
+                reverse=True,
             )[0][0]
             descriptions = set(_element.description.split(GRAPH_FIELD_SEP))
             if len(descriptions) == 1:
@@ -290,8 +288,8 @@ async def normalize_kg_elements(
             )
             try:
                 pmt = create_summarize_descriptions_prompt(
-                    entity_name = entity_name,
-                    descriptions = descriptions,
+                    entity_name=entity_name,
+                    descriptions=descriptions,
                 )
                 _desc = await chat_completion(client=oaclient, model=model, prompt=pmt)
                 _element.description = extract_from_chat(_desc)["content"]
@@ -305,6 +303,7 @@ async def normalize_kg_elements(
 
     import asyncio
     from tqdm.asyncio import tqdm
+
     pbar = tqdm(total=len(g.nodes) + len(g.edges), ncols=80, desc="Normalizing")
 
     queue = asyncio.Queue()
@@ -345,11 +344,10 @@ async def normalize_kg_elements(
 
     return g
 
-async def community_leiden(resolution: float = 0.5) -> tuple[
-    ig.Graph,
-    VertexClustering,
-    dict[str, tuple[str, str]]
-]:
+
+async def community_leiden(
+    resolution: float = 0.5,
+) -> tuple[ig.Graph, VertexClustering, dict[str, tuple[str, str]]]:
     """
     Create undirect graph from entities and relations in database and evaluate
     the partitions by using Leiden algorithm.
@@ -389,20 +387,15 @@ async def community_leiden(resolution: float = 0.5) -> tuple[
     edges_with_weights = [(u, v, w) for (u, v), w in agg.items()]
 
     # create the graph, letting igraph assign vertex indices automatically
-    g = ig.Graph.TupleList(
-        edges_with_weights,
-        directed=False,
-        edge_attrs=["weight"]
-    )
+    g = ig.Graph.TupleList(edges_with_weights, directed=False, edge_attrs=["weight"])
 
     # create partitions by using Leiden algorithm
     partitions = g.community_leiden(
-        objective_function="modularity",
-        resolution=resolution,
-        weights=g.es["weight"]
+        objective_function="modularity", resolution=resolution, weights=g.es["weight"]
     )
 
     return g, partitions, nodes
+
 
 @with_oa_client(client_name="extraction", timeout=120.0)
 async def summarize_communities(
@@ -499,7 +492,7 @@ async def summarize_communities(
         summaries[c_no] = []
         batches = _nodes_batch_generator(c)
         for b in batches:
-            await summarize_queue.put({ "c_no": c_no, "vs": b })
+            await summarize_queue.put({"c_no": c_no, "vs": b})
     await summarize_queue.join()
     for worker in summarize_workers:
         worker.cancel()

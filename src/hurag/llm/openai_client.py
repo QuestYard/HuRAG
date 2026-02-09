@@ -17,6 +17,7 @@ from . import build_messages
 _clients: dict[str, AsyncOpenAI] = {}
 _clients_lock: asyncio.Lock = asyncio.Lock()
 
+
 def create_oa_client(
     base_url: str,
     api_key: str,
@@ -24,6 +25,7 @@ def create_oa_client(
 ) -> AsyncOpenAI:
     import httpx
     from openai import AsyncOpenAI
+
     return AsyncOpenAI(
         base_url=base_url,
         api_key=api_key,
@@ -32,6 +34,7 @@ def create_oa_client(
             limits=httpx.Limits(keepalive_expiry=60.0),
         ),
     )
+
 
 async def get_oa_client(
     base_url: str | None = None,
@@ -72,6 +75,7 @@ async def get_oa_client(
 
     return _clients[client_name]
 
+
 async def close_oa_client(client_name: str | None = None) -> None:
     """Close the AsyncOpenAI client."""
     global _clients
@@ -84,6 +88,7 @@ async def close_oa_client(client_name: str | None = None) -> None:
             await client.close()
         _clients.clear()
 
+
 @asynccontextmanager
 async def lifespan():
     """Context manager to handle OpenAI clients."""
@@ -91,6 +96,7 @@ async def lifespan():
         yield
     finally:
         await close_oa_client()
+
 
 @deprecated(
     version="0.2.1",
@@ -134,7 +140,7 @@ async def chat(
         The chat completion response.
     """
     should_close = False
-    if client is None: 
+    if client is None:
         if not base_url:
             raise ValueError("Base URL not available.")
         if not api_key:
@@ -162,12 +168,14 @@ async def chat(
                 stream=True,
             )
             if should_close:
+
                 async def stream_wrapper():
                     try:
                         async for chunk in astream:
                             yield chunk
                     finally:
                         await client.close()
+
                 return stream_wrapper()
             return astream
         else:
@@ -183,6 +191,7 @@ async def chat(
         if should_close:
             await client.close()
         raise
+
 
 def with_oa_client(
     func=None,
@@ -211,29 +220,36 @@ def with_oa_client(
     Returns:
         Callable[..., Any] -- the decorated function.
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            _cli = await get_oa_client(
-                base_url=base_url,
-                api_key=api_key,
-                timeout=timeout,
-                client_name=client_name,
-            ) if client_name else create_oa_client(
-                base_url=base_url or "",
-                api_key=api_key or "",
-                timeout=timeout,
+            _cli = (
+                await get_oa_client(
+                    base_url=base_url,
+                    api_key=api_key,
+                    timeout=timeout,
+                    client_name=client_name,
+                )
+                if client_name
+                else create_oa_client(
+                    base_url=base_url or "",
+                    api_key=api_key or "",
+                    timeout=timeout,
+                )
             )
             kwargs[client_arg_name] = _cli
             ret = await func(*args, **kwargs)
             if not client_name:
                 await _cli.close()
             return ret
+
         return wrapper
-    
+
     if func is not None:
         return decorator(func)
     return decorator
+
 
 from openai import RateLimitError, APITimeoutError
 from tenacity import (
@@ -242,6 +258,7 @@ from tenacity import (
     wait_exponential,
     retry_if_exception_type,
 )
+
 
 @deprecated(
     version="0.2.1",
@@ -252,12 +269,15 @@ from tenacity import (
     wait=wait_exponential(multiplier=2, min=4, max=60),
     retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
 )
-async def chat_with_retry(*args, **kwargs) -> (
+async def chat_with_retry(
+    *args, **kwargs
+) -> (
     ChatCompletion
     | AsyncStream[ChatCompletionChunk]
     | AsyncGenerator[ChatCompletionChunk, Any]
 ):
     return await chat(*args, **kwargs)
+
 
 @retry(
     stop=stop_after_attempt(5),
@@ -302,6 +322,7 @@ async def chat_completion(
         return response
     except Exception:
         raise
+
 
 @retry(
     stop=stop_after_attempt(5),

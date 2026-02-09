@@ -9,10 +9,11 @@ from . import (
 )
 
 app = typer.Typer(
-    help = "QuestYard HuRAG CLI - Corpus & Document Tools",
-    add_completion = False,
-    epilog = HURAG_EPILOG,
+    help="QuestYard HuRAG CLI - Corpus & Document Tools",
+    add_completion=False,
+    epilog=HURAG_EPILOG,
 )
+
 
 @app.command("convert", epilog=HURAG_EPILOG)
 def convert(
@@ -31,7 +32,7 @@ def convert(
             "仅转换文字编码，将 TXT, CSV, HTML, XML, JSON, MD 等文本型文件"
             "转为 UTF-8 编码，而非转换为 Markdown 文件。"
         ),
-    )
+    ),
 ):
     """
     提取 PDF, Word, Excel, Powerpoint, CSV, HTML, JSON, XML 文件的内容，保存为
@@ -45,9 +46,11 @@ def convert(
     等文本型文件进行文字编码转换，由 Windows 的 GBK 编码转为 UTF-8
     编码，源格式保存，不会转为 Markdown。
     """
+
     @with_spinner(text="文件转换中...", style="info")
     def _convert():
         from ..corpus import doc_convert
+
         try:
             tgt = doc_convert(src_file, output_file, encoding_only)
             return {
@@ -65,20 +68,23 @@ def convert(
     result = _convert()
     show_msg(**result)
 
+
 @app.command("markup", epilog=HURAG_EPILOG)
 def markup(path: str = typer.Argument(..., help="需要标注的文集所在目录")):
     """
     在指定的目录下检查 TXT, CSV, Markdown 文件，收集文档元数据并创建文集标注。
-    
+
     文集标注文件名称为 corpus.json ，如果标注文件已存在，则会被覆盖。HuRAG-pre
     使用的文档元数据信息会被自动继承并写入标注文件中。
 
     自动预标注仅生成部分元数据字段，且并不保证完全准确，完成后应当手动修正。
     标注文件内容完全准确后即可进行文档内容分割（corpus split）。
     """
+
     @with_spinner(text=f"预标注进行中...", style="info")
     def _markup():
         from ..corpus import corpus_markup
+
         try:
             markups = corpus_markup(path)
             return {
@@ -95,6 +101,7 @@ def markup(path: str = typer.Argument(..., help="需要标注的文集所在目�
 
     result = _markup()
     show_msg(**result)
+
 
 @app.command("split", epilog=HURAG_EPILOG)
 def split(path: str = typer.Argument(..., help="需要分割文档的文集所在目录")):
@@ -114,9 +121,11 @@ def split(path: str = typer.Argument(..., help="需要分割文档的文集所�
     文档的拆分结果会被写入一个与源文件同名、后缀为 '.idx' 的文本文件中。
     例如源文件 'example.txt' 的拆分结果会被写入 'example.idx' 文件中。
     """
+
     @with_async_spinner(text=f"文档分割进行中...", style="info")
     async def _split():
         from ..corpus import corpus_split
+
         try:
             stat = await corpus_split(path)
             return {

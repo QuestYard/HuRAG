@@ -37,7 +37,7 @@ from fastapi import Depends
 # from hurag.depends import rdb_pool
 # from fastapi import Depends
 # from typing import Annotated
-# 
+#
 # db2_params = {
 #     "host": "localhost",
 #     "port": 3306,
@@ -55,6 +55,7 @@ from fastapi import Depends
 #         return { "number_of_documents": ret[0][0] }
 # ```
 
+
 def rdb_pool(
     host: str | None = None,
     port: int | None = None,
@@ -65,8 +66,11 @@ def rdb_pool(
 ):
     async def _get_pool() -> aiomysql.Pool:
         from .dss import rss
+
         return await rss.get_pool(host, port, user, password, db, pool_name)
+
     return _get_pool
+
 
 HuragRdbPoolDep = Annotated["aiomysql.Pool", Depends(rdb_pool())]
 
@@ -101,7 +105,7 @@ HuragRdbPoolDep = Annotated["aiomysql.Pool", Depends(rdb_pool())]
 # from hurag.depends import rdb_connection
 # from fastapi import Depends
 # from typing import Annotated
-# 
+#
 # db2_params = {
 #     "host": "localhost",
 #     "port": 3306,
@@ -121,6 +125,7 @@ HuragRdbPoolDep = Annotated["aiomysql.Pool", Depends(rdb_pool())]
 #         return { "number_of_documents": ret[0][0] }
 # ```
 
+
 def rdb_connection(
     host: str | None = None,
     port: int | None = None,
@@ -131,10 +136,13 @@ def rdb_connection(
 ):
     async def _acquire() -> AsyncGenerator[aiomysql.Connection, Any]:
         from .dss import rss
+
         pool = await rss.get_pool(host, port, user, password, db, pool_name)
         async with pool.acquire() as conn:
             yield conn
+
     return _acquire
+
 
 HuragRdbConnectionDep = Annotated["aiomysql.Connection", Depends(rdb_connection())]
 
@@ -163,7 +171,7 @@ HuragRdbConnectionDep = Annotated["aiomysql.Connection", Depends(rdb_connection(
 # from hurag.depends import vdb_client
 # from fastapi import Depends
 # from typing import Annotated
-# 
+#
 # vdb2_params = {
 #     "uri": "http://localhost:19530",
 #     "token": "user:password",
@@ -179,6 +187,7 @@ HuragRdbConnectionDep = Annotated["aiomysql.Connection", Depends(rdb_connection(
 #     return { "collections": resp }
 # ```
 
+
 def vdb_client(
     uri: str | None = None,
     token: str | None = None,
@@ -187,13 +196,17 @@ def vdb_client(
 ):
     async def _get_client() -> pymilvus.AsyncMilvusClient:
         from .dss import vss
+
         client = await vss.get_client(uri, token, db_name, client_name)
         return client
+
     return _get_client
+
 
 HuragVdbClientDep = Annotated["pymilvus.AsyncMilvusClient", Depends(vdb_client())]
 
 # --- OpenAI ASYNC CLIENT DEPENDENCY ---
+
 
 def openai_client(
     base_url: str | None = None,
@@ -203,11 +216,12 @@ def openai_client(
 ):
     async def _get_openai() -> openai.AsyncOpenAI:
         from .llm import get_oa_client
-        client = await get_oa_client(
-            base_url, api_key, timeout, client_name
-        )
+
+        client = await get_oa_client(base_url, api_key, timeout, client_name)
         return client
+
     return _get_openai
+
 
 HuragGenerationClient = Annotated["openai.AsyncOpenAI", Depends(openai_client())]
 HuragExtractionClient = Annotated[
@@ -218,12 +232,16 @@ HuragExtractionClient = Annotated[
 async def generation_model_name() -> str | None:
     import os
     from . import conf
+
     return os.getenv(f"{conf.llm.generation}_MODEL")
+
 
 async def extraction_model_name() -> str | None:
     import os
     from . import conf
+
     return os.getenv(f"{conf.llm.extraction}_MODEL")
+
 
 HuragGenerationModel = Annotated[str, Depends(generation_model_name)]
 HuragExtractionModel = Annotated[str, Depends(extraction_model_name)]

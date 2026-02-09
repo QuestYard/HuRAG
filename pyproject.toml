@@ -36,6 +36,7 @@ hurag = "hurag.cli.kb_cli:app"
 corpus = "hurag.cli.corpus_cli:app"
 kgraph = "hurag.cli.kg_cli:app"
 hurag-server = "hurag.hurag_server.server:main"
+hurag-webui = "hurag.hurag_webui.main:start"
 
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]

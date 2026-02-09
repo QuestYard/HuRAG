@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     import igraph as ig
     from igraph.clustering import VertexClustering
 
+
 async def upsert_graph(
     g: Graph,
     embeddings: list[dict[EmbeddingType, Any]],
@@ -41,7 +42,7 @@ async def upsert_graph(
         "INSERT IGNORE relation_cite (relation_id, segment_id) VALUES (%s, %s)",
         f"""
         UPDATE documents SET kg_built = TRUE
-        WHERE id IN ({','.join(['%s'] * len(doc_ids))})
+        WHERE id IN ({",".join(["%s"] * len(doc_ids))})
         """,
     ]
     from .. import logger
@@ -58,15 +59,13 @@ async def upsert_graph(
     )
     try:
         data = (
-            {"id": node.id, "dense_vec": None, "sparse_vec": None}
-            for node in g.nodes
+            {"id": node.id, "dense_vec": None, "sparse_vec": None} for node in g.nodes
         )
         for _raw_batch in batched(zip(data, _embeddings), 5000):
             _batch = list(starmap(lambda x, y: x.update(y) or x, _raw_batch))
             await vss.upsert("nodes", _batch)
         data = (
-            {"id": edge.id, "dense_vec": None, "sparse_vec": None}
-            for edge in g.edges
+            {"id": edge.id, "dense_vec": None, "sparse_vec": None} for edge in g.edges
         )
         for _raw_batch in batched(zip(data, _embeddings), 5000):
             _batch = list(starmap(lambda x, y: x.update(y) or x, _raw_batch))
@@ -89,7 +88,8 @@ async def upsert_graph(
         ],
         [
             (n.id, s)
-            for n in g.nodes if n.seg_ids
+            for n in g.nodes
+            if n.seg_ids
             for s in set(n.seg_ids.split(GRAPH_FIELD_SEP))
         ],
         [
@@ -105,7 +105,8 @@ async def upsert_graph(
         ],
         [
             (e.id, s)
-            for e in g.edges if e.seg_ids
+            for e in g.edges
+            if e.seg_ids
             for s in set(e.seg_ids.split(GRAPH_FIELD_SEP))
         ],
         tuple(doc_ids),
@@ -119,6 +120,7 @@ async def upsert_graph(
     except Exception as e:
         logger.error(f"Failed save knowledge graph into rdb: {e}")
         raise
+
 
 async def save_communities(
     graph: ig.Graph,
@@ -144,7 +146,7 @@ async def save_communities(
         "DELETE FROM community_entity;",
         "DELETE FROM communities;",
         "INSERT INTO communities (id, summary) VALUES (%s, %s)",
-        "INSERT INTO community_entity (community_id, entity_id) VALUES (%s, %s)"
+        "INSERT INTO community_entity (community_id, entity_id) VALUES (%s, %s)",
     ]
 
     _communities = [(s["c_no"], s["summary"]) for s in communities]
@@ -167,6 +169,7 @@ async def save_communities(
     await cli.insert("communities", _embeddings)
 
     return len(_communities), len(_community_entity)
+
 
 async def search(
     keywords: dict[str, list[str]],
@@ -211,39 +214,46 @@ async def search(
             "dense": [vecs["dense_vecs"][i]],
             "sparse": vecs["sparse_vecs"][i],
         }
-        hit_edges.update(
-            await vss.search("edges", vecs=vectors, top_k=3, rrf_k=rrf_k)
-        )
+        hit_edges.update(await vss.search("edges", vecs=vectors, top_k=3, rrf_k=rrf_k))
     edges = set(hit_edges)
 
     # found cited segments and merge
-    node_cites = [] if not nodes else await rss.query(
-        f"""
+    node_cites = (
+        []
+        if not nodes
+        else await rss.query(
+            f"""
         SELECT sc.segment_id, s.document_id
         FROM entity_cite sc
         JOIN segments s ON s.id = sc.segment_id
-        WHERE sc.entity_id IN ({','.join(['%s'] * len(nodes))})
+        WHERE sc.entity_id IN ({",".join(["%s"] * len(nodes))})
         """,
-        tuple(nodes)
+            tuple(nodes),
+        )
     )
-    edge_cites = [] if not edges else await rss.query(
-        f"""
+    edge_cites = (
+        []
+        if not edges
+        else await rss.query(
+            f"""
         SELECT rc.segment_id, s.document_id
         FROM relation_cite rc
         JOIN segments s ON s.id = rc.segment_id
-        WHERE rc.relation_id IN ({','.join(['%s'] * len(edges))})
+        WHERE rc.relation_id IN ({",".join(["%s"] * len(edges))})
         """,
-        tuple(edges)
+            tuple(edges),
+        )
     )
     segments = set(x for x in edge_cites + node_cites if x[1] in docs)
     # semantic search in chunks of these segments
     chunks = [
-        x[0] for x in await rss.query(
+        x[0]
+        for x in await rss.query(
             f"""
-            WITH segs(id) AS (VALUES {','.join(['(%s)'] * len(segments))})
+            WITH segs(id) AS (VALUES {",".join(["(%s)"] * len(segments))})
             SELECT c.id FROM chunks c JOIN segs s ON c.segment_id = s.id
             """,
-            tuple(s[0] for s in segments)
+            tuple(s[0] for s in segments),
         )
     ]
     graph_search_results = await vss.search(
@@ -259,6 +269,7 @@ async def search(
 
     return graph_search_results
 
+
 async def _n_hop_search(ori_nodes, top_n, hops):
     from . import rss
 
@@ -268,14 +279,15 @@ async def _n_hop_search(ori_nodes, top_n, hops):
     starts = nodes.copy()
     for _ in range(hops):
         connected = set(
-            x[0] for x in await rss.query(
+            x[0]
+            for x in await rss.query(
                 f"""
-                WITH nodes(id) AS (VALUES {','.join(['(%s)'] * len(starts))})
+                WITH nodes(id) AS (VALUES {",".join(["(%s)"] * len(starts))})
                 SELECT r.source_id FROM relations r JOIN nodes n ON r.target_id = n.id
                 UNION
                 SELECT r.target_id FROM relations r JOIN nodes n ON r.source_id = n.id
                 """,
-                tuple(starts)
+                tuple(starts),
             )
         )
         starts = connected.copy() - nodes
@@ -284,7 +296,9 @@ async def _n_hop_search(ori_nodes, top_n, hops):
             break
     return nodes
 
+
 # --- Communities ---
+
 
 async def associations(
     keywords: dict[str, list[str]],
@@ -314,10 +328,11 @@ async def associations(
             rrf_k=rrf_k,
         )
         scope = [
-            x[0] for x in await rss.query(
+            x[0]
+            for x in await rss.query(
                 f"""
                 SELECT entity_id FROM community_entity
-                WHERE community_id IN ({','.join(['%s'] * len(community_scores))})
+                WHERE community_id IN ({",".join(["%s"] * len(community_scores))})
                 """,
                 tuple(community_scores),
             )
@@ -336,14 +351,18 @@ async def associations(
         zero_dist_edges.update(
             await vss.search("edges", vecs=vectors, top_k=3, rrf_k=rrf_k)
         )
-    zero_dist_edge_cites = set() if not zero_dist_edges else set (
-        await rss.query(
-            f"""
+    zero_dist_edge_cites = (
+        set()
+        if not zero_dist_edges
+        else set(
+            await rss.query(
+                f"""
             SELECT rc.segment_id, s.document_id FROM relation_cite rc
             JOIN segments s ON s.id = rc.segment_id
-            WHERE rc.relation_id IN ({','.join(['%s'] * len(zero_dist_edges))})
+            WHERE rc.relation_id IN ({",".join(["%s"] * len(zero_dist_edges))})
             """,
-            tuple(zero_dist_edges),
+                tuple(zero_dist_edges),
+            )
         )
     )
 
@@ -356,29 +375,39 @@ async def associations(
         zero_dist_nodes.update(
             await vss.search("nodes", vecs=vectors, scope=scope, top_k=3, rrf_k=rrf_k)
         )
-    zero_dist_node_cites = set() if not zero_dist_nodes else set(
-        await rss.query(
-            f"""
+    zero_dist_node_cites = (
+        set()
+        if not zero_dist_nodes
+        else set(
+            await rss.query(
+                f"""
             SELECT ec.segment_id, s.document_id FROM entity_cite ec
             JOIN segments s ON s.id = ec.segment_id
-            WHERE ec.entity_id IN ({','.join(['%s'] * len(zero_dist_nodes))})
+            WHERE ec.entity_id IN ({",".join(["%s"] * len(zero_dist_nodes))})
             """,
-            tuple(zero_dist_nodes),
+                tuple(zero_dist_nodes),
+            )
         )
-    ) - zero_dist_edge_cites
+        - zero_dist_edge_cites
+    )
 
     associated_nodes = await _n_hop_search(zero_dist_nodes, top_n=max_nodes, hops=hops)
-    associated_nodes_cites = set() if not associated_nodes else set(
-        await rss.query(
-            f"""
+    associated_nodes_cites = (
+        set()
+        if not associated_nodes
+        else set(
+            await rss.query(
+                f"""
             SELECT ec.segment_id, s.document_id
             FROM entity_cite ec
             JOIN segments s ON s.id = ec.segment_id
-            WHERE ec.entity_id IN ({','.join(['%s'] * len(associated_nodes))})
+            WHERE ec.entity_id IN ({",".join(["%s"] * len(associated_nodes))})
             """,
-            tuple(associated_nodes),
+                tuple(associated_nodes),
+            )
         )
-    ) - (zero_dist_edge_cites | zero_dist_node_cites)
+        - (zero_dist_edge_cites | zero_dist_node_cites)
+    )
     # merge in order of distance
     segments = [x for x in zero_dist_edge_cites if x[1] in docs]
     segments += [x for x in zero_dist_node_cites if x[1] in docs]

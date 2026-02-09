@@ -3,6 +3,7 @@ from ...utilities import generate_id
 from ...dss import rss
 from ..models import User
 
+
 async def get_user(account: str) -> User | None:
     resp = await rss.query(
         "SELECT id, account, username, user_path FROM users WHERE account = %s",

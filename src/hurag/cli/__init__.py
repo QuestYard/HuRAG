@@ -38,6 +38,7 @@ rich_handler = RichHandler(
     tracebacks_show_locals=True,
 )
 
+
 def show_msg(
     msg: str,
     style: str | None = None,
@@ -49,8 +50,10 @@ def show_msg(
         return
 
     from rich.traceback import Traceback
+
     tb = Traceback.from_exception(type(err), err, err.__traceback__)
     console.print(tb)
+
 
 def with_spinner(
     func=None,
@@ -67,6 +70,7 @@ def with_spinner(
         style: rich style
         print_result: print return message
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -77,11 +81,13 @@ def with_spinner(
                 show_msg(f"Finished: {result}", style=style)
             reset_console_log_handler()
             return result
+
         return wrapper
-    
+
     if func is not None:
         return decorator(func)
     return decorator
+
 
 def with_async_spinner(
     func=None,
@@ -98,6 +104,7 @@ def with_async_spinner(
         style: rich style
         print_result: print return message
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -108,40 +115,45 @@ def with_async_spinner(
                 show_msg(f"Finished: {result}", style=style)
             reset_console_log_handler()
             return result
+
         return wrapper
 
     if func is not None:
         return decorator(func)
     return decorator
 
+
 def async_cmd(func) -> Callable[..., Any]:
     """Decorator to run an async command with database lifespan management."""
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         import asyncio
         from ..dss import rss, vss
         from ..llm import llm_lifespan
-        
+
         async def _runner():
             async with rss.lifespan(), vss.lifespan(), llm_lifespan():
                 return await func(*args, **kwargs)
-        
+
         return asyncio.run(_runner())
+
     return wrapper
+
 
 def print_regex_literal(regex_pattern: str, label: str | None = None) -> None:
     """
     Print a regex pattern as a literal string without escape character interference.
-    
+
     This function outputs the regex pattern exactly as it would appear in an r-string,
     making it easy to see the actual regex syntax without Python string escaping.
-    
+
     Args:
         regex_pattern: The regex pattern string to display
         label: Optional label to prefix the output for clarity
     """
     if label:
         console.print(f"{label}: ", style="info", end="")
-    
+
     # Use repr() to show the string with proper escaping, similar to r-string behavior
     console.print(repr(regex_pattern), style="path")

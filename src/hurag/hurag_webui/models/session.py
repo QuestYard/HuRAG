@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from openai.types.chat import ChatCompletionRole
 
+
 class Message(BaseModel):
     id: str
     session_id: str

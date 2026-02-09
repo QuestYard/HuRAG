@@ -8,6 +8,7 @@ from .... import (
 
 router = APIRouter(prefix="/v1/info", tags=["项目信息"])
 
+
 @router.get("/", response_model=MessageSchema)
 async def welcome():
     """Root endpoint for HuRAG-Server.
@@ -17,6 +18,7 @@ async def welcome():
         MessageSchema: A simple welcome message.
     """
     return MessageSchema(messages=[f"Welcome to HuRAG-Server {hurag_version}"])
+
 
 @router.get("/version", response_model=MessageSchema)
 async def version():
@@ -30,6 +32,7 @@ async def version():
         messages=[f"HuRAG-Server v{hurag_version}, From {hurag_author}, 2025-2026."]
     )
 
+
 @router.get("/organization", response_model=MessageSchema)
 async def organization():
     """
@@ -40,4 +43,3 @@ async def organization():
         MessageSchema: 当前部署机构的组织机构路径。
     """
     return MessageSchema(messages=[conf.app.org_path])
-

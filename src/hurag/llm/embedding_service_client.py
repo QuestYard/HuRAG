@@ -9,6 +9,7 @@ from .. import conf, logger
 
 from pydantic import BaseModel, Field
 
+
 class EmbeddingRequest(BaseModel):
     sentences: list[str] | str = Field(examples=[["What is LLM", "Something amazing"]])
     batch_size: int | None = Field(default=None, examples=[16])
@@ -18,6 +19,7 @@ class EmbeddingRequest(BaseModel):
     instruction: str | None = Field(
         default=None, examples=["Embed sentences for retrieval:"]
     )
+
 
 class RerankRequest(BaseModel):
     query: str = Field(examples=["What is LLM"])
@@ -30,15 +32,18 @@ class RerankRequest(BaseModel):
     max_length: int | None = Field(default=None, examples=[2048])
     normalize: bool | None = Field(default=None, examples=[True])
 
+
 class CSRMeta(BaseModel):
     nnz: int
     shape: tuple[int, int]
     dtype: str
 
+
 class ColBertMeta(BaseModel):
     count: int
     shapes: list[tuple[int, ...]]
     dtype: str
+
 
 class EmbeddingPayloadMeta(BaseModel):
     has_dense: bool
@@ -50,10 +55,13 @@ class EmbeddingPayloadMeta(BaseModel):
     colbert_meta: ColBertMeta | None = None
     format_version: str = "npz_v1"
 
+
 class RerankResponse(BaseModel):
     scores: list[float] | None = None
 
+
 # -- The utility function for unpacking embedding responses from binary stream --
+
 
 def unpack_unified_embeddings_from_bytes(
     npz_bytes: bytes,
@@ -119,9 +127,11 @@ def unpack_unified_embeddings_from_bytes(
         "colbert_vecs": colbert,
     }, meta
 
+
 # -- The client class --
 
 import httpx
+
 
 class AsyncEmbeddingClient:
     """Asynchronous client for embedding and reranking services."""
@@ -240,7 +250,6 @@ class AsyncEmbeddingClient:
         if not self._client:
             raise RuntimeError("Client not initialized.")
 
-
         request = RerankRequest(
             query=query,
             documents=documents,
@@ -261,6 +270,7 @@ class AsyncEmbeddingClient:
 
 # -- Decorator for Embedding Service --
 
+
 def with_es_client(
     func,
     *,
@@ -275,7 +285,7 @@ def with_es_client(
         base_url (str | None):
             Optional. The base URL of the embedding service. If not provided,
             it defaults to the value in the configuration.
-        timeout (float): 
+        timeout (float):
             Timeout for embedding requests. Default is 300.0 seconds.
         client_arg_name (str):
             The name of the client to be injected into. Default is "esclient".
@@ -283,30 +293,35 @@ def with_es_client(
     Returns:
         Callable[..., Any]: The decorated function with an embedding client injected.
     """
+
     def decorator(func):
         if inspect.isasyncgenfunction(func):
+
             @wraps(func)
             async def async_gen_wrapper(*args, **kwargs):
                 async with AsyncEmbeddingClient(
-                    base_url = base_url or f"{conf.llm.embedding}",
-                    timeout = timeout,
+                    base_url=base_url or f"{conf.llm.embedding}",
+                    timeout=timeout,
                 ) as embedding_client:
                     kwargs[client_arg_name] = embedding_client
                     async for item in func(*args, **kwargs):
                         yield item
+
             return async_gen_wrapper
         else:
+
             @wraps(func)
             async def async_func_wrapper(*args, **kwargs):
                 async with AsyncEmbeddingClient(
-                    base_url = base_url or f"{conf.llm.embedding}",
-                    timeout = timeout,
+                    base_url=base_url or f"{conf.llm.embedding}",
+                    timeout=timeout,
                 ) as embedding_client:
                     kwargs[client_arg_name] = embedding_client
                     ret = await func(*args, **kwargs)
                 return ret
+
             return async_func_wrapper
-    
+
     if func is not None:
         return decorator(func)
     return decorator

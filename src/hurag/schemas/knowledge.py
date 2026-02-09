@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
+
 @dataclass(kw_only=True, frozen=True)
-class KnowledgeMetadata():
+class KnowledgeMetadata:
     id: str | None = field(default=None)
     title: str | None = field(default=None)
     sn: str | None = field(default=None)
@@ -16,13 +17,11 @@ class KnowledgeMetadata():
 
     @classmethod
     def from_dict(cls, data: dict):
-        return cls(**{
-            k: v for k, v in data.items()
-            if k in cls.__dataclass_fields__
-        })
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
 
 @dataclass(kw_only=True, frozen=True)
-class Knowledge():
+class Knowledge:
     segment_id: str | None = field(default=None)
     content: str | None = field(default=None, compare=False, hash=False)
     metadata: KnowledgeMetadata = field(
@@ -46,11 +45,10 @@ class Knowledge():
             org_name = ""
             propagate = False
         else:
-            org_name = self.metadata.pub_path.strip('*').split('/')[-1]
-            propagate = (
-                not self.metadata.pub_path.startswith("/")
-                or self.metadata.pub_path.endswith("*")
-            )
+            org_name = self.metadata.pub_path.strip("*").split("/")[-1]
+            propagate = not self.metadata.pub_path.startswith(
+                "/"
+            ) or self.metadata.pub_path.endswith("*")
         t.append(f"## 发布机构\n{org_name}\n")
         t.append(f"## 生效范围\n{'含下级' if propagate else '仅本级'}\n")
         t.append(f"## 生效日期\n{self.metadata.valid_from:%Y-%m-%d}\n")

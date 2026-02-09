@@ -1,5 +1,5 @@
 from . import conf, logger, db_pool_name, oa_client_name, oa_model_name
-from .models import User, Citation
+from .models import User, Citation, Message
 from .services import login
 from .viewers import user_manager, scroll_to_bottom, show_citations
 from .constants import (
@@ -31,12 +31,10 @@ static_dir = os.path.join(src_dir, "static")
 # Helper to get static asset path
 asset = lambda name: os.path.join(static_dir, name)
 
-from nicegui import ui, app # as ui_app
-# from fastapi import FastAPI
+from nicegui import ui, app  # as ui_app
 from fastapi.staticfiles import StaticFiles
 
 # --- NiceGUI App Setup ---
-
 async def _startup_app() -> None:
     logger.info(f"Starting up HuRAG WebUI App...")
 
@@ -52,6 +50,7 @@ async def _startup_app() -> None:
 
     logger.info("Creating database connection pool ...")
     from ..dss import rss
+
     await rss.get_pool(
         host=conf.webui_db.host,
         port=conf.webui_db.port,
@@ -63,43 +62,27 @@ async def _startup_app() -> None:
 
     logger.info("Creating LLM chat client ...")
     from ..llm import get_oa_client
+
     await get_oa_client(client_name=oa_client_name)
 
     logger.info("HuRAG WebUI App startup completed.")
 
+
 async def _shutdown_app() -> None:
     from ..dss import rss
+
     logger.info("Closing database connection pool...")
     await rss.close_pool()
     from ..llm import close_oa_client
+
     logger.info("Closing chat completions client...")
     await close_oa_client()
     logger.info("HuRAG WebUI App shutdown completed.")
 
+
 # Register startup and shutdown handlers
 app.on_startup(_startup_app)
 app.on_shutdown(_shutdown_app)
-
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     startup_successful = False
-#     try:
-#         await _startup_app()
-#         startup_successful = True
-# 
-#         yield
-# 
-#     except Exception as e:
-#         if not startup_successful:
-#             logger.error(f"Failed to startup HuRAG WebUI App: {e!r}")
-#         else:
-#             logger.error(f"Error during HuRAG WebUI App runtime: {e!r}")
-#         raise
-#     finally:
-#         if startup_successful:
-#             await _shutdown_app()
-# 
-# app = FastAPI(lifespan=lifespan)
 
 # Mount static directory to serve static files like favicon.svg
 # You can now access your icon at: http://localhost:8082/static/favicon.svg
@@ -110,17 +93,6 @@ storage_secret = os.environ.get("STORAGE_SECRET")
 if not storage_secret:
     logger.warning("STORAGE_SECRET is not set. Using a default (insecure) value.")
     storage_secret = "default_secret_please_change"
-
-# --- NiceGUI App Setup ---
-
-# Run the NiceGUI app with FastAPI integration
-# This is the production server entry point (e.g., via `gunicorn`)
-# ui.run_with(
-#     app=app,
-#     title="HuRAG WebUI - A ChatBot",
-#     favicon=asset("favicon.ico"),
-#     storage_secret=storage_secret,
-# )
 
 # --- UI Page Definition ---
 
@@ -273,7 +245,6 @@ async def root():
                         ui.tooltip("发送").classes("text-caption")
 
     # --- Inner functions ---
-
     async def _init_message_container():
         app.storage.client["current_session_id"] = None
         app.storage.client["citations"] = {}
@@ -330,11 +301,11 @@ async def root():
 
         # Initialize session and message container if needed
         task = None
-        if ui_app.storage.client["current_session_id"] is None:
+        if app.storage.client["current_session_id"] is None:
             # Generate new session's title in background
             task = asyncio.create_task(generate_session_title(query))
-            ui_app.storage.client["citations"] = {}
-            ui_app.storage.client["messages"] = {}
+            app.storage.client["citations"] = {}
+            app.storage.client["messages"] = {}
             message_container.clear()
             message_container.classes(add="flex-grow overflow-y-auto")
 
@@ -342,7 +313,7 @@ async def root():
         with message_container:
             await display_user_message(
                 query,
-                ui_app.storage.user["current_user"]["username"],
+                app.storage.user["current_user"]["username"],
                 query_ts,
             )
         text_input.set_value("")
@@ -352,25 +323,25 @@ async def root():
         await scroll_to_bottom(message_container)
 
         # Retrieve knowledge, list of [Knowledge.model_dump(), ...]
-        knowledge_list = [] if mode is None else await retrieve(
+        knowledge_list = await retrieve(
             query=query,
             history=[
                 m["content"]
-                for m in ui_app.storage.client["messages"].values()
+                for m in app.storage.client["messages"].values()
                 if m["role"] == "user"
             ],
             mode=mode,
-            user_path=ui_app.storage.user["current_user"]["user_path"],
+            user_path=app.storage.user["current_user"]["user_path"],
         )
 
         # Merge retrieved knowledge into cached citations
-        ui_app.storage.general["cached_citations"] |= {
-            k[0].segment_id: Citation().from_knowledge(k[0]).model_dump()
+        app.storage.general["cached_citations"] |= {
+            k[0].segment_id: Citation.from_knowledge(k[0]).model_dump()
             for k in knowledge_list
         }
 
         # Get current citation IDs
-        citation_ids = [k[0].segment_id for k in knowledge_list]
+        citation_ids = [k[0].segment_id or "" for k in knowledge_list]
 
         # Chat with backend and get response
         response, response_ts = await chat_with_backend(
@@ -384,17 +355,18 @@ async def root():
                     "role": m["role"],
                     "content": m["content"],
                 }
-                for m in ui_app.storage.client["messages"].values()
+                for m in app.storage.client["messages"].values()
             ],
-            temperature=0 if mode else 0.6,
+            temperature=0 if mode != "none" else 0.6,
         )
 
         # Save/Update session, message and citations
-        if ui_app.storage.user["current_user"]["id"] is not None:
+        if app.storage.user["current_user"]["id"] is not None:
             # Not a guest user
-            if ui_app.storage.client["current_session_id"] is None:
+            if app.storage.client["current_session_id"] is None:
                 # New session creation logic
                 # 1) Wait and get the generated session title
+                assert task is not None
                 title = await task
                 # 2) Save new session
                 s, q, r = await upsert_session(
@@ -405,10 +377,11 @@ async def root():
                     citation_ids=citation_ids,
                     session_id=None,
                     title=title,
-                    user_id=ui_app.storage.user["current_user"]["id"],
+                    user_id=app.storage.user["current_user"]["id"],
                 )
                 # 3) Update current_session_id
-                ui_app.storage.client["current_session_id"] = s.id
+                assert s is not None
+                app.storage.client["current_session_id"] = s.id
             else:
                 # Existing session update logic
                 # 1) Update session
@@ -418,48 +391,56 @@ async def root():
                     response=response,
                     response_ts=response_ts,
                     citation_ids=citation_ids,
-                    session_id=ui_app.storage.client["current_session_id"],
+                    session_id=app.storage.client["current_session_id"],
                 )
             # Update current messages
-            ui_app.storage.client["messages"][q.id] = q.model_dump()
-            ui_app.storage.client["messages"][r.id] = r.model_dump()
+            app.storage.client["messages"][q.id] = q.model_dump()
+            app.storage.client["messages"][r.id] = r.model_dump()
             # Update citations
             if citation_ids:
-                ui_app.storage.client["citations"][r.id] = citation_ids
+                app.storage.client["citations"][r.id] = citation_ids
             # Refresh recent sessions in the left drawer
             top_sessions = await load_sessions_by_user(
-                ui_app.storage.user["current_user"]["id"],
+                app.storage.user["current_user"]["id"],
                 limit=100,
             )
             show_session_history(top_sessions, session_history_col)
         else:
             # Guest user, no database saving, only temp storage
             temp_session_id = "guest_session"
-            ui_app.storage.client["current_session_id"] = temp_session_id
-            q = {
-                "id": generate_id(),
-                "session_id": temp_session_id,
-                "seq_no": len(ui_app.storage.client["messages"]),
-                "role": "user",
-                "content": query,
-                "created_ts": query_ts,
-            }
-            r = {
-                "id": generate_id(),
-                "session_id": temp_session_id,
-                "seq_no": len(ui_app.storage.client["messages"]) + 1,
-                "role": "assistant",
-                "content": response,
-                "created_ts": response_ts,
-            }
-            ui_app.storage.client["messages"][q["id"]] = q
-            ui_app.storage.client["messages"][r["id"]] = r
+            app.storage.client["current_session_id"] = temp_session_id
+            qid = generate_id()
+            rid = generate_id()
+            q = Message(
+                **{
+                    "id": qid,
+                    "session_id": temp_session_id,
+                    "seq_no": len(app.storage.client["messages"]),
+                    "role": "user",
+                    "content": query,
+                    "created_ts": query_ts,
+                    "pair_id": rid,
+                }
+            )
+            r = Message(
+                **{
+                    "id": rid,
+                    "session_id": temp_session_id,
+                    "seq_no": len(app.storage.client["messages"]) + 1,
+                    "role": "assistant",
+                    "content": response,
+                    "created_ts": response_ts,
+                    "pair_id": qid,
+                }
+            )
+            app.storage.client["messages"][qid] = q.model_dump()
+            app.storage.client["messages"][rid] = r.model_dump()
 
         # Add footbar to response message
         with message_container:
             await display_message_footer(
-                ui_app.storage.user["current_user"]["id"] and r.id,
-                ui_app.storage.user["current_user"]["id"] and q.id,
+                app.storage.user["current_user"]["id"] and r.id,
+                app.storage.user["current_user"]["id"] and q.id,
                 response_ts,
             )
 
@@ -476,33 +457,35 @@ async def root():
         if citation_drawer.value:
             citation_drawer.value = False
 
-    @User_logged_in.subscribe
+    # --- Event Handlers ---
     async def user_logged_in_handler():
         from .services import load_sessions_by_user
         from .viewers import show_session_history
 
         top_sessions = await load_sessions_by_user(
-            ui_app.storage.user["current_user"]["id"],
+            app.storage.user["current_user"]["id"],
             limit=100,
         )
         show_session_history(top_sessions, session_history_col)
         await _init_message_container()
 
-    @History_session_clicked.subscribe
+    User_logged_in.subscribe(user_logged_in_handler)
+
     async def history_session_clicked_handler(session_id: str):
         from .viewers import join_history_session
 
-        ui_app.storage.client["current_session_id"] = session_id
-        ui_app.storage.client["citations"], msgs = await join_history_session(
+        app.storage.client["current_session_id"] = session_id
+        app.storage.client["citations"], msgs = await join_history_session(
             session_id,
             message_container,
-            ui_app.storage.user["current_user"]["username"],
+            app.storage.user["current_user"]["username"],
         )
-        ui_app.storage.client["messages"] = {m.id: m.model_dump() for m in msgs}
+        app.storage.client["messages"] = {m.id: m.model_dump() for m in msgs}
         if citation_drawer.value:
             citation_drawer.value = False
 
-    @Edit_session_title_clicked.subscribe
+    History_session_clicked.subscribe(history_session_clicked_handler)
+
     async def edit_session_title_clicked_handler(session_id: str):
         from .services import (
             load_session_by_id,
@@ -535,12 +518,13 @@ async def root():
             return  # cancelled
         await update_session_title(session_id, result)
         top_sessions = await load_sessions_by_user(
-            ui_app.storage.user["current_user"]["id"],
+            app.storage.user["current_user"]["id"],
             limit=100,
         )
         show_session_history(top_sessions, session_history_col)
 
-    @Delete_session_clicked.subscribe
+    Edit_session_title_clicked.subscribe(edit_session_title_clicked_handler)
+
     async def delete_session_clicked_handler(session_id: str):
         from .services import delete_session_by_id, load_sessions_by_user
         from .viewers import show_session_history
@@ -560,83 +544,87 @@ async def root():
             ui.notify("对话已删除", type="positive")
             # Refresh session history
             top_sessions = await load_sessions_by_user(
-                ui_app.storage.user["current_user"]["id"],
-                limit=100,
+                app.storage.user["current_user"]["id"], limit=100
             )
             show_session_history(top_sessions, session_history_col)
             # If deleted session is current, init message container
-            if ui_app.storage.client["current_session_id"] == session_id:
+            if app.storage.client["current_session_id"] == session_id:
                 await _init_message_container()
 
-    @Pin_session_clicked.subscribe
+    Delete_session_clicked.subscribe(delete_session_clicked_handler)
+
     async def pin_session_clicked_handler(session_id: str):
-        from .services import (
-            pin_session_by_id,
-            load_sessions_by_user,
-        )
+        from .services import pin_session_by_id, load_sessions_by_user
         from .viewers import show_session_history
 
         await pin_session_by_id(session_id)
         top_sessions = await load_sessions_by_user(
-            ui_app.storage.user["current_user"]["id"],
-            limit=100,
+            app.storage.user["current_user"]["id"], limit=100
         )
         show_session_history(top_sessions, session_history_col)
 
-    @Copy_response_clicked.subscribe
+    Pin_session_clicked.subscribe(pin_session_clicked_handler)
+
     async def copy_response_clicked_handler(message_id: str):
-        msg = ui_app.storage.client["messages"].get(message_id)
+        msg = app.storage.client["messages"].get(message_id)
         if msg:
             ui.clipboard.write(msg["content"])
             ui.notify("已复制到剪贴板")
         else:
             ui.notify("消息未找到，复制失败", type="negative")
 
-    @Regenerate_response_clicked.subscribe
+    Copy_response_clicked.subscribe(copy_response_clicked_handler)
+
     async def regenerate_response_clicked_handler(message_id: str | None):
-        msg = ui_app.storage.client["messages"].get(message_id)
+        msg = app.storage.client["messages"].get(message_id)
         await send_message(msg["content"])
 
-    @Like_response_clicked.subscribe
+    Regenerate_response_clicked.subscribe(regenerate_response_clicked_handler)
+
     async def like_response_clicked_handler(e, message_id: str):
-        msg = ui_app.storage.client["messages"].get(message_id)
-        msg["likes"] = 1 - msg["likes"]
-        e.sender.props("color=amber-600" if msg["likes"] else "color=gray-500")
         from .services import like_message
 
+        msg = app.storage.client["messages"].get(message_id)
+        msg["likes"] = 1 - msg["likes"]
+        e.sender.props("color=amber-600" if msg["likes"] else "color=gray-500")
         await like_message(msg["id"], msg["likes"])
 
-    @Dislike_response_clicked.subscribe
+    Like_response_clicked.subscribe(like_response_clicked_handler)
+
     async def dislike_response_clicked_handler(e, message_id: str):
-        msg = ui_app.storage.client["messages"].get(message_id)
-        msg["dislikes"] = 1 - msg["dislikes"]
-        e.sender.props("color=amber-600" if msg["dislikes"] else "color=gray-500")
         from .services import dislike_message
 
+        msg = app.storage.client["messages"].get(message_id)
+        msg["dislikes"] = 1 - msg["dislikes"]
+        e.sender.props("color=amber-600" if msg["dislikes"] else "color=gray-500")
         await dislike_message(msg["id"], msg["dislikes"])
 
-    @Download_response_clicked.subscribe
+    Dislike_response_clicked.subscribe(dislike_response_clicked_handler)
+
     async def download_response_clicked_handler(message_id: str):
-        msg = ui_app.storage.client["messages"].get(message_id)
+        msg = app.storage.client["messages"].get(message_id)
         if msg:
             filename = f"response_{message_id}.md"
             ui.download.content(msg["content"], filename)
         else:
             ui.notify("消息未找到，下载失败", type="negative")
 
-    @Show_message_citations_clicked.subscribe
+    Download_response_clicked.subscribe(download_response_clicked_handler)
+
     async def show_message_citations_clicked_handler(message_id: str):
-        citation_ids = ui_app.storage.client["citations"].get(message_id, [])
+        citation_ids = app.storage.client["citations"].get(message_id, [])
         citations_badge.set_text(str(len(citation_ids)) if citation_ids else "0")
         if not citation_drawer.value:
             citation_drawer.value = True
         await show_citations(
-            ui_app.storage.general["cached_citations"],
+            app.storage.general["cached_citations"],
             citation_ids,
-            ui_app.storage.user["current_user"]["user_path"],
+            app.storage.user["current_user"]["user_path"],
             citations_card,
             citation_spinner,
         )
+
+    Show_message_citations_clicked.subscribe(show_message_citations_clicked_handler)
 
     # --- Binding properties and callbacks ---
     citation_btn.on_click(lambda: toggle_citation_drawer())
@@ -650,7 +638,7 @@ async def root():
         "value",
     )
     user_manager_lbl.bind_text_from(
-        ui_app.storage.user,
+        app.storage.user,
         "current_user",
         backward=lambda u: (
             f"{u['username']} ({u['account']})" if u and u["account"] else "访客"
@@ -684,33 +672,31 @@ async def root():
 
     # --- UI data ---
     if (
-        "current_user" not in ui_app.storage.user
-        or ui_app.storage.user["current_user"].get("id") is None
+        "current_user" not in app.storage.user
+        or app.storage.user["current_user"].get("id") is None
     ):
-        ui_app.storage.user["current_user"] = User().model_dump()
-        User_logged_in.emit("Guest")
+        app.storage.user["current_user"] = User().model_dump()
+        User_logged_in.emit(app.storage.user["current_user"]["account"])
         logger.info("No saved user, go on as Guest.")
     else:
-        user = await login(ui_app.storage.user["current_user"]["account"])
+        user = await login(app.storage.user["current_user"]["account"])
         if user:
-            ui_app.storage.user["current_user"] = user.model_dump()
+            app.storage.user["current_user"] = user.model_dump()
             logger.info(f"User {user.username}({user.account}) logged in.")
         else:
-            ui_app.storage.user["current_user"] = User().model_dump()
+            app.storage.user["current_user"] = User().model_dump()
             logger.info("Saved user is invalid, resetting to Guest.")
-        User_logged_in.emit(user.account)
+        User_logged_in.emit(app.storage.user["current_user"]["account"])
 
     # cached citations, {id: citation, ...}
-    if "cached_citations" not in ui_app.storage.general:
+    if "cached_citations" not in app.storage.general:
         # {id: Citation.model_dump(), ...}
-        ui_app.storage.general["cached_citations"] = {}
+        app.storage.general["cached_citations"] = {}
 
     # current session and its citation id set
-    ui_app.storage.client["current_session_id"] = None
-    # {msg_id: [citation_id, ...], ...}
-    ui_app.storage.client["citations"] = {}
-    # {msg_id: Message.model_dump(), ...}
-    ui_app.storage.client["messages"] = {}
+    app.storage.client["current_session_id"] = None
+    app.storage.client["citations"] = {}  # {msg_id: [citation_id, ...], ...}
+    app.storage.client["messages"] = {}  # {msg_id: Message.model_dump(), ...}
 
     # --- Test Area, remove in production ---
 
@@ -719,15 +705,19 @@ async def root():
 
 # --- App Entry Point ---
 def start():
-    ui.run(
-        title="HuRAG WebUI - A ChatBot",
-        host=conf.webui_app.host,
-        port=conf.webui_app.port,
-        reload=True,
-        uvicorn_reload_dirs=src_dir,
-        favicon=asset("favicon.ico"),
-        storage_secret=storage_secret,
-    )
+    try:
+        ui.run(
+            root=root,
+            title="HuRAG WebUI - A ChatBot",
+            host=conf.webui_app.host,
+            port=conf.webui_app.port,
+            reload=__name__ in {"__main__", "__mp_main__"},
+            uvicorn_reload_dirs=src_dir,
+            favicon=asset("favicon.ico"),
+            storage_secret=storage_secret,
+        )
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ in {"__main__", "__mp_main__"}:
