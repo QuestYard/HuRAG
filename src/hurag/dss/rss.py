@@ -214,6 +214,7 @@ async def query(
     ):
         await cur.execute(statement, data)
         ret = await cur.fetchall()
+        await conn.commit()
         return list(ret)
 
 
@@ -257,6 +258,7 @@ async def query_iter(
                 break
             for row in rows:
                 yield row
+        await conn.commit()
 
 
 async def dml(

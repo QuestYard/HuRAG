@@ -44,6 +44,7 @@ def user_manager(ui_app):
         else:
             ui.notify(f"用户{user.username}({user.account})验证通过", type="positive")
             ui_app.storage.user["current_user"] = user.model_dump()
+            ui_app.storage.client["current_user_account"] = user.account
             User_logged_in.emit(user.account)
             logger.info(f"User {user.username}({user.account}) logged in.")
             dialog.close()
@@ -51,6 +52,7 @@ def user_manager(ui_app):
     def logout(e):
         _ = e
         ui_app.storage.user["current_user"] = User().model_dump()
+        ui_app.storage.client["current_user_account"] = None
         User_logged_in.emit(ui_app.storage.user["current_user"]["account"])
         dialog.close()
 

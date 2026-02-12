@@ -458,7 +458,12 @@ async def root():
             citation_drawer.value = False
 
     # --- Event Handlers ---
-    async def user_logged_in_handler():
+    async def user_logged_in_handler(account: str):
+        # Check if the event is for this client
+        current_user_account = app.storage.client.get("current_user_account")
+        if current_user_account != account:
+            return
+
         from .services import load_sessions_by_user
         from .viewers import show_session_history
 
@@ -472,6 +477,17 @@ async def root():
     User_logged_in.subscribe(user_logged_in_handler)
 
     async def history_session_clicked_handler(session_id: str):
+        # TODO: debug log, remove later
+        # logger.warning(
+        #     f"HISTORY: {ui.context.client = }; "
+        #     f"storage.user.current_user = {app.storage.user.get('current_user', 'Not stored')}; "
+        #     f"storage.client.user_accont = {app.storage.client.get('current_user_account', 'Not stored')}; "
+        # )
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         from .viewers import join_history_session
 
         app.storage.client["current_session_id"] = session_id
@@ -487,6 +503,11 @@ async def root():
     History_session_clicked.subscribe(history_session_clicked_handler)
 
     async def edit_session_title_clicked_handler(session_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         from .services import (
             load_session_by_id,
             update_session_title,
@@ -526,6 +547,11 @@ async def root():
     Edit_session_title_clicked.subscribe(edit_session_title_clicked_handler)
 
     async def delete_session_clicked_handler(session_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         from .services import delete_session_by_id, load_sessions_by_user
         from .viewers import show_session_history
 
@@ -554,6 +580,11 @@ async def root():
     Delete_session_clicked.subscribe(delete_session_clicked_handler)
 
     async def pin_session_clicked_handler(session_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         from .services import pin_session_by_id, load_sessions_by_user
         from .viewers import show_session_history
 
@@ -566,6 +597,11 @@ async def root():
     Pin_session_clicked.subscribe(pin_session_clicked_handler)
 
     async def copy_response_clicked_handler(message_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         msg = app.storage.client["messages"].get(message_id)
         if msg:
             ui.clipboard.write(msg["content"])
@@ -576,12 +612,22 @@ async def root():
     Copy_response_clicked.subscribe(copy_response_clicked_handler)
 
     async def regenerate_response_clicked_handler(message_id: str | None):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         msg = app.storage.client["messages"].get(message_id)
         await send_message(msg["content"])
 
     Regenerate_response_clicked.subscribe(regenerate_response_clicked_handler)
 
     async def like_response_clicked_handler(e, message_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         from .services import like_message
 
         msg = app.storage.client["messages"].get(message_id)
@@ -592,6 +638,11 @@ async def root():
     Like_response_clicked.subscribe(like_response_clicked_handler)
 
     async def dislike_response_clicked_handler(e, message_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         from .services import dislike_message
 
         msg = app.storage.client["messages"].get(message_id)
@@ -602,6 +653,11 @@ async def root():
     Dislike_response_clicked.subscribe(dislike_response_clicked_handler)
 
     async def download_response_clicked_handler(message_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         msg = app.storage.client["messages"].get(message_id)
         if msg:
             filename = f"response_{message_id}.md"
@@ -612,6 +668,11 @@ async def root():
     Download_response_clicked.subscribe(download_response_clicked_handler)
 
     async def show_message_citations_clicked_handler(message_id: str):
+        current_user_account = app.storage.client.get("current_user_account")
+        if not current_user_account:
+            return
+        if current_user_account != app.storage.user["current_user"]["account"]:
+            return
         citation_ids = app.storage.client["citations"].get(message_id, [])
         citations_badge.set_text(str(len(citation_ids)) if citation_ids else "0")
         if not citation_drawer.value:
@@ -676,15 +737,18 @@ async def root():
         or app.storage.user["current_user"].get("id") is None
     ):
         app.storage.user["current_user"] = User().model_dump()
+        app.storage.client["current_user_account"] = None
         User_logged_in.emit(app.storage.user["current_user"]["account"])
         logger.info("No saved user, go on as Guest.")
     else:
         user = await login(app.storage.user["current_user"]["account"])
         if user:
             app.storage.user["current_user"] = user.model_dump()
+            app.storage.client["current_user_account"] = user.account
             logger.info(f"User {user.username}({user.account}) logged in.")
         else:
             app.storage.user["current_user"] = User().model_dump()
+            app.storage.client["current_user_account"] = None
             logger.info("Saved user is invalid, resetting to Guest.")
         User_logged_in.emit(app.storage.user["current_user"]["account"])
 

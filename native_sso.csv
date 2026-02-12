@@ -1,2 +1,5 @@
 account,username,user_path
-hurag,HuRAG项目组,/总部/大区/公司
+hurag,HuRAG项目组,/项目组
+test,测试用户,/项目组/测试小组
+dev,开发人员,/项目组/开发小组
+maintain,运维人员,/项目组/运维小组
