@@ -1,19 +1,27 @@
 from nicegui import Event
 from nicegui.events import ClickEventArguments
+from dataclasses import dataclass, field
 
-# --- Common Events ---
-User_logged_in = Event[str]()
 
-# --- Session Viewer Events ---
-History_session_clicked = Event[str]()
-Delete_session_clicked = Event[str]()
-Pin_session_clicked = Event[str]()
-Edit_session_title_clicked = Event[str]()
+@dataclass
+class ClientEvents:
+    # --- Common Events ---
+    user_logged_in: Event = field(default_factory=lambda: Event[str]())
 
-# --- Chat Viewer Events ---
-Copy_response_clicked = Event[str]()
-Regenerate_response_clicked = Event[str]()
-Like_response_clicked = Event[ClickEventArguments, str]()
-Dislike_response_clicked = Event[ClickEventArguments, str]()
-Download_response_clicked = Event[str]()
-Show_message_citations_clicked = Event[str]()
+    # --- Session Viewer Events ---
+    history_session_clicked: Event = field(default_factory=lambda: Event[str]())
+    delete_session_clicked: Event = field(default_factory=lambda: Event[str]())
+    pin_session_clicked: Event = field(default_factory=lambda: Event[str]())
+    edit_session_title_clicked: Event = field(default_factory=lambda: Event[str]())
+
+    # --- Chat Viewer Events ---
+    copy_response_clicked: Event = field(default_factory=lambda: Event[str]())
+    regenerate_response_clicked: Event = field(default_factory=lambda: Event[str]())
+    like_response_clicked: Event = field(
+        default_factory=lambda: Event[ClickEventArguments, str]()
+    )
+    dislike_response_clicked: Event = field(
+        default_factory=lambda: Event[ClickEventArguments, str]()
+    )
+    download_response_clicked: Event = field(default_factory=lambda: Event[str]())
+    show_message_citations_clicked: Event = field(default_factory=lambda: Event[str]())

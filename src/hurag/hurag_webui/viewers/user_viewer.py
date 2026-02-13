@@ -1,11 +1,16 @@
-from ..events import User_logged_in
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..events import ClientEvents
+
 from ..models import User
 from ..services import login
 from .. import logger
 from nicegui import ui
 
 
-def user_manager(ui_app):
+def user_manager(ui_app, events: ClientEvents):
     current_user = User(**ui_app.storage.user.get("current_user", {}))
 
     with ui.dialog() as dialog, ui.card().classes("p-8 w-xl max-w-full gap-2"):
@@ -45,7 +50,7 @@ def user_manager(ui_app):
             ui.notify(f"用户{user.username}({user.account})验证通过", type="positive")
             ui_app.storage.user["current_user"] = user.model_dump()
             ui_app.storage.client["current_user_account"] = user.account
-            User_logged_in.emit(user.account)
+            events.user_logged_in.emit(user.account)
             logger.info(f"User {user.username}({user.account}) logged in.")
             dialog.close()
 
@@ -53,7 +58,7 @@ def user_manager(ui_app):
         _ = e
         ui_app.storage.user["current_user"] = User().model_dump()
         ui_app.storage.client["current_user_account"] = None
-        User_logged_in.emit(ui_app.storage.user["current_user"]["account"])
+        events.user_logged_in.emit(ui_app.storage.user["current_user"]["account"])
         dialog.close()
 
     # --- Binding properties and callbacks ---

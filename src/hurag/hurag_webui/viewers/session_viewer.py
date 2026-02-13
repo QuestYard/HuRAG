@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..events import ClientEvents
+
 from ..models import Session, Message
-from ..events import (
-    History_session_clicked,
-    Edit_session_title_clicked,
-    Pin_session_clicked,
-    Delete_session_clicked,
-)
 from .chat_viewer import (
     display_bot_message,
     display_user_message,
@@ -15,7 +15,9 @@ from .chat_viewer import (
 from nicegui import ui
 
 
-def show_session_history(sessions: list[Session], container: ui.column) -> None:
+def show_session_history(
+    sessions: list[Session], container: ui.column, events: ClientEvents
+) -> None:
     """
     Show session history in the given container.
 
@@ -42,7 +44,9 @@ def show_session_history(sessions: list[Session], container: ui.column) -> None:
                     )
                     .on(
                         "click",
-                        lambda _, sid=session.id: History_session_clicked.emit(sid),
+                        lambda _, sid=session.id: events.history_session_clicked.emit(
+                            sid
+                        ),
                     )
                 ):
                     ui.tooltip(session.title).classes("text-caption")
@@ -55,14 +59,16 @@ def show_session_history(sessions: list[Session], container: ui.column) -> None:
                     with ui.menu().classes("text-gray-700"):
                         with ui.menu_item(
                             on_click=lambda _, i=session.id: (
-                                Edit_session_title_clicked.emit(i)
+                                events.edit_session_title_clicked.emit(i)
                             ),
                         ):
                             with ui.row().classes("items-center"):
                                 ui.icon("sym_o_edit").props("color=gray-700 size=20px")
                                 ui.label("修改标题")
                         with ui.menu_item(
-                            on_click=lambda _, i=session.id: Pin_session_clicked.emit(i)
+                            on_click=lambda _, i=session.id: (
+                                events.pin_session_clicked.emit(i)
+                            )
                         ):
                             with ui.row().classes("items-center"):
                                 ui.icon("sym_o_push_pin").props(
@@ -71,7 +77,7 @@ def show_session_history(sessions: list[Session], container: ui.column) -> None:
                                 ui.label("置顶")
                         with ui.menu_item(
                             on_click=lambda _, i=session.id: (
-                                Delete_session_clicked.emit(i)
+                                events.delete_session_clicked.emit(i)
                             )
                         ):
                             with ui.row().classes("items-center"):
@@ -82,7 +88,7 @@ def show_session_history(sessions: list[Session], container: ui.column) -> None:
 
 
 async def join_history_session(
-    session_id: str, container: ui.column, username: str
+    session_id: str, container: ui.column, username: str, events: ClientEvents
 ) -> tuple[dict[str, list[str]], list[Message]]:
     """
     Join a history session, display its messages in the given container, and
@@ -117,6 +123,7 @@ async def join_history_session(
                 await display_message_footer(
                     message.id,
                     message.pair_id,
+                    events,
                     message.created_ts,
                     message.likes,
                     message.dislikes,
@@ -127,7 +134,7 @@ async def join_history_session(
     return await load_citation_ids_by_session(session_id), messages
 
 
-async def session_browser(user_id: str):
+async def session_browser(user_id: str, events: ClientEvents):
     """
     Browse sessions for a given user.
 
@@ -238,7 +245,7 @@ async def session_browser(user_id: str):
     async def session_clicked_callback(session_id: str):
         s_dialog.close()
         tmr.deactivate()
-        History_session_clicked.emit(session_id)
+        events.history_session_clicked.emit(session_id)
 
     async def search_clicked_callback():
         import asyncio

@@ -4,15 +4,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ...schemas import Knowledge
     from openai import AsyncOpenAI
+    from ..events import ClientEvents
 
-from ..events import (
-    Copy_response_clicked,
-    Regenerate_response_clicked,
-    Like_response_clicked,
-    Dislike_response_clicked,
-    Download_response_clicked,
-    Show_message_citations_clicked,
-)
 from .. import logger, conf, oa_client_name, oa_model_name, RagMode
 from ...llm import with_oa_client, chat_stream, extract_from_chat
 
@@ -51,6 +44,7 @@ async def display_bot_message(content) -> ui.markdown:
 async def display_message_footer(
     message_id: str | None,
     pair_id: str | None,
+    events: ClientEvents,
     timestamp: datetime = datetime.now(),
     likes: int = 0,
     dislikes: int = 0,
@@ -65,19 +59,25 @@ async def display_message_footer(
         if message_id and pair_id:
             with ui.row().classes("justify-left py-0 my-0"):
                 with ui.button(
-                    on_click=lambda _, i=message_id: Copy_response_clicked.emit(i),
+                    on_click=lambda _, i=message_id: events.copy_response_clicked.emit(
+                        i
+                    ),
                     icon="sym_r_content_copy",
                 ).props("round dense flat size=sm color=gray-500 my-0 py-0"):
                     ui.tooltip("Copy").classes("text-caption")
 
                 with ui.button(
-                    on_click=lambda _, i=pair_id: Regenerate_response_clicked.emit(i),
+                    on_click=lambda _, i=pair_id: (
+                        events.regenerate_response_clicked.emit(i)
+                    ),
                     icon="sym_r_refresh",
                 ).props("round dense flat size=sm color=gray-500 my-0 py-0"):
                     ui.tooltip("Regenerate").classes("text-caption")
 
                 with ui.button(
-                    on_click=lambda e, i=message_id: Like_response_clicked.emit(e, i),
+                    on_click=lambda e, i=message_id: events.like_response_clicked.emit(
+                        e, i
+                    ),
                     icon="sym_r_thumb_up",
                 ).props(
                     "round dense flat size=sm color=gray-500 my-0 py-0"
@@ -87,8 +87,8 @@ async def display_message_footer(
                     ui.tooltip("Like").classes("text-caption")
 
                 with ui.button(
-                    on_click=lambda e, i=message_id: Dislike_response_clicked.emit(
-                        e, i
+                    on_click=lambda e, i=message_id: (
+                        events.dislike_response_clicked.emit(e, i)
                     ),
                     icon="sym_r_thumb_down",
                 ).props(
@@ -99,14 +99,18 @@ async def display_message_footer(
                     ui.tooltip("Dislike").classes("text-caption")
 
                 with ui.button(
-                    on_click=lambda _, i=message_id: Download_response_clicked.emit(i),
+                    on_click=lambda _, i=message_id: (
+                        events.download_response_clicked.emit(i)
+                    ),
                     icon="sym_r_download",
                 ).props("round dense flat size=sm color=gray-500 my-0 py-0"):
                     ui.tooltip("Download").classes("text-caption")
 
                 with ui.button(
                     on_click=(
-                        lambda _, i=message_id: Show_message_citations_clicked.emit(i)
+                        lambda _, i=message_id: (
+                            events.show_message_citations_clicked.emit(i)
+                        )
                     ),
                     icon="sym_r_auto_stories",
                 ).props("round dense flat size=sm color=gray-500 my-0 py-0"):
