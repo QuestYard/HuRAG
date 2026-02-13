@@ -51,7 +51,7 @@ async def is_user_valid(user_id: str, account: str) -> bool:
     return bool(resp)
 
 
-async def upsert_user(account, username, user_path) -> User | None:
+async def upsert_user(account, username, user_path) -> User:
     _ = await rss.dml(
         """
         INSERT INTO users (id, account, username, user_path)
@@ -63,28 +63,15 @@ async def upsert_user(account, username, user_path) -> User | None:
         (generate_id(), account, username, user_path),
         pool_name=db_pool_name,
     )
-    return await get_user(account)
+    user = await get_user(account)
+    return user if user else User()
 
 
-async def login(account: str):
-    sso_info = None
-    if conf.webui_app.sso is not None:
-        # should change to real sso service later
-        logger.error("SSO is unavailable, login failed.")
-    else:
-        import csv
-        from pathlib import Path
+async def login(account: str, password: str | None) -> User:
+    if account.lower() == "guest":
+        return User()
 
-        with open(Path.cwd() / "native_sso.csv", "r", encoding="utf-8") as f:
-            csv_reader = csv.DictReader(f)
-            for row in csv_reader:
-                if row["account"] == account:
-                    sso_info = row.copy()
-                    sso_info.pop("password")
-                    break
+    from ..services import sso_authenticate
 
-    if sso_info is not None:
-        user = await upsert_user(**sso_info)
-        return user
-
-    return None
+    sso_info = await sso_authenticate(account, password)
+    return await upsert_user(**sso_info)

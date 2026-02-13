@@ -9,7 +9,10 @@ class AccountNotExistsError(Exception):
 class PasswordIncorrectError(Exception):
     pass
 
-async def sso_authenticate(account: str, password: str) -> dict:
+async def sso_authenticate(account: str, password: str | None) -> dict:
+    """
+    Authenticate user by account and password, or only by account for stored users.
+    """
     if conf.webui_app.sso is not None:
         # Call real SSO API later
         raise SSOUnavailableError()
@@ -27,7 +30,7 @@ async def sso_change_password(
 
 # --- Native Mock SSO for developing and testing ---
 
-def native_sso_authenticate(account: str, password: str) -> dict:
+def native_sso_authenticate(account: str, password: str | None) -> dict[str, str]:
     import csv
     from pathlib import Path
 
@@ -35,7 +38,7 @@ def native_sso_authenticate(account: str, password: str) -> dict:
         csv_reader = csv.DictReader(f)
         for row in csv_reader:
             if row["account"] == account:
-                if row["password"] == password.strip():
+                if password is None or row["password"] == password.strip():
                     sso_info = row.copy()
                     sso_info.pop("password")
                     return sso_info

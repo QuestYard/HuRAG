@@ -920,18 +920,6 @@ wheels = [
 ]
 
 [[package]]
-name = "deprecated"
-version = "1.3.1"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "wrapt" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f" },
-]
-
-[[package]]
 name = "diskcache"
 version = "5.6.3"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -1609,7 +1597,6 @@ dependencies = [
     { name = "aiofiles" },
     { name = "aiomysql" },
     { name = "bm25s" },
-    { name = "deprecated" },
     { name = "fastapi" },
     { name = "gunicorn" },
     { name = "html-sanitizer" },
@@ -1643,7 +1630,6 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aiomysql", specifier = ">=0.3.2" },
     { name = "bm25s", specifier = ">=0.2.14" },
-    { name = "deprecated", specifier = ">=1.3.1" },
     { name = "fastapi", specifier = ">=0.123.0" },
     { name = "gunicorn", specifier = ">=23.0.0" },
     { name = "html-sanitizer", specifier = ">=2.6.0" },

@@ -4,8 +4,7 @@ from typing import get_args, TYPE_CHECKING
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
-from deprecated import deprecated
-
+from warnings import deprecated
 
 def build_messages(
     prompt: str,
@@ -43,10 +42,7 @@ def build_messages(
     return msgs
 
 
-@deprecated(
-    version="0.2.1",
-    reason="Using `extract_from_chat` instead, will be removed at 0.3.0.",
-)
+@deprecated("Deprecated from v0.3.0, using `extract_from_chat` instead.")
 def extract_response(
     response: ChatCompletion,
     content_only: bool = True,
@@ -75,10 +71,7 @@ def extract_response(
     return ""
 
 
-@deprecated(
-    version="0.2.1",
-    reason="Using `extract_from_chat` instead, will be removed at 0.3.0.",
-)
+@deprecated("Deprecated from v0.3.0, using `extract_from_chat` instead.")
 def extract_chunk(
     chunk: ChatCompletionChunk,
     previous_content: str | None = None,

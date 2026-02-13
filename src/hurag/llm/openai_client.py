@@ -11,7 +11,7 @@ import asyncio
 
 from contextlib import asynccontextmanager
 from functools import wraps
-from deprecated import deprecated
+from warnings import deprecated
 from . import build_messages
 
 _clients: dict[str, AsyncOpenAI] = {}
@@ -98,10 +98,7 @@ async def lifespan():
         await close_oa_client()
 
 
-@deprecated(
-    version="0.2.1",
-    reason="Using chat_completion or chat_stream instead, will be removed at 0.3.0.",
-)
+@deprecated("Deprecated from v0.3.0, using chat_completion or chat_stream instead.")
 async def chat(
     model: str,
     prompt: str,
@@ -260,10 +257,7 @@ from tenacity import (
 )
 
 
-@deprecated(
-    version="0.2.1",
-    reason="Using chat_completion or chat_stream instead, will be removed at 0.3.0.",
-)
+@deprecated("Deprecated from v0.3.0, using chat_completion or chat_stream instead.")
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=2, min=4, max=60),
