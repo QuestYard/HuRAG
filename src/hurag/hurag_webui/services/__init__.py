@@ -25,6 +25,10 @@ from .session_service import (
     next_session_batch,
     search_result_batch,
 )
+from .sso import (
+    sso_authenticate,
+    sso_change_password,
+)
 
 __all__ = [
     "load_citations_by_ids",
@@ -48,4 +52,6 @@ __all__ = [
     "pin_session_by_id",
     "next_session_batch",
     "search_result_batch",
+    "sso_authenticate",
+    "sso_change_password",
 ]

@@ -80,6 +80,7 @@ async def login(account: str):
             for row in csv_reader:
                 if row["account"] == account:
                     sso_info = row.copy()
+                    sso_info.pop("password")
                     break
 
     if sso_info is not None:

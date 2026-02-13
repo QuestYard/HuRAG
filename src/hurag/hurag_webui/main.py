@@ -559,7 +559,6 @@ async def root():
     client_events.pin_session_clicked.subscribe(pin_session_clicked_handler)
 
     async def copy_response_clicked_handler(message_id: str):
-        # Guest can copy
         msg = app.storage.client["messages"].get(message_id)
         if msg:
             ui.clipboard.write(msg["content"])
@@ -570,7 +569,6 @@ async def root():
     client_events.copy_response_clicked.subscribe(copy_response_clicked_handler)
 
     async def regenerate_response_clicked_handler(message_id: str | None):
-        # Guests can regenerate too, so we just remove the client check
         msg = app.storage.client["messages"].get(message_id)
         await send_message(msg["content"])
 
@@ -599,7 +597,6 @@ async def root():
     client_events.dislike_response_clicked.subscribe(dislike_response_clicked_handler)
 
     async def download_response_clicked_handler(message_id: str):
-        # Guests can download
         msg = app.storage.client["messages"].get(message_id)
         if msg:
             filename = f"response_{message_id}.md"
