@@ -1,6 +1,10 @@
 from . import conf, logger, db_pool_name, oa_client_name, oa_model_name
 from .models import User, Citation, Message
-from .services import login
+from .services import (
+    SSOUnavailableError,
+    AccountNotExistsError,
+    login,
+)
 from .viewers import user_manager, scroll_to_bottom, show_citations
 from .constants import (
     CHAT_MODES,
@@ -667,7 +671,7 @@ async def root():
         }""",
     )
 
-    # --- UI data ---
+    # --- Login and Initialize UI data ---
     if (
         "current_user" not in app.storage.user
         or app.storage.user["current_user"].get("id") is None
@@ -676,13 +680,23 @@ async def root():
         client_events.user_logged_in.emit(app.storage.user["current_user"]["account"])
         logger.info("No saved user, go on as Guest.")
     else:
-        user = await login(app.storage.user["current_user"]["account"])
-        if user:
+        try:
+            user = await login(app.storage.user["current_user"]["account"], None)
             app.storage.user["current_user"] = user.model_dump()
             logger.info(f"User {user.username}({user.account}) logged in.")
-        else:
+        except SSOUnavailableError:
             app.storage.user["current_user"] = User().model_dump()
+            ui.notify("SSO 服务不可用，以访客身份登录。", type="negative")
+            logger.info("SSO Service unavailable, forced to longin as Guest.")
+        except AccountNotExistsError:
+            app.storage.user["current_user"] = User().model_dump()
+            ui.notify("用户账户不存在，改以访客身份登录。", type="negative")
             logger.info("Saved user is invalid, resetting to Guest.")
+        except Exception as e:
+            app.storage.user["current_user"] = User().model_dump()
+            ui.notify("登录错误，以访客身份登录")
+            logger.info(f"Saved user login failed, resetting to Guest: {e!r}")
+
         client_events.user_logged_in.emit(app.storage.user["current_user"]["account"])
 
     # cached citations, {id: citation, ...}

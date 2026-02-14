@@ -1,4 +1,4 @@
-from .. import db_pool_name, logger, conf
+from .. import db_pool_name
 from ...utilities import generate_id
 from ...dss import rss
 from ..models import User

@@ -1,13 +1,17 @@
 from .. import conf
 
+
 class SSOUnavailableError(Exception):
     pass
+
 
 class AccountNotExistsError(Exception):
     pass
 
+
 class PasswordIncorrectError(Exception):
     pass
+
 
 async def sso_authenticate(account: str, password: str | None) -> dict:
     """
@@ -19,6 +23,7 @@ async def sso_authenticate(account: str, password: str | None) -> dict:
 
     return native_sso_authenticate(account, password)
 
+
 async def sso_change_password(
     account: str, old_password: str, new_password: str
 ) -> None:
@@ -28,7 +33,9 @@ async def sso_change_password(
 
     native_sso_change_password(account, old_password, new_password)
 
+
 # --- Native Mock SSO for developing and testing ---
+
 
 def native_sso_authenticate(account: str, password: str | None) -> dict[str, str]:
     import csv
@@ -44,6 +51,7 @@ def native_sso_authenticate(account: str, password: str | None) -> dict[str, str
                     return sso_info
                 raise PasswordIncorrectError(f"User '{account}' password incorrect.")
         raise AccountNotExistsError(f"User '{account}' not exists.")
+
 
 def native_sso_change_password(
     account: str, old_password: str, new_password: str
