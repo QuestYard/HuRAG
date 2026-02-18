@@ -1,6 +1,6 @@
 [project]
 name = "HuRAG"
-version = "0.3.1"
+version = "0.3.2"
 description = "HuRAG, A TH-GraphRAG Application From QuestYard."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -20,7 +20,6 @@ dependencies = [
     "typer>=0.20.0",
     "uuid6>=2025.0.1",
     "uvicorn>=0.38.0",
-    "pydantic-ai>=1.30.1",
     "scipy>=1.17.0",
     "bm25s>=0.2.14",
     "html-sanitizer>=2.6.0",
