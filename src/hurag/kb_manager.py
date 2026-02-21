@@ -70,7 +70,7 @@ async def _delete_knowledge(
                 f"""
                 SELECT id FROM relations WHERE source_id IN {phd}
                 UNION
-                SELECT id FROM relations WHERE target_id IN {phd}"
+                SELECT id FROM relations WHERE target_id IN {phd}
                 """,
                 orphan_entity_ids + orphan_entity_ids,
             )
@@ -125,7 +125,7 @@ async def _delete_knowledge(
             r = await cli.delete("edges", ids=orphan_relation_ids + cut_relation_ids)
             ret.relations = r["delete_count"]
         if community_ids:
-            r = await cli.delete("community", ids=community_ids)
+            r = await cli.delete("communities", ids=community_ids)
             ret.communities = r["delete_count"]
     except Exception as e:
         logger.error(f"Delete {id_type} from vdb failed: {e!r}")
@@ -134,11 +134,11 @@ async def _delete_knowledge(
     return ret
 
 
-async def delete_document(id: str) -> dict | None:
+async def delete_document(id: str) -> DeletionResults:
     return await _delete_knowledge(id, id_type="document")
 
 
-async def delete_segment(id: str) -> dict | None:
+async def delete_segment(id: str) -> DeletionResults:
     return await _delete_knowledge(id, id_type="segment")
 
 
