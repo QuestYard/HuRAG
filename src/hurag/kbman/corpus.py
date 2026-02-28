@@ -2,10 +2,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .schemas import Document
+    from ..schemas import Document
 
 from pathlib import Path
-from . import logger
+from .. import logger
 
 
 def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
@@ -62,7 +62,7 @@ def corpus_markup(path: str) -> list[dict]:
     """
     import json
     from datetime import datetime
-    from . import conf
+    from .. import conf
 
     folder = Path(path).expanduser().resolve()
     markups = []
@@ -160,7 +160,7 @@ async def corpus_split(path: str) -> tuple:
     """
     import json
     import asyncio
-    from .splitters import (
+    from ..splitters import (
         plain_text_splitter,
         regulation_splitter,
         markdown_splitter,
@@ -245,12 +245,12 @@ async def corpus_load(path: Path, exclude_kb_docs: bool = False) -> list[Documen
     import json
     import concurrent.futures
     import asyncio
-    from .schemas import Document
+    from ..schemas import Document
 
     with open(path / "corpus.json", "r", encoding="utf-8") as f:
         markups = json.load(f)
     if exclude_kb_docs:
-        from .dss import rss
+        from ..dss import rss
 
         docs_in_kb = {x[0] for x in await rss.query("SELECT title FROM documents")}
         markups = [m for m in markups if m["title"] not in docs_in_kb]

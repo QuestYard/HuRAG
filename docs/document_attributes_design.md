@@ -1,49 +1,66 @@
-# 知识文档
+# 知识文档与文集
 
-## 文档格式
+## 向量化文档 vs 多模态文档
 
-HuRAG 最终入库的文档格式包括 Markdown、CSV 和 TXT 三种格式，系统能够自动识别并处理这三种格式的文档，将其分割为实际入库的段落和文本块。
+**向量化文档** 是指可以通过分块向量化构建向量知识库、提取知识点构建知识图谱的文档，是项目最核心的文档类型。通常情况下，文本型文档和有良好结构的数据表都应当通过清洗、标注、分割、向量化等方式作为向量化文档入库。
 
-项目内置了来自 Microsoft 的开源项目 MarkItDown，能够支持 PDF、Word、Excel、PowerPoint、HTML、JSON、XML 等多种常见格式的文档，将其转换为上述三种入库格式。
+**多模态文档** 是指图像、音频、视频等非文本型文档，复杂流程表单等各类难以结构化、难以提取信息的复杂文档，也常用于正文附件的入库。多模态文档不参与向量化、不参与知识图谱构建。
+
+## 文档的格式
+
+**向量化文档** 支持 Markdown、CSV 和 TXT 三种格式，通过特定的文件名后缀，系统能够自动识别并处理这三种格式的文档，将其分割为实际入库的段落和文本块。
+
+推荐使用微软的开源工具 MarkItDown 对 Word、Excel、PowerPoint、HTML 等格式的文档进行格式转换为 Markdwon 文档。
 
 关于 MarkItDown 的使用和配置，请参考：[MarkItDown](https://github.com/microsoft/MarkItDown)
 
-PDF 文档，建议使用上海人工智能实验室 OpenDataLab 项目提供的工具 [MinerU](https://github.com/opendatalab/MinerU) 提取为 Markdown 格式后再进行入库处理。该工具在处理中文 PDF 文档方面效果比 MarkItDown 更好，能够较好地保留文档的结构和格式，并有更为优秀的图文识别和表格处理能力。
+对于 PDF 文档，建议使用上海人工智能实验室 OpenDataLab 项目提供的工具 [MinerU](https://github.com/opendatalab/MinerU) 提取为 Markdown 格式后再进行入库处理。该工具在处理中文 PDF 文档方面效果比 MarkItDown 更好，能够较好地保留文档的结构和格式，并有更为优秀的图文识别和表格处理能力。
 
 MinerU 项目官网文档：[MinerU Documentation](https://opendatalab.github.io/MinerU/)
 
-对于中国特有的 OFD 文档，可设法先转为 PDF、Word 等格式，再使用上述工具进行处理。
+对于 OFD 文档，可设法先转为 PDF、Word 等格式，再使用上述工具进行处理。
+
+**多模态文档** 无格式要求，任何可被系统读取的文档均可支持。
 
 ## 文档预处理
 
-文档预处理对将要纳入知识库的文档源文件进行预处理，使其达到知识化入库的标准，并加载入 SQL 数据库。
+文档预处理 *主要针对向量化文档*，通过对文档原文件进行一定的处理，使其符合可被加载入库的规范。
 
-文档预处理支持 PDF, OFFICE 等多格式源文件 Markdown 提取，支持文集（Corpus）模式批量处理。预处理共包括 **格式化**、**分割**、**加载** 三个步骤，
+多模态文档除了本身内容的校对、排版等以外，一般不需要进行额外的预处理，原则上所有常见格式的文档均可被多模态大模型读取理解并提取内容后纳入知识库。
 
-## 格式化
+### 向量化文档格式转化
 
-HuRAG 可供分割和加载的文件类型为 TXT, Markdown, CSV 三种，其余文件类型需手动提取内容为此三种类型之一，或使用 MarkItDown 或 MinerU 等工具进行转换。
+HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类型若需向量化，则必须先手动提取内容并转换为此三种类型之一，例如使用 MarkItDown、MinerU 等工具进行转换。
 
-上述转换及转换后的文本内容检查、校对、清洗等工作均属于格式化范畴。此步骤主要为人工工作，确保文档内容和格式符合入库要求。
+为方便操作，项目集成了 MarkItDown，通过 CLI 命令 `corpus convert` 提供基于 MarkItDown 的文档转 Markdown 格式和文字编码转换功能，具体用法参见  [HuRAG CLI Documentation](./cli_documentation.md)。
 
-项目提供 CLI 命令 `corpus convert` 用于辅助格式及文字编码转换，参见  [HuRAG CLI Documentation](./cli_documentation.md)。
+### 文本清洗与格式化
 
-格式化后的文件规范：无特殊命名要求，UTF-8 编码，LF 换行。
+在取得用于向量化加载的原文件后，通常还需要人为进行校对、排版等必要的工作，确保入库的文本无误，即文本清洗。
 
-### 文本清洗
-
-确保文本准确、语义完整、减少歧义和差错：
+文本清洗的目标是确保文本准确、语义完整、减少歧义和差错：
 
 - 去除文档标题、日期、发布机构等信息，只保留内容正文；
 - 文字纠错，尽可能减少错别字；
 - 标点符号纠错，中文文档尽可能统一使用中文标点符号，以避免英文标点符号与文中的小数点、公式运算符、数值和时间分节号等相混淆；
 - 正确分段，清除多余的换行，顶格起段，段前不留空，Markdown 建议采用标题分段格式；
-- 处理图表，将图表中的有效知识信息提取为文字形式，无法文字化的内容需要剔除。
-- 格式校验，条文型文档（法律、制度等）和 CSV 表格需要进行格式校验。
+- 处理图表，将图表中的有效知识信息改写为文字形式，无法文字化的内容需要剔除；
+- 格式校验，条文型文档（法律、制度等）和 CSV 表格需要进行格式校验；
+- 附件处理，一般情况下建议将附件作为多模态文档，附加在主文档之外；
+- 源文件使用 UTF-8 编码，Linux/Unix 风格的 LF 换行。
 
-### 条文型文档格式
+#### 制度型文档（regulation-like documents）格式化
 
-条文型文档支持“编、分编、章、节、条”五级结构，每级的编号中间无空格，级标题中间无空格，编号和标题（或正文）之间留至少一个空格，以《民法典合同编》的开头为例：
+制度型文档指以条文式结构组织文本的文档，比如法律法规、企业制度等。对于此类文档，项目支持按照“编、分编、章、节、条”五级结构自动分割文本并向量化加载入库。
+
+为使项目能准确识别并分割条文，需要让文本符合以下格式规范：
+
+- 无空行；
+- 级编号中间无空格，例如：`第一章`；
+- 级标题中间无空格，例如：`总则`；
+- 级编号和标题（或正文）之间留至少一个 ASCII 空格，例如：`第一章 总则`。
+
+以《民法典合同编》的开头为例：
 
 ```
 第三编 合同
@@ -56,11 +73,11 @@ HuRAG 可供分割和加载的文件类型为 TXT, Markdown, CSV 三种，其余
 ……
 ```
 
-### 结构化文档格式
+#### 结构型文档（structured documents）格式化
 
-结构化文档采用 Markdown 文件存放，使用多级标题组织内容结构。系统按照前三级标题进行分块，每一标题下正文内容组成一个段，段按照文字长度再按原自然段或自然语言断句位置切分为块。
+结构型文档采用 Markdown 格式，使用多级标题组织内容结构。项目按照前三级标题进行分块，每一标题下正文内容组成一个段，段按照文字长度再按原自然段或自然语言断句位置切分为块。
 
-注意：原文中部分标题与内容未分自然段的要进行分离。
+*注意：原文中部分标题与内容未分自然段的要进行分离。*
 
 以《国家发展改革委等部门关于严格执行招标投标法规制度进一步规范招标投标主体行为的若干意见》开篇部分内容为例：
 
@@ -78,255 +95,345 @@ HuRAG 可供分割和加载的文件类型为 TXT, Markdown, CSV 三种，其余
 依法经项目审批、核准部门确定的招标范围、招标方式、招标组织形式，未经批准不得随意变更。依法必须招标项目拟不……
 ```
 
-### CSV 表格格式
+#### 无结构文档（unstructured documents）格式化
 
-CSV 表格以 `"标题：内容"` 的形式构成知识段，每段一个文本块，共支持 8 种布局，可根据需要灵活组织。
+无结构文档泛指除制度型和结构型两种类型之外的文本文档，通常无法良好地划分段落结构，例如含有大量难以分段的长文本、HTML 文档等。
+
+对于此类文档，将采用带重叠的循环分割方式进行自动分割入库，一般来说不需要进行专门的格式化。但为了尽可能保证分割时各块文本的语义完整准确，建议进行必要的校对排版，比如去除不必要的空行、无意义的符号等。
+
+#### CSV 数据表（csv table）格式化
+
+需要向量化入库的 CSV 数据表以 `"标题：内容"` 的形式构建知识段，每段一个块，共支持 8 种布局，可根据需要灵活组织。
 
 - **normal**: 默认布局，第一行为标题，其余行为内容，读入知识库后，内容和标题组合成为知识块。
-
-    |   Title_A   |   Title_B   |   Title_C   |
-    |:-----------:|:-----------:|:-----------:|
-    |  content_a  |  content_b  |  content_c  |
-
+  
+  | Title_A   | Title_B   | Title_C   |
+  |:---------:|:---------:|:---------:|
+  | content_a | content_b | content_c |
+  
     读入后形成以下 1 段知识：
-
-    ```
-    """
-    Title_A：content_a
-    Title_B：content_b
-    Title_C：content_c
-    """
-    ```
+  
+  ```
+  """
+  Title_A：content_a
+  Title_B：content_b
+  Title_C：content_c
+  """
+  ```
 
 - **vertical**: 垂直布局，相当于 normal 的转置，第一列为标题，其他列为内容。
-
-    |||
-    |:-----------:|:-----------:|
-    | **Title_A** |  content_a  |
-    | **Title_B** |  content_b  |
-    | **Title_C** |  content_c  |
-
+  
+  |             |           |
+  |:-----------:|:---------:|
+  | **Title_A** | content_a |
+  | **Title_B** | content_b |
+  | **Title_C** | content_c |
+  
     读入后形成以下 1 段知识：
-
-    ```
-    """
-    Title_A：content_a
-    Title_B：content_b
-    Title_C：content_c
-    """
-    ```
+  
+  ```
+  """
+  Title_A：content_a
+  Title_B：content_b
+  Title_C：content_c
+  """
+  ```
 
 - **cross**: 交叉布局，第一行和第一列均为标题，其他单元格为内容。
-
-    |             |   Title_A   |   Title_B   |
-    |:-----------:|:-----------:|:-----------:|
-    | **Title_1** |  content_a1 |  content_b1 |
-    | **Title_2** |  content_a2 |  content_b2 |
-
+  
+  |             | Title_A    | Title_B    |
+  |:-----------:|:----------:|:----------:|
+  | **Title_1** | content_a1 | content_b1 |
+  | **Title_2** | content_a2 | content_b2 |
+  
     读入后形成以下 4 段知识：
-
-    ```
-    "Title_A，Title_1：content_a1"
-    "Title_B，Title_1：content_b1"
-    "Title_A，Title_2：content_a2"
-    "Title_B，Title_2：content_b2"
-    ```
+  
+  ```
+  "Title_A，Title_1：content_a1"
+  "Title_B，Title_1：content_b1"
+  "Title_A，Title_2：content_a2"
+  "Title_B，Title_2：content_b2"
+  ```
 
 - **plain**: 平铺布局，每一个单元格即为一段知识。
-
-    |||
-    |:-----------:|:-----------:|
-    |  content_a  |  content_b  |
-    |  content_c  |  content_d  |
-
+  
+  |           |           |
+  |:---------:|:---------:|
+  | content_a | content_b |
+  | content_c | content_d |
+  
     读入后形成以下 4 段知识：
-
-    ```
-    "content_a"
-    "content_b"
-    "content_c"
-    "content_d"
-    ```
+  
+  ```
+  "content_a"
+  "content_b"
+  "content_c"
+  "content_d"
+  ```
 
 - **stripes**: 条纹布局，从首行起，一行标题、一行内容，每 2 行组成一段知识，最后一行若为奇数行则会被丢弃。
-
-    |   Title_A   |   Title_B   |
-    |:-----------:|:-----------:|
-    |  content_a  |  content_b  |
-    | **Title_C** | **Title_D** |
-    |  content_c  |  content_d  |
-
+  
+  | Title_A     | Title_B     |
+  |:-----------:|:-----------:|
+  | content_a   | content_b   |
+  | **Title_C** | **Title_D** |
+  | content_c   | content_d   |
+  
     读入后形成以下 2 段知识：
-
-    ```
-    """
-    Title_A：content_a
-    Title_B：content_b
-    """
-
-    """
-    Title_C：content_c
-    Title_D：content_d
-    """
-    ```
+  
+  ```
+  """
+  Title_A：content_a
+  Title_B：content_b
+  """
+  
+  """
+  Title_C：content_c
+  Title_D：content_d
+  """
+  ```
 
 - **vstripes**: 竖条纹布局，相当于 stripes 的转置，首列为标题，从首列起一列标题、一列内容，每 2 列组成一段知识，最后一列如果为奇数列则被丢弃。
-
-    |||||
-    |:-----------:|:-----------:|:-----------:|:-----------:|
-    | **Title_A** |  content_a  | **Title_C** |  content_c  |
-    | **Title_B** |  content_b  | **Title_D** |  content_d  |
-
+  
+  |             |           |             |           |
+  |:-----------:|:---------:|:-----------:|:---------:|
+  | **Title_A** | content_a | **Title_C** | content_c |
+  | **Title_B** | content_b | **Title_D** | content_d |
+  
     读入后形成以下 2 段知识：
+  
+  ```
+  """
+  Title_A：content_a
+  Title_B：content_b
+  """
+  
+  """
+  Title_C：content_c
+  Title_D：content_d
+  """
+  ```
 
-    ```
-    """
-    Title_A：content_a
-    Title_B：content_b
-    """
-
-    """
-    Title_C：content_c
-    Title_D：content_d
-    """
-    ```
-
-- **rows:r1, r2,...**: 指定标题行的 stripes 布局，行号从 0 开始编号。
-
-    |   Title_A   |   Title_B   |
-    |:-----------:|:-----------:|
-    |  content_a1 |  content_b1 |
-    |  content_a2 |  content_b2 |
-    | **Title_C** | **Title_D** |
-    |  content_c  |  content_d  |
-
+- **rows_r1_r2...**: 指定标题行的 stripes 布局，行号从 0 开始编号。
+  
+  | Title_A     | Title_B     |
+  |:-----------:|:-----------:|
+  | content_a1  | content_b1  |
+  | content_a2  | content_b2  |
+  | **Title_C** | **Title_D** |
+  | content_c   | content_d   |
+  
     读入后形成以下 3 段知识：
+  
+  ```
+  """
+  Title_A：content_a1
+  Title_B：content_b1
+  """
+  
+  """
+  Title_A：content_a2
+  Title_B：content_b2
+  """
+  
+  """
+  Title_C：content_c
+  Title_D：content_d
+  """
+  ```
 
-    ```
-    """
-    Title_A：content_a1
-    Title_B：content_b1
-    """
-
-    """
-    Title_A：content_a2
-    Title_B：content_b2
-    """
-
-    """
-    Title_C：content_c
-    Title_D：content_d
-    """
-    ```
-
-- **cols:c1, c2,...**: 指定标题列的 vstripes 布局，列号从 0 开始编号。
-
-    ||||||
-    |:-----------:|:-----------:|:-----------:|:-----------:|:-----------:|
-    | **Title_A** |  content_a1 |  content_a2 | **Title_C** |  content_c  |
-    | **Title_B** |  content_b1 |  content_b2 | **Title_D** |  content_d  |
-
+- **cols_c1_c2...**: 指定标题列的 vstripes 布局，列号从 0 开始编号。
+  
+  |             |            |            |             |           |
+  |:-----------:|:----------:|:----------:|:-----------:|:---------:|
+  | **Title_A** | content_a1 | content_a2 | **Title_C** | content_c |
+  | **Title_B** | content_b1 | content_b2 | **Title_D** | content_d |
+  
     读入后形成以下 2 段知识：
+  
+  ```
+  """
+  Title_A：content_a1
+  Title_B：content_b1
+  """
+  
+  """
+  Title_A：content_a2
+  Title_B：content_b2
+  """
+  
+  """
+  Title_C：content_c
+  Title_D：content_d
+  """
+  ```
 
-    ```
-    """
-    Title_A：content_a1
-    Title_B：content_b1
-    """
+## 文集
 
-    """
-    Title_A：content_a2
-    Title_B：content_b2
-    """
+为方便文档的批量处理，采用 **文集（corpus）** 的形式组织多份文档，集中管理文档的原文件和元数据标注。
 
-    """
-    Title_C：content_c
-    Title_D：content_d
-    """
-    ```
+一个文集，即一个磁盘目录（文件夹），一批要集中管理和处理加载的文档统一存放在该目录下，以一定的规范命名和存储文档正文、附件的原文件，添加文集标注文件 `corpus.json` 后即形成一个完整的文集。项目可以通过扫描其中的文件，读取标注文件的信息来自动完成分割向量化文档、提取多模态文档内容、知识文档存储入库、删除、修改元数据等操作。
 
-## 标注
+### 文集标注
 
-**文集（corpus）**：标注文件中所列的具体文档应当与其在同一目录下存放。一个目录中所含的所有文档及标注文件合称为一个文集。
+一个文集的基本信息和知识库增删改操作指令信息统一存放在其标注文件 `corpus.json` 中。
 
-文集中的文档采用 JSON 格式在一个标注文件内集中标注，标注文件名固定为 `corpus.json`，UTF-8 编码，LF 换行。标注内容包括：
+一个标注文件包含三个固定键：`insert`, `update`, `delete`，分别用于指明本文集加载后要新增、修改和删除的文档。
 
-|标注名   |键            |值类型        |说明                                       |
-|---------|--------------|--------------|-------------------------------------------|
-|文件名   |filename      |str           |文档文件名，不含路径                       |
-|文档标题 |title         |str(100)      |建议加中文书名号《标题》                   |
-|法令文号 |sn            |str(50)       |可null                                     |
-|发布日期 |date          |str(date)     |格式"%Y-%m-%d"，例如"2025-08-22"           |
-|生效日期 |valid_from    |str(date)     |格式"%Y-%m-%d"，例如"2025-08-22"           |
-|失效日期 |valid_to      |str(date)     |格式"%Y-%m-%d"，例如"2025-08-22"，可null   |
-|前序版本 |replaces      |str(100)      |前序版本的标题，必须一致，可null           |
-|发布机构 |pub_path      |str(100)      |文档发布路径                               |
-|上级文档 |localizes     |str(100)      |上级文档的标题，必须一致，可null           |
-|原文作者 |authors       |str(100)      |可null                                     |
-|文档布局 |layout        |str           |"text", "regu", "v1_doc" 或8种csv布局之一  |
+```json
+{
+    "insert": {
+        "filename_of_doc_to_insert": {
+            "filename": "prefix_title.suffix",
+            "title": "《title》",
+            "sn": str | null,
+            "date": "%Y-%m-%d",
+            "valid_from": "%Y-%m-%d",
+            "valid_to": "%Y-%m-%d" | null,
+            "replaces": str | null,
+            "pub_path": str,
+            "localizes": str | null,
+            "authors": str | null,
+        },
+        ...
+    },
+    "update": { 
+        "title_of_the_doc_to_update": {
+            "title": "new value",
+            "sn" : "new value",
+            "date" : "new value",
+            "valid_from" : "new value",
+            "valid_to" : "new value",
+            "replaces" : "new value",
+            "localizes" : "new value",
+            "authors" : "new value"
+        }, ...
+    },
+    "delete": [
+        "title_of_the_doc_to_delete",
+        ("title_of_a_doc", "title_of_the_attachment_to_delete"),
+        ...
+    ]
+}
+```
 
-文集标注文件固定命名，使用 CLI 命令 `corpus markup <dir_path>` 会生成一个预标注模板，如果目录下已经存在 `corpus.json` 文件，则会被覆盖：[HuRAG CLI Documentation](./cli_documentation.md)。
+其中：
 
-### 标注规范
+- `insert` 对象：每一个文集内文档使用其原文件的文件名为键值，指定其元数据信息，同原标注规则，无 `layout` 项；
+- `update` 对象：每一个待修改的文档以当前库内文档标题为键值，指定要修改的元数据项和新值，元数据项不必列全，不修改的无需列入；
+- `delete` 列表：待删除的库内文档标题列表，删除操作仅指删除数据库中的内容和多模态文档内容文件，并不删除文档原文件、附件原文件和向量化文档的 `.idx` 文件。
 
-- 文集中的文档若有前序版本或上级文档的，应当已经加载入知识库或与本文档在同一文集标注加载。
+文集加载时，将按照先新增，再修改，最后删除的顺序执行标注文件中的所有标注。
+
+`insert`, `update` 标注中的元数据字段说明如下：
+
+| 标注名   | 键         | 值类型    | 允许 null | 说明                                   |
+| -------- | ---------- | --------- | --------- | -------------------------------------- |
+| 文件名   | filename   | str       |    否     | 文档原文件名，不含路径，唯一           |
+| 文档标题 | title      | str(100)  |    否     | 知识库中使用的文档标题，唯一           |
+| 法令文号 | sn         | str(50)   |    是     | 正式印发的法、令、文号，可 null        |
+| 发布日期 | date       | str(date) |    否     | 格式"%Y-%m-%d"，例如"2025-08-22"       |
+| 生效日期 | valid_from | str(date) |    否     | 格式"%Y-%m-%d"，例如"2025-08-22"       |
+| 失效日期 | valid_to   | str(date) |    是     | 格式"%Y-%m-%d"，null 表示当前有效      |
+| 前序版本 | replaces   | str(100)  |    否     | 前序版本的标题，必须一致，可 null      |
+| 发布机构 | pub_path   | str(100)  |    否     | 文档发布机构路径，详见组织机构相关说明 |
+| 上级文档 | localizes  | str(100)  |    否     | 上级文档的标题，必须一致，可 null      |
+| 原文作者 | authors    | str(100)  |    否     | 多名作者用逗号分隔，可 null            |
+
+**标注规范**：
+
+- 前序版本和上级文档采用库内文档标题标注，必须保证本文集加载完成后库内存在该标题的文档。
 - 发布机构必须确保路径上每一个机构名称的一致性，同一机构不能在不同文档的路径中存在不同名称，需要向下传播的文档在其发布机构路径最后添加 `'*'` 字符。参见：[组织机构树说明](./organization_tree_design.md)。
 - 已经失效（有失效日期）的文档可以没有后序版本；但若文档有前序版本，则前序文档必然已经失效，其失效日期将根据当前文档的生效日期改写：`replaces.valid_to <- this.valid_from - 1`。
-- 文集标注文件所在目录下，若有文档未在标注文件中注明，则不属于该文集，后续不会被加载入库。
-- 文档布局标注：`text` 表示所有结构化（Markdown）或无结构（TXT）的一般文本文档，`regu` 表示条文式布局的法律或制度文档，`v1_doc` 为已经使用 HuRAG-pre（一个早期的实验性版本）规范分割并标注的文档，CSV 表格使用 8 种表格布局名称字符串，`manual` 表示手动分割的 TXT 文档。
+- 文集标注文件所在目录下，若有文档未在标注文件 `insert` 中注明，则认为其不属于该文集，后续不会被加载入库。
+- `insert` 标注时所有元数据均应提供，提供 `null` 的即表示该元数据项为空值。`update` 标注中，只需要提供要修改的元数据项，未提供即表示不修改，提供 `null` 值标注则表示将该元数据项改为空值。
 
-### 标注文件示例
+### 文件名和附件目录
+
+为了实现自动识别文档类型、加载模式、自动生成预标注模板等功能，需要对文集中文件名和子目录的命名进行规范。
+
+1. 规范化文档原文件的文件名：原文件名格式规范为 `prefix_title.suffix`，其中：
+   
+   - `prefix`：前缀，可任意编制，也可以没有，通常可以用来编一些有意义的字段码用来方便文件目录管理和文件排序等，例如 `TZ_001`，前缀结束后必须用下划线 `_` 和后面的标题部分连接；
+   - `title`：标题，自动标注时用于提取并添加中文书名号，作为库内文档标题（`title` 字段）的值，非常重要，不能有重复；
+   - `suffix`：后缀名用于判断文档是向量化文档还是多模态文档，向量化文档的还用于区分后续的分割方法。
+     - `.regu`：制度型文档，向量化，采用制度分割器分割；
+     - `.markdown`：结构型文档，向量化，采用结构化 markdown 分割器分割；
+     - `.text`：无结构文本文档，向量化，采用循环重叠文本分割器分割；
+     - `.normal`, `.vertical`, `.cross`, `.plain`, `.stripes`, `.vstripes`, `rows_r1_r2_..._rn`, `cols_c1_c2_..._cn`：CSV 表格，向量化，按 8 种表格布局分割；
+     - 其他所有文件名不是 `corpus.json`, `meta.json`，以及后缀不是 `.idx` 的文件：多模态文档，非向量化，提取内容保存为磁盘文件。
+
+2. 文档附件规范：
+
+  - 在文集目录下新建一个与文档原文件同名（不带后缀）的子目录 `./prefix_title`，所有附件原文件存入该目录下；
+  - 附件原文件命名规范：`附件X_附件标题`。
+
+  附件文件均视为多模态文档处理，入库时自动扫描文集目录下的子目录，寻找所有可能的文档附件并提取和保存内容，原文件名去除后缀后作为 `title`，因此文件名务必遵循规范并有意义。
+
+3. 多模态文档内容文件的磁盘存储：
+
+  项目配置文件 `hurag.yaml` 的 `app.extra_docs_dir` 指定所有多模态文档（包括附件文档）内容文件的存放位置，为一个从项目目录（即 `hurag.yaml` 所在目录）开始的相对路径。
+
+  文档附件在经过大模型分析对齐后提取到的内容，将保存在该目录下的 `attachments` 子目录中，多模态文档的内容则保存在该目录下的 `extra` 子目录中。文件名为 `<doc_id>.content`。
+
+
+### 预标注
+
+文集标注文件固定命名为 `corpus.json`，使用 CLI 命令 `corpus markup <dir_path>` 会生成一个预标注模板 `corpus_template.json`：[HuRAG CLI Documentation](./cli_documentation.md)。
+
+一般情况下，预标注生成的模板只能根据文件名获取到文档的 `title`，其他元数据无法直接获取，所有文档的发布机构路径也只能默认使用项目配置文件中的 `app.org_path` 的值，这些值都需要用户手动补齐。
+
+用户也可以在文集目录下通过一个 `meta.json` 文件来提供全部或部分元数据，预标注命令会检测并读取其中可用的元数据填入预标注模板中。该文件的格式为一个 JSON 列表，如：
 
 ```json
 [
     {
-        "filename": "通用-执行-《民法典合同编》.txt",
-        "title": "《民法典合同编》",
-        "sn": null,
-        "date": "2020-05-28",
-        "valid_from": "2020-05-28",
-        "valid_to": null,
-        "replaces": null,
-        "pub_path": "全国人民代表大会",
-        "localizes": null,
-        "authors": null,
-        "layout": "v1_doc"
-    },
-    {
-        "filename": "采购-执行-《中华人民共和国招标投标法（2017修订）》.txt",
+        "filename": "中华人民共和国招标投标法（2017修订）.regu",
         "title": "《中华人民共和国招标投标法(2017修订)》",
         "sn": "中华人民共和国主席令第86号",
-        "date": "2000-01-01",
-        "valid_from": "2000-01-01",
+        "date": "2017-12-27",
+        "valid_from": "2017-12-28",
         "valid_to": null,
         "replaces": null,
-        "pub_path": "全国人民代表大会常务委员会",
+        "pub_path": "全国人大常委会",
         "localizes": null,
         "authors": null,
-        "layout": "v1_doc"
+    },
+    {
+        "filename": "中华人民共和国招标投标法实施条例（2019修订）.regu",
+        "title": "《中华人民共和国招标投标法实施条例(2019修订)》",
+        "sn": "中华人民共和国国务院令第709号",
+        "date": "2019-03-02",
+        "valid_from": "2019-03-02",
+        "valid_to": null,
+        "replaces": null,
+        "pub_path": "国务院",
+        "localizes": null,
+        "authors": null,
     }
 ]
 ```
 
-## 分割
+`meta.json` 中若提供了某原文件的文档 `title`，则该标题将被优先采用，覆盖按命名规则从原文件名中提取到的标题。
 
-### 自动分割器
+## 加载
 
-系统提供 CLI 命令 `corpus split` 以文集为单位，结合文档布局和文件类型确定分割方法，批量自动完成分割。参见：[HuRAG CLI Documentation](./cli_documentation.md)。
+使用 CLI 命令 `hurag load` 加载文集，完成新文档入库、修改文档元数据、删除库内文档等操作。加载过程中自动完成向量化文档的分割和多模态文档（包括附件）的内容提取。
 
-- 制度型文档：标注 `layout = "regu"`，文件类型为 TXT，采用制度分割器分割；
-- 结构化文档：标注 `layout = "text"`，文件类型为 Markdown，采用结构化 markdown 分割器分割；
-- CSV 表格：标注 8 种 CSV 布局之一，文件类型为 CSV，无需分割；
-- 无结构文档：标注 `layout = "text"`，文件类型为 TXT，采用循环重叠文本分割器分割；
-- HuRAG-pre 文档：标注 `layout = "v1_doc"`，文件类型为 TXT，无需分割。
+### 向量化文档分割
 
-分割后形成与原文件同名的 `.idx` 文件，为系统加载入库的实际文本文件，存放在相同文集目录下。
+加载文档时，自动识别向量化文档并进行分割。
 
-### 手动分割
+- 制度型文档：后缀为 `.regu`，采用制度分割器分割；
+- 结构型文档：后缀为 `.markdown`，采用结构化 markdown 分割器分割；
+- CSV 数据表：后缀为 8 种 CSV 布局之一，如 `.normal`，直接加载无需分割；
+- 无结构文档：后缀为 `.text`，采用循环重叠文本分割器分割；
 
-TXT 文件也可以手工添加段和块的分隔符来进行手动分割。手动分割即在原文适当位置添加段分隔符和块分隔符，并将结果另存为一个同名的 `.idx` 文件。
+加载向量化文档时，会首先检查文集目录中有无同名的 `.idx` 文件，如果有则跳过分割直接使用该文件中的内容进行加载；如无则进行分割并以该文件名保存在文集目录中，以便今后复用。
 
-*手动分割并保存为同名 `.idx` 文件后，务必在标注文件中标注其布局为 `manual`，避免自动分割器再次分割该文档。*
+#### 手动分割
+
+特殊情况下，文本文件也可以手动进行分割，即在原文适当位置添加段分隔符 `=====` 和块分隔符 `|||||`，并将结果另存为一个同名的 `.idx` 文件。
 
 **段的分割**
 
@@ -348,5 +455,12 @@ TXT 文件也可以手工添加段和块的分隔符来进行手动分割。手�
 
 块分隔符为五个 ASCII '竖线' 字符 `|||||`，***置于各块中间***，前后请勿添加多余换行。特别注意第一块前和最后一块后不需要放置块分隔符，因此如果一段不超过 500 字无需分块的，该段内无需添加任何块分隔符。
 
+### 多模态文档及附件文档的内容提取
 
+文集加载时，对于后缀不是 `.regu`, `.markdown`, `.text`, `.idx`, `.[csv_layout]`，且文件名不是 `corpus.json` 或 `meta.json` 的文件，一律视为多模态文档。
 
+与文档原文件同名无后缀的子目录，其中的所有文件视为该文档的附件，同多模态文档处理。
+
+以上两种多模态文档，加载程序调用 `hurag.yaml` 中配置的 `llm.multimodal` 多模态大模型进行内容识别提取，提取到的内容按前节所述的规则保存为磁盘文件，完成入库。
+
+同样的，加载程序在遇到多模态文档时，首先会查询数据库是否已经存在该文档且检查内容文件是否已经存在，如存在则跳过内容提取。

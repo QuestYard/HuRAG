@@ -63,10 +63,10 @@ def init_webui():
 @async_cmd
 async def info():
     """查看后台知识库信息。"""
-    from ..knowledge_base import stat
+    from ..kbman import kb_info
 
     try:
-        stat = await stat()
+        stat = await kb_info()
     except Exception:
         show_msg("数据库尚未初始化，请先用 hurag init 初始化数据库", style="error")
         return
@@ -111,7 +111,7 @@ async def list(
     ),
 ):
     """列出后台知识库中的文档列表及文档相关信息。"""
-    from ..knowledge_base import list_documents
+    from ..kbman import list_documents
 
     try:
         docs = await list_documents(keyword=keyword, order=order)
@@ -124,13 +124,14 @@ async def list(
 
     doc_info = [
         (
-            f"{doc[0]}（{doc[1]}）" if doc[1] else doc[0],  # title + sn
+            f"{doc[0].strip('*')}（{doc[1]}）" if doc[1] else doc[0].strip('*'),
             doc[2].strftime("%Y-%m-%d"),  # valid_from
             doc[3].strftime("%Y-%m-%d") if doc[3] else "",  # valid_to
             doc[4].split("/")[-1].rstrip("*"),  # pub_org
             doc[4][0] == "/" and doc[4][-1] != "*",  # not propagate
             f"{doc[5]:,}",  # segments
             f"{doc[6]:,}",  # entities
+            doc[0].startswith("*"),  # is extra document
         )
         for doc in docs
     ]
@@ -143,6 +144,7 @@ async def list(
     table.add_column("仅本级", header_style="underline", width=8, justify="center")
     table.add_column("段落数", header_style="underline", width=8, justify="right")
     table.add_column("实体数", header_style="underline", width=8, justify="right")
+    table.add_column("多模态", header_style="underline", width=8, justify="center")
 
     for ind, inf in enumerate(doc_info):
         table.add_row(
@@ -154,8 +156,10 @@ async def list(
             "是" if inf[4] else "否",
             inf[5],
             inf[6],
+            "是" if inf[7] else "否",
         )
     console.print(table)
+    console.print()
 
 
 @app.command("store", epilog=HURAG_EPILOG)
@@ -174,7 +178,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         return
 
     show_msg(f"加载文集 {path} 中的文档...", style="info")
-    from ..corpus import corpus_load
+    from ..kbman import corpus_load
 
     try:
         docs = await corpus_load(corpus, exclude_kb_docs=True)

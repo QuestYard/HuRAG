@@ -33,7 +33,7 @@ HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应
 
 HuRAG 支持通过源代码安装部署。在部署之前，请确保您的环境中已安装以下环境：
 
-- Python 3.12 或更高版本 (暂不建议使用 Python 3.14)
+- Python 3.13 (暂不建议使用 Python 3.14)
 - uv 3.0 或更高版本
 - Git 2.0 或更高版本
 - 可通过网络访问的 MariaDB 或 MySQL 数据库
@@ -90,16 +90,16 @@ client.grant_role(
 )
 # 给角色赋予权限
 client.grant_privilege_v2(
-                    role_name="<your_milvus_role>",
-                    privilege="CollectionAdmin",
-                    collection_name="*",
-                    db_name="<your_milvus_db_name>",
-                )
+    role_name="<your_milvus_role>",
+    privilege="CollectionAdmin",
+    collection_name="*",
+    db_name="<your_milvus_db_name>",
+)
 # 使用新用户重新连接客户端
 client = MilvusClient(
-                uri="<your_milvus_uri>",
-                token="<your_milvus_user>:<your_milvus_password>",
-            )
+    uri="<your_milvus_uri>",
+    token="<your_milvus_user>:<your_milvus_password>",
+)
 ```
 
 如果需要使用 HuRAG 自带的 WebUI 应用，还需另外创建一个单独的 MariaDB/MySQL 数据库，可以在不同的数据库服务器上，方法同上。

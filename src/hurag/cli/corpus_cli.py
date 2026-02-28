@@ -49,7 +49,7 @@ def convert(
 
     @with_spinner(text="文件转换中...", style="info")
     def _convert():
-        from ..corpus import doc_convert
+        from ..kbman import doc_convert
 
         try:
             tgt = doc_convert(src_file, output_file, encoding_only)
@@ -83,7 +83,7 @@ def markup(path: str = typer.Argument(..., help="需要标注的文集所在目�
 
     @with_spinner(text=f"预标注进行中...", style="info")
     def _markup():
-        from ..corpus import corpus_markup
+        from ..kbman import corpus_markup
 
         try:
             markups = corpus_markup(path)
@@ -124,7 +124,7 @@ def split(path: str = typer.Argument(..., help="需要分割文档的文集所�
 
     @with_async_spinner(text=f"文档分割进行中...", style="info")
     async def _split():
-        from ..corpus import corpus_split
+        from ..kbman import corpus_split
 
         try:
             stat = await corpus_split(path)

@@ -24,6 +24,7 @@ log:
 # 应用相关配置
 app:
   org_path:           # 机构全路径，如 "/总部/大区/分公司"，默认"未知机构"
+  extra_docs_dir:     # 存放非向量化知识文档的相对路径，相对于当前项目路径
 
 # 检索召回相关配置
 retrieval:
@@ -40,6 +41,7 @@ retrieval:
 llm:
   generation:         # 必配项，用于生成问答，建议采用高性能大尺寸LLM
   extraction:         # 必配项，用于知识提取，可以采用中等尺寸LLM
+  multimodal:         # 必配项，用于多模态文档理解和智能体会话
   embedding:          # HuRAG EmbeddingService URL，默认 "http://localhost:8765"
 
 # API Server 配置

@@ -44,6 +44,7 @@ DROP TABLE IF EXISTS relations;
 DROP TABLE IF EXISTS entities;
 DROP TABLE IF EXISTS chunks;
 DROP TABLE IF EXISTS segments;
+DROP TABLE IF EXISTS attachments;
 DROP TABLE IF EXISTS documents;
 CREATE TABLE documents (
     id UUID PRIMARY KEY,
@@ -60,6 +61,12 @@ CREATE TABLE documents (
     INDEX idx_valid_from (valid_from),
     INDEX idx_valid_to (valid_to),
     INDEX idx_pub_path (pub_path)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE attachments (
+    id UUID PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    document_id UUID NOT NULL,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE segments (
     id UUID PRIMARY KEY,
