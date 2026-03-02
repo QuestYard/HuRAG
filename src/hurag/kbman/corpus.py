@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..schemas import Document
 
+from warnings import deprecated
 from pathlib import Path
 from .. import logger
 
@@ -46,6 +47,7 @@ def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
     return tgt.as_posix()
 
 
+@deprecated("Deprecated from v0.3.2, using hurag.kbman.corpus_markup_v2 instead.")
 def corpus_markup(path: str) -> list[dict]:
     """
     Generate corpus.json markup file for documents in the given folder.
@@ -148,17 +150,19 @@ def _fetch_v1_meta(file: Path) -> dict:
     return meta
 
 
-async def corpus_split(path: str) -> tuple:
+async def corpus_split(path: str) -> list[str]:
     """
-    Split documents with layout of 'text' or 'regu' in the given corpus.
+    Split documents with suffix of .regu, .text, .markdown and .[csv_layout] in the
+    given corpus.
+
+    Already splitted documents with an existing indexing file (.idx) will be skipped.
 
     Args:
-        path (str): Path to the folder containing corpus.json and documents.
+        path (str): Path to the directory containing the documents to be splitted.
 
     Returns:
         tuple: A tuple containing counts of (success, skipped, failed) splits.
     """
-    import json
     import asyncio
     from ..splitters import (
         plain_text_splitter,
@@ -166,41 +170,38 @@ async def corpus_split(path: str) -> tuple:
         markdown_splitter,
     )
 
-    # check for corpus.json
-    folder = Path(path).expanduser().resolve()
-    corpus = folder / "corpus.json"
-    # load corpus.json, loop for 'text' and 'regu' documents
-    with open(corpus, "r", encoding="utf-8") as f:
-        docs = json.load(f)
-    count = [0, 0, 0]  # success, skipped, failed
+    corpus = Path(path).expanduser().resolve()
+    splitted = []
 
     # Prepare tasks for documents that need splitting
     tasks_to_run = []
-    for doc in docs:
-        if doc["layout"] not in ["text", "regu"]:
-            # needn't splitting, skip
-            logger.warning(f"{doc['filename']}: no need to split, skipped.")
-            count[1] += 1
+    for file in corpus.iterdir():
+        if not file.is_file():
             continue
-        src = folder / doc["filename"]
-        if not src.exists() or not src.is_file():
-            # not exists, skip
-            logger.warning(f"{doc['filename']}: not exists, skipped.")
-            count[1] += 1
+        if file.suffix.lower() == ".idx":
+            continue
+        if file.name.lower() in ["meta.json", "corpus.json"]:
+            continue
+        if file.name.startswith("."):
+            continue
+        if file.suffix.lower() not in [".regu", ".text", ".markdown"]:
             continue
 
+        if file.with_suffix(".idx").exists():
+            logger.warning(f"{file.name} has the indexing file exists, skipped.")
+            continue
         # Determine which splitter to use
-        match doc["layout"]:
-            case "regu":
+        match file.suffix.lower():
+            case ".regu":
                 splitter_func = regulation_splitter
-            case "text" if src.suffix.lower() == ".txt":
+            case ".text":
                 splitter_func = plain_text_splitter
-            case "text" if src.suffix.lower() == ".md":
+            case ".markdown":
                 splitter_func = markdown_splitter
             case _:
                 splitter_func = plain_text_splitter
 
-        tasks_to_run.append((splitter_func, src, src.with_suffix(".idx")))
+        tasks_to_run.append((splitter_func, file, file.with_suffix(".idx")))
 
     # Execute tasks using TaskGroup
     async def run_splitter_task(splitter_func, src, tgt):
@@ -219,14 +220,14 @@ async def corpus_split(path: str) -> tuple:
 
         # Wait for all tasks to complete and collect results
         for task in tasks:
-            success, error = task.result()
+            success, ret_or_err = task.result()
             if success:
-                count[0] += 1
+                logger.info(f"{ret_or_err.name} is splitted.")
+                splitted.append(ret_or_err.name)
             else:
-                logger.warning(f"Error and skipped: {error}")
-                count[2] += 1
+                logger.warning(f"Error and skipped: {ret_or_err}")
 
-    return tuple(count)
+    return splitted
 
 
 async def corpus_load(path: Path, exclude_kb_docs: bool = False) -> list[Document]:

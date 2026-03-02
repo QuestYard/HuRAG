@@ -43,7 +43,21 @@ class Segment:
 
 
 @dataclass
+class Attachment:
+    id: str | None = field(default=None)
+    title: str | None = field(default=None, compare=False)
+
+
+@dataclass
 class Document:
+    """
+    Support multimodal documents and attachments since v0.3.3:
+        - `title`: starts with '*';
+        - `is_multimodal`: new property = d.title.startswith("*");
+        - `segments`: always [] for multimodal documents;
+        - `kg_built`: always False for multimodal documents;
+        - `attachments`: list[Attachment].
+    """
     id: str | None = field(default=None)
     title: str | None = field(default=None, compare=False)
     sn: str | None = field(default=None, compare=False)
@@ -56,6 +70,11 @@ class Document:
     authors: str | None = field(default=None, compare=False, repr=False)
     segments: list[Segment] = field(default_factory=list, compare=False, repr=False)
     kg_built: bool = field(default=False, compare=False, repr=False)
+    attachments: list[Attachment] = field(default_factory=list, compare=False)
+
+    @property
+    def is_multimodal(self) -> bool:
+        return self.title.startswith("*") if self.title else False
 
     @property
     def fulltext(self):

@@ -329,7 +329,6 @@ HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类
 
 | 标注名   | 键         | 值类型    | 允许 null | 说明                                   |
 | -------- | ---------- | --------- | --------- | -------------------------------------- |
-| 文件名   | filename   | str       |    否     | 文档原文件名，不含路径，唯一           |
 | 文档标题 | title      | str(100)  |    否     | 知识库中使用的文档标题，唯一           |
 | 法令文号 | sn         | str(50)   |    是     | 正式印发的法、令、文号，可 null        |
 | 发布日期 | date       | str(date) |    否     | 格式"%Y-%m-%d"，例如"2025-08-22"       |
@@ -360,7 +359,7 @@ HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类
      - `.regu`：制度型文档，向量化，采用制度分割器分割；
      - `.markdown`：结构型文档，向量化，采用结构化 markdown 分割器分割；
      - `.text`：无结构文本文档，向量化，采用循环重叠文本分割器分割；
-     - `.normal`, `.vertical`, `.cross`, `.plain`, `.stripes`, `.vstripes`, `rows_r1_r2_..._rn`, `cols_c1_c2_..._cn`：CSV 表格，向量化，按 8 种表格布局分割；
+     - `.normal`, `.vertical`, `.cross`, `.plain`, `.stripes`, `.vstripes`, `.rows_r1_r2_..._rn`, `.cols_c1_c2_..._cn`：CSV 表格，向量化，按 8 种表格布局分割；
      - 其他所有文件名不是 `corpus.json`, `meta.json`，以及后缀不是 `.idx` 的文件：多模态文档，非向量化，提取内容保存为磁盘文件。
 
 2. 文档附件规范：

@@ -4,7 +4,7 @@ from pathlib import Path
 from .constants import CHK_DELIMITER, SEG_DELIMITER, TXT_SEPARATORS
 
 
-async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
+async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
     """
     Split given plain text document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -38,10 +38,10 @@ async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) ->
         await f.write(("\n" + SEG_DELIMITER).join(texts).strip())
         await f.write("\n")
 
-    return tgt.as_posix()
+    return tgt
 
 
-async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
+async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
     """
     Split given markdown document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -95,10 +95,10 @@ async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> s
             await f.write(("\n" + CHK_DELIMITER).join(chks))
             await f.write("\n")
 
-    return tgt.as_posix()
+    return tgt
 
 
-async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) -> str:
+async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
     """
     Split given regulation-like document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -176,4 +176,4 @@ async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) ->
         await f.write(SEG_DELIMITER.join(_text).strip())
         await f.write("\n")
 
-    return tgt.as_posix()
+    return tgt
