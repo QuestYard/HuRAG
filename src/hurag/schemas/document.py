@@ -1,11 +1,14 @@
 from __future__ import annotations
-from typing import Self, TYPE_CHECKING
+from typing import Any, Self, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 from dataclasses import dataclass, field
 from datetime import datetime
+
+
+_csv_p = r"^(normal|vertical|cross|plain|stripes|vstripes|rows(_\d+)+|cols(_\d+)+)$"
 
 
 @dataclass
@@ -58,6 +61,7 @@ class Document:
         - `kg_built`: always False for multimodal documents;
         - `attachments`: list[Attachment].
     """
+
     id: str | None = field(default=None)
     title: str | None = field(default=None, compare=False)
     sn: str | None = field(default=None, compare=False)
@@ -73,43 +77,47 @@ class Document:
     attachments: list[Attachment] = field(default_factory=list, compare=False)
 
     @property
-    def is_multimodal(self) -> bool:
-        return self.title.startswith("*") if self.title else False
+    def is_multimodal(self) -> bool | None:
+        return self.title.startswith("*") if self.title else None
 
     @property
     def fulltext(self):
         return "".join([seg.text for seg in self.segments])
 
-    def read(self, path: Path, markup: dict) -> Self:
-        """
-        Read metadat and content from the document given by path and markup.
-        """
-        path = path / markup["filename"]
-        if markup["layout"] in ["text", "regu", "manual"]:
-            path = path.with_suffix(".idx")
-        # clear self and read metadata
-        self.id = None
-        self.title = markup["title"]
-        self.sn = markup["sn"]
-        self.date = datetime.strptime(markup["date"], "%Y-%m-%d")
-        self.valid_from = datetime.strptime(markup["valid_from"], "%Y-%m-%d")
-        self.valid_to = markup["valid_to"] and datetime.strptime(
-            markup["valid_to"],
-            "%Y-%m-%d",
-        )
-        self.replaces = markup["replaces"]
-        self.pub_path = markup["pub_path"]
-        self.localizes = markup["localizes"]
-        self.authors = markup["authors"]
-        self.segments.clear()
-        self.kg_built = False
-        # read segments and chunks
-        if markup["layout"] in ["text", "regu", "v1_doc", "manual"]:
-            self._read_text(path)
-        else:
-            self._read_csv(path, markup["layout"])
+    @classmethod
+    def from_corpus(cls, path: Path, meta: dict[str, Any]) -> Self:
+        """Load documents in the given corpus."""
+        import re
 
-        return self
+        if not path.exists() or not path.is_file():
+            return cls()
+
+        # Load content for regu, text, markdown and layout-csv docs,
+        # Mark multimodal docs by adding the leading ast to the title.
+        doc = cls(**meta)
+        ext = path.suffix.lstrip(".").lower()
+        if ext in ["regu", "text", "markdown"]:
+            idx_fp = path.with_suffix(".idx")
+            if idx_fp.exists() and idx_fp.is_file():
+                doc._read_text(idx_fp)
+        elif re.match(_csv_p, ext):
+            doc._read_csv(path, ext)
+        else:
+            doc.title = f"*{doc.title}"
+
+        # Load attachments
+        att_path = path.with_suffix("")
+        if att_path.exists() and att_path.is_dir():
+            doc.attachments = sorted(
+                [
+                    Attachment(title=att.name)
+                    for att in att_path.iterdir()
+                    if att.is_file()
+                ],
+                key=lambda x: x.title or "",
+            )
+
+        return doc
 
     def _read_text(self, file):
         from ..constants import CHK_DELIMITER, SEG_DELIMITER
@@ -151,8 +159,8 @@ class Document:
                     seg.chunks.append(chk)
                     self.segments.append(seg)
                     si += 1
-        elif layout[:4] in ["rows", "cols"]:
-            _list = [int(i) for i in layout[5:].split(",") if i.strip()]
+        elif layout[:5] in ["rows_", "cols_"]:
+            _list = [int(i) for i in layout[5:].split("_") if i.strip()]
             _list.append(len(x))
             for h in range(len(_list) - 1):
                 head = x[_list[h]]

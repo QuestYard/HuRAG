@@ -56,6 +56,10 @@ async def init_webui():
 
 
 __all__ = [
+    "__version__",
+    "__author__",
+    "__description__",
+    "__url__",
     "conf",
     "logger",
     "org_path",

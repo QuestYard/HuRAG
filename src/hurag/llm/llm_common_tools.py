@@ -6,6 +6,7 @@ if TYPE_CHECKING:
 
 from warnings import deprecated
 
+
 def build_messages(
     prompt: str,
     system_prompt: str | None = None,

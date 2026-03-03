@@ -3,14 +3,13 @@ from .kb_manager import (
     delete_segment,
     kb_info,
     list_documents,
+    update_metadata,
 )
 from .corpus import (
     doc_convert,
     corpus_load,
+    corpus_markup,
     corpus_split,
-)
-from .corpus_v2 import (
-    corpus_markup_v2,
 )
 
 
@@ -19,8 +18,9 @@ __all__ = [
     "delete_segment",
     "kb_info",
     "list_documents",
+    "update_metadata",
     "doc_convert",
     "corpus_load",
+    "corpus_markup",
     "corpus_split",
-    "corpus_markup_v2",
 ]

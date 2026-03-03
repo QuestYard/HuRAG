@@ -1,4 +1,10 @@
 import warnings
+import asyncio
+from typing import Any
+from collections.abc import Callable
+from contextlib import asynccontextmanager
+from functools import wraps
+
 
 warnings.filterwarnings(
     "ignore",
@@ -6,13 +12,7 @@ warnings.filterwarnings(
     module="google.protobuf.runtime_version",
 )
 
-import asyncio
-from typing import Any
-from collections.abc import Callable
-
-from contextlib import asynccontextmanager
-from functools import wraps
-from pymilvus import AsyncMilvusClient
+from pymilvus import AsyncMilvusClient  # noqa: E402
 
 _clients: dict[str, AsyncMilvusClient] = {}
 _clients_lock: asyncio.Lock = asyncio.Lock()

@@ -417,9 +417,13 @@ async def search(
 
 # --- Inner functions ---
 
-_is_valid = lambda fr, to, date: fr <= date and (to is None or to >= date)
 
-_org_level = lambda p: len(p.strip("*").split("/")) - 1
+def _is_valid(fr, to, date):
+    return fr <= date and (to is None or to >= date)
+
+
+def _org_level(p):
+    return len(p.strip("*").split("/")) - 1
 
 
 def _filter_docs(docs, timings):

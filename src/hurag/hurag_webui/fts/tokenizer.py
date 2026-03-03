@@ -1,7 +1,7 @@
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
-import jieba
+import jieba  # noqa: E402
 
 jieba.setLogLevel(40)  # Suppress jieba logs
 

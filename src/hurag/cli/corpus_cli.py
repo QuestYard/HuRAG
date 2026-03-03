@@ -1,11 +1,9 @@
-import asyncio
 import typer
 
 from . import (
     HURAG_EPILOG,
     show_msg,
     with_spinner,
-    with_async_spinner,
 )
 
 app = typer.Typer(
@@ -81,19 +79,16 @@ def markup(path: str = typer.Argument(..., help="需要标注的文集所在目�
     自动预标注生成的元数据并不保证完整和准确，完成预标注后应当手动修正。
     如有修改或删除库内已有文档的，手动添加 "update" 和 "delete" 信息。
 
-    标注文件内容完整无误后，即可使用 hurag load 命令加载文集中的文档入库，
-    加载时会自动对未分割的向量化文本文档选择适用算法完成分割。
-
-    *注意*: 加载文集时自动分割无法人为介入干预，若有文档需要手工分割或校验修正分割结果的，
-    应当在加载文集之前先使用 corpus split 命令单独进行分割操作。
+    标注文件内容完整无误，且已经完成文集中的 `.regu`, `.text`, `.markdown` 文件分割后，
+    即可使用 hurag load 命令把文集加载入知识库。
     """
 
-    @with_spinner(text=f"预标注进行中...", style="info")
+    @with_spinner(text="预标注进行中...", style="info")
     def _markup():
-        from ..kbman import corpus_markup_v2
+        from ..kbman import corpus_markup
 
         try:
-            markups = corpus_markup_v2(path)
+            markups = corpus_markup(path)
             return {
                 "msg": f"文集 {path} 预标注完成，共 {len(markups['insert'])} 份文档",
                 "style": "success" if markups["insert"] else "warning",
@@ -127,16 +122,14 @@ def split(path: str = typer.Argument(..., help="需要分割文档的文集所�
     例如源文件 'example.txt' 的拆分结果会被写入 'example.idx' 文件中。
     """
 
-    @with_async_spinner(text=f"文档分割进行中...", style="info")
-    async def _split():
+    @with_spinner(text="文档分割进行中...", style="info")
+    def _split():
         from ..kbman import corpus_split
 
         try:
-            splitted = await corpus_split(path)
+            splitted = corpus_split(path)
             return {
-                "msg": (
-                    f"文集 {path} 文档分割完成，共分割文档 {len(splitted)} 份，"
-                ),
+                "msg": (f"文集 {path} 文档分割完成，共分割文档 {len(splitted)} 份，"),
                 "style": "info",
                 "err": None,
             }
@@ -147,5 +140,5 @@ def split(path: str = typer.Argument(..., help="需要分割文档的文集所�
                 "err": e,
             }
 
-    result = asyncio.run(_split())
+    result = _split()
     show_msg(**result)

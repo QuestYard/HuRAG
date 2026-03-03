@@ -2,6 +2,13 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING, cast
 from collections.abc import Callable, AsyncGenerator
 from openai.types.chat import ChatCompletionMessageParam
+from openai import RateLimitError, APITimeoutError
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
@@ -246,15 +253,6 @@ def with_oa_client(
     if func is not None:
         return decorator(func)
     return decorator
-
-
-from openai import RateLimitError, APITimeoutError
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
 
 
 @deprecated("Deprecated from v0.3.0, using chat_completion or chat_stream instead.")

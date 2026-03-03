@@ -205,7 +205,7 @@ def change_password_and_login(user: User, app, events: ClientEvents):
         except AccountNotExistsError:
             ui.notify(f"账户（{user.account}）不存在。", type="negative")
         except PasswordIncorrectError:
-            ui.notify(f"原密码错误，请重试。", type="negative")
+            ui.notify("原密码错误，请重试。", type="negative")
         except Exception as e:
             ui.notify("未知原因更改密码失败", type="negative")
 

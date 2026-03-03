@@ -190,7 +190,7 @@ async def chat_with_backend(
                 bot_msg_md.set_content(mdformat.text(content) if content else "")
                 await scroll_to_bottom(container)
         except RemoteProtocolError:
-            logger.error(f"Context window overflow")
+            logger.error("Context window overflow")
             ui.notify("上下文超长", type="negative")
             content += "\n\n> **[系统错误]** 上下文超长，模型崩溃😵💫🤯😇"
         except Exception as e:

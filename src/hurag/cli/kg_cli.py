@@ -101,7 +101,7 @@ async def build(
         path = path / "kgraph.toml"
     criteria = KGExtractionCriteria.load_criteria(path)
     if not criteria.entity_aliases or not criteria.blocked_entities:
-        show_msg(f"规则文件无效，构建的图谱可能存在无效实体。", style="warning")
+        show_msg("规则文件无效，构建的图谱可能存在无效实体。", style="warning")
 
     # build knowledge graph
     # 1.1 clean existed graph if force_rebuild = True
@@ -111,13 +111,13 @@ async def build(
 
         await clear_graph()
 
-    from ..knowledge_base import list_documents
+    from ..kbman import list_documents
 
     docs = await list_documents()
     doc_info = [
         (f"{doc[0]}（{doc[1]}）" if doc[1] else doc[0], doc[7])
         for doc in docs
-        if doc[6] == 0
+        if doc[6] == 0 and not doc[0].startswith("*")
     ]  # doc_info := [(fullname, id), ...]
     from rich.table import Table
 
@@ -139,13 +139,13 @@ async def build(
         for choice in choices:
             try:
                 indice.extend(str2int(choice))
-            except:
+            except ValueError:
                 pass
         indice = set(ind - 1 for ind in indice if 1 <= ind <= len(doc_info))
         doc_info = [d for i, d in enumerate(doc_info) if i in indice]
 
     if not doc_info:
-        console.print(f"无选中的文档，本次构建结束。")
+        console.print("无选中的文档，本次构建结束。")
         return
 
     console.print(f"1. 为下列 {len(doc_info)} 篇文档构建知识图谱：")

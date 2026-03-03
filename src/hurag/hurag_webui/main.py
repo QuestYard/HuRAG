@@ -18,18 +18,21 @@ from ..retrievers import retrieve
 import asyncio
 import os
 
-src_dir = os.path.dirname(os.path.abspath(__file__))
-static_dir = os.path.join(src_dir, "static")
-# Helper to get static asset path
-asset = lambda name: os.path.join(static_dir, name)
-
 from nicegui import ui, app  # as ui_app
 from fastapi.staticfiles import StaticFiles
+
+src_dir = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(src_dir, "static")
+
+
+# Helper to get static asset path
+def asset(name):
+    return os.path.join(static_dir, name)
 
 
 # --- NiceGUI App Setup ---
 async def _startup_app() -> None:
-    logger.info(f"Starting up HuRAG WebUI App...")
+    logger.info("Starting up HuRAG WebUI App...")
 
     logger.info("Checking configurations...")
     base_url = os.getenv(f"{conf.llm.generation}_BASE_URL")

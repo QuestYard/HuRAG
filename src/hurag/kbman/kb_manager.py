@@ -12,6 +12,19 @@ from ..types import DocumentOrder
 from dataclasses import dataclass
 
 
+META_NAMES = [
+    "title",
+    "sn",
+    "date",
+    "valid_from",
+    "valid_to",
+    "replaces",
+    "pub_path",
+    "localizes",
+    "authors",
+]
+
+
 @dataclass
 class DeletionResults:
     type: Literal["document", "segment"]
@@ -38,11 +51,15 @@ async def _delete_knowledge(
         return DeletionResults(type=id_type)
 
     ret = DeletionResults(type=id_type, id=id)
+    doc_title = None
     # delete from rdb
     try:
         if id_type == "document":
             await cur.execute("SELECT id FROM segments WHERE document_id = %s", (id,))
             seg_ids = [x[0] for x in await cur.fetchall()]
+            await cur.execute("SELECT title FROM documents WHERE id = %s", (id,))
+            resp = await cur.fetchall()
+            doc_title = resp[0][0] if resp else None
         else:
             seg_ids = [id]
         ret.segments = len(seg_ids)
@@ -82,7 +99,7 @@ async def _delete_knowledge(
             )
         # find out orphan relations and delete them
         await cur.execute(
-            f"""
+            """
             SELECT id FROM relations WHERE NOT EXISTS (
                 SELECT 1 FROM relation_cite
                 WHERE relation_cite.relation_id = relations.id
@@ -107,6 +124,16 @@ async def _delete_knowledge(
             phd = f"({','.join(['%s'] * len(community_ids))})"
             await cur.execute(
                 f"DELETE FROM communities WHERE id IN {phd}", community_ids
+            )
+        # update replaces and localizes if id_type is document
+        if doc_title:
+            await cur.execute(
+                "UPDATE documents SET replaces = NULL WHERE replaces = %s",
+                (doc_title,),
+            )
+            await cur.execute(
+                "UPDATE documents SET localizes = NULL WHERE localizes = %s",
+                (doc_title,),
             )
         await conn.commit()
     except Exception as e:
@@ -193,7 +220,7 @@ async def list_documents(
     from ..dss import rss
 
     if keyword:
-        crieteria = f"WHERE title LIKE %s"
+        crieteria = "WHERE title LIKE %s"
         kw_param = (f"%{keyword}%",)
     else:
         crieteria = ""
@@ -225,3 +252,51 @@ async def list_documents(
     docs = await rss.query(sql, kw_param)
 
     return docs
+
+
+@with_rdb(connection_arg_name="conn", cursor_arg_name="cur")
+async def update_metadata(
+    title: str,
+    new_meta: dict[str, str | None],
+    conn: Connection,
+    cur: Cursor,
+) -> int:
+    ret = 0
+    await cur.execute("SELECT id FROM documents WHERE title = %s", (title,))
+    resp = await cur.fetchall()
+    if not resp:
+        return ret
+
+    doc_id = resp[0][0]
+    sql_head = "UPDATE documents SET"
+    sql_tail = "WHERE id = %s"
+    sql_meta = []
+    sql_data = []
+    for name, value in new_meta.items():
+        if name in META_NAMES:
+            sql_meta.append(f"{name} = %s")
+            sql_data.append(value)
+    if not sql_meta:
+        return ret
+    sql = f"{sql_head} {', '.join(sql_meta)} {sql_tail}"
+    sql_data.append(doc_id)
+    try:
+        await cur.execute(sql, tuple(sql_data))
+        ret += cur.rowcount
+        if "title" in new_meta:
+            await cur.execute(
+                "UPDATE documents SET replaces = %s WHERE replaces = %s",
+                (new_meta["title"], title),
+            )
+            ret += cur.rowcount
+            await cur.execute(
+                "UPDATE documents SET localizes = %s WHERE localizes = %s",
+                (new_meta["title"], title),
+            )
+            ret += cur.rowcount
+        await conn.commit()
+        return ret
+    except Exception as e:
+        await conn.rollback()
+        logger.error(f"Update metadata for {title} failed: {e!r}")
+        raise

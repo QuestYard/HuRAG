@@ -3,6 +3,7 @@ __author__ = "Libin, QuestYard HuRAG Team"
 __description__ = "HuRAG, A TH-GraphRAG Application From QuestYard."
 __url__ = "https://github.com/QuestYard/HuRAG"
 
+from .utilities import dict_to_namespace
 import yaml
 import logging
 from pathlib import Path
@@ -20,8 +21,6 @@ logger.setLevel(logging.DEBUG)
 conf: Any
 
 # -- Initialization --
-
-from .utilities import dict_to_namespace
 
 
 def load_config() -> Any:

@@ -2,6 +2,7 @@ from functools import wraps
 from typing import Any
 from collections.abc import Callable
 import inspect
+import httpx
 
 from .. import conf, logger
 
@@ -129,8 +130,6 @@ def unpack_unified_embeddings_from_bytes(
 
 
 # -- The client class --
-
-import httpx
 
 
 class AsyncEmbeddingClient:

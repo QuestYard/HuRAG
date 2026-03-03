@@ -1,10 +1,9 @@
-import aiofiles
 from pathlib import Path
 
 from .constants import CHK_DELIMITER, SEG_DELIMITER, TXT_SEPARATORS
 
 
-async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
+def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
     """
     Split given plain text document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -19,8 +18,8 @@ async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) ->
     elif isinstance(tgt, str):
         tgt = Path(tgt)
 
-    async with aiofiles.open(src, "r", encoding="utf-8") as f:
-        content = await f.read()
+    with open(src, "r", encoding="utf-8") as f:
+        content = f.read()
     # split
     from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -33,15 +32,15 @@ async def plain_text_splitter(src: str | Path, tgt: str | Path | None = None) ->
     )
     texts = text_splitter.split_text(content)
     # save to target file, append a newline to each segment.
-    async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
-        await f.write(SEG_DELIMITER)
-        await f.write(("\n" + SEG_DELIMITER).join(texts).strip())
-        await f.write("\n")
+    with open(tgt, "w", encoding="utf-8", newline="\n") as f:
+        f.write(SEG_DELIMITER)
+        f.write(("\n" + SEG_DELIMITER).join(texts).strip())
+        f.write("\n")
 
     return tgt
 
 
-async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
+def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
     """
     Split given markdown document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -57,8 +56,8 @@ async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> P
     elif isinstance(tgt, str):
         tgt = Path(tgt)
 
-    async with aiofiles.open(src, "r", encoding="utf-8") as f:
-        content = await f.read()
+    with open(src, "r", encoding="utf-8") as f:
+        content = f.read()
     # split
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     from langchain_text_splitters import MarkdownHeaderTextSplitter
@@ -85,20 +84,20 @@ async def markdown_splitter(src: str | Path, tgt: str | Path | None = None) -> P
         separators=TXT_SEPARATORS,
     )
     # save to target file, append a newline to each segment.
-    async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
+    with open(tgt, "w", encoding="utf-8", newline="\n") as f:
         for seg in segs:
-            await f.write(SEG_DELIMITER)
+            f.write(SEG_DELIMITER)
             if len(seg) < 500:
-                await f.write(f"{seg}\n")
+                f.write(f"{seg}\n")
                 continue
             chks = text_splitter.split_text(seg)
-            await f.write(("\n" + CHK_DELIMITER).join(chks))
-            await f.write("\n")
+            f.write(("\n" + CHK_DELIMITER).join(chks))
+            f.write("\n")
 
     return tgt
 
 
-async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
+def regulation_splitter(src: str | Path, tgt: str | Path | None = None) -> Path:
     """
     Split given regulation-like document and save into the 'tgt' file if given,
     otherwise the result will be written into the 'src' file itself.
@@ -114,8 +113,8 @@ async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) ->
         tgt = Path(src)
     elif isinstance(tgt, str):
         tgt = Path(tgt)
-    async with aiofiles.open(src, "r", encoding="utf-8") as f:
-        _text = [re.sub(r"\s", " ", l).strip() async for l in f if l.strip()]
+    with open(src, "r", encoding="utf-8") as f:
+        _text = [re.sub(r"\s", " ", x).strip() for x in f if x.strip()]
     p_vol = re.compile(r"^第\s*[一二三四五六七八九十零百千]+\s*编")
     p_sub = re.compile(r"^第\s*[一二三四五六七八九十零百千]+\s*分编")
     p_cha = re.compile(r"^第\s*[一二三四五六七八九十零百千]+\s*章")
@@ -166,14 +165,14 @@ async def regulation_splitter(src: str | Path, tgt: str | Path | None = None) ->
     _segs.append(_seg)
 
     # save to target file
-    async with aiofiles.open(tgt, "w", encoding="utf-8", newline="\n") as f:
-        await f.write(SEG_DELIMITER)
+    with open(tgt, "w", encoding="utf-8", newline="\n") as f:
+        f.write(SEG_DELIMITER)
         _text = []
         for seg in _segs:
             st = seg["start"]
             ed = seg["end"]
             _text.append(CHK_DELIMITER.join(_chks[st:ed]))
-        await f.write(SEG_DELIMITER.join(_text).strip())
-        await f.write("\n")
+        f.write(SEG_DELIMITER.join(_text).strip())
+        f.write("\n")
 
     return tgt

@@ -1,12 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..schemas import Document
 
-from warnings import deprecated
 from pathlib import Path
-from .. import logger
+from .. import conf, logger
 
 
 def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
@@ -47,71 +46,80 @@ def doc_convert(src_file: str, tgt_file: str | None, enc: bool) -> str:
     return tgt.as_posix()
 
 
-@deprecated("Deprecated from v0.3.2, using hurag.kbman.corpus_markup_v2 instead.")
-def corpus_markup(path: str) -> list[dict]:
+def corpus_markup(path: str) -> dict[str, Any]:
     """
-    Generate corpus.json markup file for documents in the given folder.
-    1. Scan the folder for .txt, .csv, .md files.
-    2. For each file, create a markup entry with metadata.
-    3. Save all markup entries to corpus.json in the folder.
-    4. Return the list of markup entries.
+    Generate markup file `corpus.json` for documents in the given corpus directory.
+    1. Scan the directory for all files except `*.idx`, `meta.json` and `corpus.json`;
+    2. For each file, create the metadata entry;
+    3. Using metadata in `meta.json` if exists;
+    4. Generate the markup dict and save into `corpus.json`
+
+    The structure of `corpus.json` is like:
+    ```
+    {
+        "insert": {
+            "filename": { metadata },
+            ...
+        },
+        "update": {},
+        "delete": []
+    }
+    ```
+
+    The values of `update` and `delete` leaves empty.
 
     Args:
-        path (str): Path to the folder containing documents.
+        path (str): Path to the corpus directory
 
     Returns:
-        list[dict]: List of markup entries for the documents.
+        dict[str, Any]: Dict of `corpus.json`
     """
     import json
     from datetime import datetime
-    from .. import conf
 
-    folder = Path(path).expanduser().resolve()
-    markups = []
-    for file in folder.iterdir():
+    markups = {"insert": {}, "update": {}, "delete": []}
+    metadata = []
+
+    corpus = Path(path).expanduser().resolve()
+    if not corpus.exists() or not corpus.is_dir():
+        return markups
+    meta_file = corpus / "meta.json"
+    if meta_file.exists():
+        with open(meta_file, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+    metadata = {x["filename"]: x for x in metadata}
+
+    for file in corpus.iterdir():
         if not file.is_file():
             continue
-        if file.suffix.lower() not in [".txt", ".csv", ".md"]:
+        if file.suffix.lower() == ".idx":
+            continue
+        if file.name.lower() in ["meta.json", "corpus.json"]:
+            continue
+        if file.name.startswith("."):
             continue
 
+        meta = metadata.get(file.name, {})
+        title = file.stem.split("_")[-1]
+        if not title.startswith("《"):
+            title = f"《{title}"
+        if not title.endswith("》"):
+            title = f"{title}》"
         markup = {
-            "filename": file.name,
-            "title": file.stem if file.stem.endswith("》") else f"《{file.stem}》",
-            "sn": None,
-            "date": "",
-            "valid_from": "",
-            "valid_to": None,
-            "replaces": None,
-            "pub_path": conf.app.org_path,
-            "localizes": None,
-            "authors": None,
-            "layout": "normal" if file.suffix.lower() == ".csv" else "text",
+            "title": meta.get("title", title),
+            "sn": meta.get("sn", None),
+            "date": meta.get("date", f"{datetime.today():%Y-%m-%d}"),
+            "valid_from": meta.get("valid_from", f"{datetime.today():%Y-%m-%d}"),
+            "valid_to": meta.get("valid_to", None),
+            "replaces": meta.get("replaces", None),
+            "pub_path": meta.get("pub_path", conf.app.org_path),
+            "localizes": meta.get("localizes", None),
+            "authors": meta.get("authors", None),
         }
-        # load metadata if v1 doc
-        if file.suffix.lower() != ".md":
-            # maybe a HuRAG-pre document, try to get v1_metadata
-            meta = _fetch_v1_meta(file)
-            # update markup if any v1_metadata exists
-            if "title" in meta:
-                markup["title"] = meta["title"]
-            if "sn" in meta:
-                markup["sn"] = meta["sn"] or None
-            if "date" in meta:
-                markup["date"] = datetime.strptime(meta["date"], "%Y-%m-%d")
-                markup["valid_from"] = markup["date"]
-            if "expired" in meta:
-                markup["valid_to"] = (
-                    datetime.strptime(meta["expired"], "%Y-%m-%d")
-                    if meta["expired"]
-                    else None
-                )
-            if "authors" in meta:
-                markup["authors"] = meta["authors"] or None
-            if meta and file.suffix.lower() != ".csv":
-                markup["layout"] = "v1_doc"  # actually a HuRAG-pre document
-        markups.append(markup)
-    # write markup file
-    markup_file = folder / "corpus.json"
+        markups["insert"][file.name] = markup
+
+    markups["insert"] = {k: markups["insert"][k] for k in sorted(markups["insert"])}
+    markup_file = corpus / "corpus.json"
     with open(markup_file, "w", encoding="utf-8") as f:
         json.dump(
             markups,
@@ -123,34 +131,7 @@ def corpus_markup(path: str) -> list[dict]:
     return markups
 
 
-def _fetch_v1_meta(file: Path) -> dict:
-    """
-    Fetch metadata from a HuRAG-pre document's .meta file.
-    If no metadata fetched, return empty dict.
-
-    Args:
-        file (Path): Path to the document file.
-
-    Returns:
-        dict: Metadata dictionary.
-    """
-    ext = ".meta" if file.suffix.lower() == ".csv" else file.suffix
-    meta = {}
-    with open(file.with_suffix(ext), "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip() == "":
-                continue
-            if not line.startswith("@"):
-                break
-            k, v = line.lstrip("@").split("=")
-            if k == "domain":
-                meta[k] = [d.strip() for d in v.split(",")]
-            else:
-                meta[k] = v.strip()
-    return meta
-
-
-async def corpus_split(path: str) -> list[str]:
+def corpus_split(path: str) -> list[str]:
     """
     Split documents with suffix of .regu, .text, .markdown and .[csv_layout] in the
     given corpus.
@@ -163,7 +144,6 @@ async def corpus_split(path: str) -> list[str]:
     Returns:
         tuple: A tuple containing counts of (success, skipped, failed) splits.
     """
-    import asyncio
     from ..splitters import (
         plain_text_splitter,
         regulation_splitter,
@@ -174,7 +154,6 @@ async def corpus_split(path: str) -> list[str]:
     splitted = []
 
     # Prepare tasks for documents that need splitting
-    tasks_to_run = []
     for file in corpus.iterdir():
         if not file.is_file():
             continue
@@ -201,77 +180,21 @@ async def corpus_split(path: str) -> list[str]:
             case _:
                 splitter_func = plain_text_splitter
 
-        tasks_to_run.append((splitter_func, file, file.with_suffix(".idx")))
-
-    # Execute tasks using TaskGroup
-    async def run_splitter_task(splitter_func, src, tgt):
         try:
-            ret = await splitter_func(src, tgt)
-            return True, ret
+            target = splitter_func(file, file.with_suffix(".idx"))
+            logger.info(f"{target.name} is splitted.")
+            splitted.append(target.name)
         except Exception as e:
-            return False, str(e)
-
-    if tasks_to_run:
-        async with asyncio.TaskGroup() as tg:
-            tasks = []
-            for splitter_func, src, tgt in tasks_to_run:
-                task = tg.create_task(run_splitter_task(splitter_func, src, tgt))
-                tasks.append(task)
-
-        # Wait for all tasks to complete and collect results
-        for task in tasks:
-            success, ret_or_err = task.result()
-            if success:
-                logger.info(f"{ret_or_err.name} is splitted.")
-                splitted.append(ret_or_err.name)
-            else:
-                logger.warning(f"Error and skipped: {ret_or_err}")
+            logger.warning(f"Error and skipped: {e!r}")
 
     return splitted
 
 
-async def corpus_load(path: Path, exclude_kb_docs: bool = False) -> list[Document]:
-    """
-    Load documents in the given folder into a list of Document objects.
-
-    Args:
-        path (Path):
-            Path to the folder containing corpus.json and documents.
-        exclude_kb_docs (bool):
-            Whether to exclude documents already in the knowledge base.
-
-    Returns:
-        list[Document]: List of loaded Document objects.
-    """
+def corpus_load(path: Path) -> list[Document]:
     import json
-    import concurrent.futures
-    import asyncio
     from ..schemas import Document
 
     with open(path / "corpus.json", "r", encoding="utf-8") as f:
-        markups = json.load(f)
-    if exclude_kb_docs:
-        from ..dss import rss
-
-        docs_in_kb = {x[0] for x in await rss.query("SELECT title FROM documents")}
-        markups = [m for m in markups if m["title"] not in docs_in_kb]
-
-    loop = asyncio.get_running_loop()
-    docs = []
-
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        tasks = [
-            loop.run_in_executor(pool, Document().read, path, markup)
-            for markup in markups
-        ]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                title = markups[i]["title"]
-                logger.warning(f"Failed loading {title} and skipped: {result}")
-            else:
-                docs.append(result)
-
+        markups = json.load(f).get("insert", {})
+    docs = [Document.from_corpus(path / fn, meta) for fn, meta in markups.items()]
     return docs

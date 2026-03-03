@@ -124,7 +124,7 @@ async def list(
 
     doc_info = [
         (
-            f"{doc[0].strip('*')}（{doc[1]}）" if doc[1] else doc[0].strip('*'),
+            f"{doc[0].strip('*')}（{doc[1]}）" if doc[1] else doc[0].strip("*"),
             doc[2].strftime("%Y-%m-%d"),  # valid_from
             doc[3].strftime("%Y-%m-%d") if doc[3] else "",  # valid_to
             doc[4].split("/")[-1].rstrip("*"),  # pub_org
@@ -181,13 +181,13 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
     from ..kbman import corpus_load
 
     try:
-        docs = await corpus_load(corpus, exclude_kb_docs=True)
+        docs = corpus_load(corpus)
         show_msg(f"加载完成，共 {len(docs)} 份文档待入库", style="info")
     except Exception as e:
         show_msg(f"加载文集 {path} 失败: {e}", style="error", err=e)
         return
 
-    show_msg(f"向量化待入库文档...", style="info")
+    show_msg("向量化待入库文档...", style="info")
     from ..llm.embedder import embed_documents
     from rich.progress import (
         Progress,

@@ -284,7 +284,6 @@ HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类
 {
     "insert": {
         "filename_of_doc_to_insert": {
-            "filename": "prefix_title.suffix",
             "title": "《title》",
             "sn": str | null,
             "date": "%Y-%m-%d",
@@ -300,13 +299,14 @@ HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类
     "update": { 
         "title_of_the_doc_to_update": {
             "title": "new value",
-            "sn" : "new value",
-            "date" : "new value",
-            "valid_from" : "new value",
-            "valid_to" : "new value",
-            "replaces" : "new value",
-            "localizes" : "new value",
-            "authors" : "new value"
+            "sn": "new value",
+            "date": "new value",
+            "valid_from": "new value",
+            "valid_to": "new value",
+            "replaces": "new value",
+            "pub_path": "new value",
+            "localizes": "new value",
+            "authors": "new value"
         }, ...
     },
     "delete": [

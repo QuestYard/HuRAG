@@ -14,7 +14,7 @@ from .api.v1.hurag import router as hurag_router
 async def lifespan(app: FastAPI):
     _ = app
     try:
-        logger.info(f"HuRAG API Server startup completed.")
+        logger.info("HuRAG API Server startup completed.")
 
         yield
 
