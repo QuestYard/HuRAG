@@ -1,6 +1,14 @@
-import jieba_fast as jieba
+import pkuseg
 
-jieba.setLogLevel(40)  # Suppress jieba logs
+
+_seg = None
+
+
+def _get_seg():
+    global _seg
+    if _seg is None:
+        _seg = pkuseg.pkuseg()
+    return _seg
 
 
 def cleanup(text: str) -> str:
@@ -12,9 +20,9 @@ def cleanup(text: str) -> str:
     return text.strip().lower()
 
 
-def tokenize(corpus: list[str]) -> list[list[str]]:
+def tokenize(corpus: list[str]) -> list[list]:
     """
-    Tokenize a list of texts using jieba for search mode.
+    Tokenize a list of texts using pkuseg for search mode.
 
     Args:
         corpus (list[str]): A list of texts to be tokenized.
@@ -25,21 +33,25 @@ def tokenize(corpus: list[str]) -> list[list[str]]:
     if not corpus:
         return []
 
-    return [list(jieba.cut_for_search(cleanup(text))) for text in corpus]
+    seg = _get_seg()
+    return [seg.cut(cleanup(text)) for text in corpus]
 
 
-def _tokenize_chunk(args: tuple) -> list[list[str]]:
-    """worker: receives (start_idx, chunk_size, corpus)"""
-    # warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
-    start_idx, size, corpus = args
-    # create slice locally in worker (no main memory overhead)
-    chunk = corpus[start_idx : start_idx + size]
-    return [list(jieba.cut_for_search(cleanup(text))) for text in chunk]
+def _init_worker():
+    """Initializer for worker processes to ensure clean state."""
+    global _seg
+    _seg = None
+
+
+def _tokenize_chunk(chunk: list[str]) -> list[list]:
+    """worker: receives chunk (list[str])"""
+    seg = _get_seg()
+    return [seg.cut(cleanup(text)) for text in chunk]
 
 
 def parallel_tokenize(corpus: list[str], chunk_size: int = 100) -> list[list[str]]:
     """
-    Tokenize a list of texts in parallel using jieba for search mode.
+    Tokenize a list of texts in parallel using pkuseg for search mode.
 
     Args:
         corpus (list[str]): A list of texts to be tokenized.
@@ -56,17 +68,17 @@ def parallel_tokenize(corpus: list[str], chunk_size: int = 100) -> list[list[str
 
     from multiprocessing import Pool, cpu_count
 
-    def chunk_args_gen():
+    def chunk_gen():
         for i in range(0, len(corpus), chunk_size):
-            yield (i, chunk_size, corpus)
+            yield corpus[i : i + chunk_size]
 
     processes = min(
         max(1, cpu_count() - 1),
         len(corpus) // chunk_size + (len(corpus) % chunk_size != 0),
     )
 
-    with Pool(processes=processes) as pool:
-        tokenized_chunks = pool.imap(_tokenize_chunk, chunk_args_gen())
+    with Pool(processes=processes, initializer=_init_worker) as pool:
+        tokenized_chunks = pool.imap(_tokenize_chunk, chunk_gen())
 
         result = []
         for chunk_tokens in tokenized_chunks:

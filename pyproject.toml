@@ -25,8 +25,11 @@ dependencies = [
     "latex2mathml>=3.78.1",
     "mdformat>=1.0.0",
     "nicegui>=3.7.1",
-    "jieba-fast>=0.53",
+    "pkuseg>=0.0.25",
 ]
+
+[tool.uv.extra-build-dependencies]
+pkuseg = ["numpy"]
 
 [project.scripts]
 hurag = "hurag.cli.kb_cli:app"

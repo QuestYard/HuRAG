@@ -2,6 +2,7 @@ from ..services import load_sessions_by_user, load_messages_by_session
 from .tokenizer import tokenize, parallel_tokenize
 
 import bm25s
+import asyncio
 
 
 async def build_index_for_user(
@@ -28,10 +29,14 @@ async def build_index_for_user(
         for s in sessions
     }
     corpus = list(session_docs.values())
-    tokenized_corpus = parallel_tokenize(corpus, chunk_size=batch_size)
 
-    retriever = bm25s.BM25()
-    retriever.index(tokenized_corpus)
+    def _index():
+        tokenized_corpus = parallel_tokenize(corpus, chunk_size=batch_size)
+        retriever = bm25s.BM25()
+        retriever.index(tokenized_corpus)
+        return retriever
+
+    retriever = await asyncio.to_thread(_index)
 
     return retriever, [s.id for s in sessions]
 

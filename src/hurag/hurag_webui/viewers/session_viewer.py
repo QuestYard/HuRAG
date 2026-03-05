@@ -149,9 +149,19 @@ async def session_browser(user_id: str, events: ClientEvents):
 
     from ..services import next_session_batch, search_result_batch
     from ..constants import SCROLL_TO_BOTTOM_JS
+    from ..fts import search_sessions, build_index_for_user
+    import asyncio
 
     retriever = None
     session_ids = None
+    indexing_task = None
+
+    async def _init_index():
+        nonlocal retriever, session_ids
+        retriever, session_ids = await build_index_for_user(user_id)
+
+    # Start indexing in the background immediately
+    indexing_task = asyncio.create_task(_init_index())
 
     last_session_id = None
 
@@ -230,6 +240,17 @@ async def session_browser(user_id: str, events: ClientEvents):
                     .props("flat dense")
                     .bind_visibility_from(search_inp, "value")
                 )
+            search_inp.on(
+                "keydown.enter",
+                lambda: search_clicked_callback(),
+                js_handler="""
+                (e) => {
+                    if (!e.shiftKey && !e.isComposing) {
+                        emit(e);
+                        e.preventDefault();
+                    }
+                }""",
+            )
 
         browser_card = (
             ui.card()
@@ -248,13 +269,10 @@ async def session_browser(user_id: str, events: ClientEvents):
         events.history_session_clicked.emit(session_id)
 
     async def search_clicked_callback():
-        import asyncio
-        from ..fts import search_sessions, build_index_for_user
-
         keyword = search_inp.value.strip()
         if not keyword:
             return
-        nonlocal retriever, session_ids
+        nonlocal retriever, session_ids, indexing_task
 
         tmr.deactivate()
         browser_card.clear()
@@ -264,8 +282,15 @@ async def session_browser(user_id: str, events: ClientEvents):
                 "mx-auto text-gray-500 py-4 text-caption"
             )
         await asyncio.sleep(0.05)  # allow UI to update
+        
+        if indexing_task and not indexing_task.done():
+            # Wait for the background indexing to complete if not already done
+            await indexing_task
+            
+        # Fallback just in case, though task should have populated them
         if retriever is None or session_ids is None:
             retriever, session_ids = await build_index_for_user(user_id)
+            
         results = search_sessions(
             retriever, session_ids, keyword, top_k=len(session_ids)
         )
