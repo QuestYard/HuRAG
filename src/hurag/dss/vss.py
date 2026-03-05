@@ -1,18 +1,16 @@
-import warnings
+# import warnings
 import asyncio
 from typing import Any
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from functools import wraps
+# warnings.filterwarnings(
+#     "ignore",
+#     category=UserWarning,
+#     module="google.protobuf.runtime_version",
+# )
+from pymilvus import AsyncMilvusClient
 
-
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    module="google.protobuf.runtime_version",
-)
-
-from pymilvus import AsyncMilvusClient  # noqa: E402
 
 _clients: dict[str, AsyncMilvusClient] = {}
 _clients_lock: asyncio.Lock = asyncio.Lock()

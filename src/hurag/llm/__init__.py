@@ -11,8 +11,6 @@ from .embedder import (
 )
 from .llm_common_tools import (
     build_messages,
-    extract_response,
-    extract_chunk,
     extract_from_chat,
 )
 from .openai_client import (
@@ -20,11 +18,16 @@ from .openai_client import (
     get_oa_client,
     close_oa_client,
     lifespan as llm_lifespan,
-    chat,
-    chat_with_retry,
     with_oa_client,
     chat_completion,
     chat_stream,
+)
+from .multimodal import (
+    upload_files,
+    extract_files,
+    delete_file,
+    list_files,
+    clean_files,
 )
 from .prompts import (
     PROMPTS,
@@ -46,18 +49,19 @@ __all__ = [
     "embed_kg_elements",
     "embed_community_summaries",
     "build_messages",
-    "extract_chunk",
-    "extract_response",
     "extract_from_chat",
     "create_oa_client",
     "get_oa_client",
     "close_oa_client",
     "llm_lifespan",
-    "chat",
-    "chat_with_retry",
     "with_oa_client",
     "chat_completion",
     "chat_stream",
+    "upload_files",
+    "extract_files",
+    "delete_file",
+    "list_files",
+    "clean_files",
     "PROMPTS",
     "create_entity_extraction_prompt",
     "create_entity_gleaning_prompt",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING, cast
-from collections.abc import Callable, AsyncGenerator
+from collections.abc import Callable
 from openai.types.chat import ChatCompletionMessageParam
 from openai import RateLimitError, APITimeoutError
 from tenacity import (
@@ -12,13 +12,12 @@ from tenacity import (
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, AsyncStream
-    from openai.types.chat import ChatCompletion, ChatCompletionChunk
+    from openai.types.chat import ChatCompletion
 
 import asyncio
 
 from contextlib import asynccontextmanager
 from functools import wraps
-from warnings import deprecated
 from . import build_messages
 
 _clients: dict[str, AsyncOpenAI] = {}
@@ -29,24 +28,30 @@ def create_oa_client(
     base_url: str,
     api_key: str,
     timeout: float = 60.0,
+    multimodal: bool = False,
 ) -> AsyncOpenAI:
     import httpx
     from openai import AsyncOpenAI
 
-    return AsyncOpenAI(
-        base_url=base_url,
-        api_key=api_key,
-        http_client=httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=10.0, read=timeout, write=30.0, pool=10.0),
-            limits=httpx.Limits(keepalive_expiry=60.0),
+    _httpx = httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=20.0, read=timeout, write=timeout, pool=60.0),
+        limits=httpx.Limits(
+            max_connections=200,
+            max_keepalive_connections=100,
+            keepalive_expiry=120.0,
         ),
+    ) if multimodal else httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=10.0, read=timeout, write=30.0, pool=10.0),
+        limits=httpx.Limits(keepalive_expiry=60.0),
     )
+    return AsyncOpenAI(base_url=base_url, api_key=api_key, http_client=_httpx)
 
 
 async def get_oa_client(
     base_url: str | None = None,
     api_key: str | None = None,
     timeout: float = 60.0,
+    multimodal: bool = False,
     client_name: str = "extraction",
 ) -> AsyncOpenAI:
     """Get or create an AsyncOpenAI client."""
@@ -68,6 +73,11 @@ async def get_oa_client(
         elif client_name == "generation":
             base_url = os.getenv(f"{conf.llm.generation}_BASE_URL")
             api_key = os.getenv(f"{conf.llm.generation}_API_KEY")
+        elif client_name == "multimodal":
+            base_url = os.getenv(f"{conf.llm.multimodal}_BASE_URL")
+            api_key = os.getenv(f"{conf.llm.multimodal}_API_KEY")
+
+        _timeout = max(300.0, timeout) if multimodal else max(60.0, timeout)
 
         if not base_url:
             raise ValueError("Base URL not available.")
@@ -77,7 +87,8 @@ async def get_oa_client(
         _clients[client_name] = create_oa_client(
             base_url=base_url,
             api_key=api_key,
-            timeout=timeout,
+            timeout=_timeout,
+            multimodal=multimodal,
         )
 
     return _clients[client_name]
@@ -103,98 +114,6 @@ async def lifespan():
         yield
     finally:
         await close_oa_client()
-
-
-@deprecated("Deprecated from v0.3.0, using chat_completion or chat_stream instead.")
-async def chat(
-    model: str,
-    prompt: str,
-    *,
-    system_prompt: str | None = None,
-    history_messages: list[dict[str, str]] | None = None,
-    stream: bool = False,
-    client: AsyncOpenAI | None = None,
-    base_url: str | None = None,
-    api_key: str | None = None,
-    temperature: float = 0.0,
-    timeout: float = 60.0,
-) -> (
-    ChatCompletion
-    | AsyncStream[ChatCompletionChunk]
-    | AsyncGenerator[ChatCompletionChunk, Any]
-):
-    """
-    Non-blocking chat completion call to OpenAI API.
-
-    The client can be provided directly, or created using base_url and api_key.
-
-    Args:
-        model: str -- the model to use.
-        prompt: str -- the user prompt.
-        system_prompt: str | None -- optional system prompt.
-        history_messages: list[dict[str, str]] | None -- optional chat history.
-        stream: bool -- whether to return a streaming response.
-        client: AsyncOpenAI | None -- optional pre-created client.
-        base_url: str | None -- base URL for OpenAI API.
-        api_key: str | None -- API key for OpenAI API.
-        temperature: float -- sampling temperature.
-        timeout: float -- request timeout in seconds.
-
-    Returns:
-        The chat completion response.
-    """
-    should_close = False
-    if client is None:
-        if not base_url:
-            raise ValueError("Base URL not available.")
-        if not api_key:
-            raise ValueError("API Key not available.")
-
-        client = create_oa_client(
-            base_url=base_url,
-            api_key=api_key,
-            timeout=timeout,
-        )
-        should_close = True
-
-    try:
-        messages = build_messages(
-            prompt,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-        )
-
-        if stream:
-            astream = await client.chat.completions.create(
-                model=model,
-                messages=cast(list[ChatCompletionMessageParam], messages),
-                temperature=temperature,
-                stream=True,
-            )
-            if should_close:
-
-                async def stream_wrapper():
-                    try:
-                        async for chunk in astream:
-                            yield chunk
-                    finally:
-                        await client.close()
-
-                return stream_wrapper()
-            return astream
-        else:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=cast(list[ChatCompletionMessageParam], messages),
-                temperature=temperature,
-            )
-            if should_close:
-                await client.close()
-            return response
-    except Exception:
-        if should_close:
-            await client.close()
-        raise
 
 
 def with_oa_client(
@@ -253,22 +172,6 @@ def with_oa_client(
     if func is not None:
         return decorator(func)
     return decorator
-
-
-@deprecated("Deprecated from v0.3.0, using chat_completion or chat_stream instead.")
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=2, min=4, max=60),
-    retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
-)
-async def chat_with_retry(
-    *args, **kwargs
-) -> (
-    ChatCompletion
-    | AsyncStream[ChatCompletionChunk]
-    | AsyncGenerator[ChatCompletionChunk, Any]
-):
-    return await chat(*args, **kwargs)
 
 
 @retry(

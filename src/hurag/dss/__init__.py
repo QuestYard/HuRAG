@@ -9,9 +9,7 @@ async def init_ds(rdb_connection, rdb_cursor, vdb_client):
     """Initialize the data storage of the HuRAG knowledge base."""
     import warnings
     from aiomysql import Warning as mysql_warning
-
     warnings.filterwarnings("ignore", category=mysql_warning)
-
     from ..constants import INIT_RSS_STATEMENTS, INIT_VSS_PARAMS
 
     # 1. Initialize rdb

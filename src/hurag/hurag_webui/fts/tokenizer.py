@@ -1,7 +1,4 @@
-import warnings
-
-warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
-import jieba  # noqa: E402
+import jieba_fast as jieba
 
 jieba.setLogLevel(40)  # Suppress jieba logs
 
@@ -33,7 +30,7 @@ def tokenize(corpus: list[str]) -> list[list[str]]:
 
 def _tokenize_chunk(args: tuple) -> list[list[str]]:
     """worker: receives (start_idx, chunk_size, corpus)"""
-    warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
+    # warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
     start_idx, size, corpus = args
     # create slice locally in worker (no main memory overhead)
     chunk = corpus[start_idx : start_idx + size]
