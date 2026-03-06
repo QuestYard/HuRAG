@@ -4,7 +4,7 @@ from . import get_oa_client
 from .. import logger
 from ..types import FILE_EXTRACT
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, AsyncGenerator
 
 from tenacity import (
     retry,
@@ -53,12 +53,10 @@ async def _get_content_with_retry(client: AsyncOpenAI, file_id: str) -> str:
 
 async def upload_file(
     file: Path,
+    client: AsyncOpenAI,
     *,
     purpose: FilePurpose = FILE_EXTRACT,
-    client: AsyncOpenAI | None = None,
 ) -> FileObject | None:
-    client = client or await get_oa_client(client_name="multimodal", multimodal=True)
-
     try:
         return await _upload_file_with_retry(client, file, purpose)
     except Exception as e:
@@ -71,7 +69,7 @@ async def upload_files(
     *,
     purpose: FilePurpose = FILE_EXTRACT,
     client: AsyncOpenAI | None = None,
-) -> list[FileObject | None]:
+) -> AsyncGenerator[FileObject | None, None]:
     if not isinstance(files, list):
         files = [files]
 
@@ -85,16 +83,17 @@ async def upload_files(
         async with sem:
             return await upload_file(file=file, purpose=purpose, client=client)
 
-    results = await asyncio.gather(*(_upload(f) for f in files))
+    tasks = [asyncio.create_task(_upload(f)) for f in files]
 
-    return list(results)
+    for task in asyncio.as_completed(tasks):
+        yield await task
 
 async def extract_file_content(
     file: Path,
+    client: AsyncOpenAI,
     *,
-    client: AsyncOpenAI | None = None,
     keep_uploaded: bool = False,
-) -> str | None:
+) -> dict | None:
     client = client or await get_oa_client(client_name="multimodal", multimodal=True)
 
     try:
@@ -104,7 +103,7 @@ async def extract_file_content(
         if not keep_uploaded:
             await client.files.delete(file_id=file_object.id)
 
-        return file_content
+        return {"path": file, "content": file_content}
     except Exception as e:
         logger.error(f"{file.name} extracting content failed: {e!r}")
         return None
@@ -115,7 +114,7 @@ async def extract_files(
     *,
     keep_uploaded: bool = False,
     client: AsyncOpenAI | None = None,
-) -> list[str | None]:
+) -> AsyncGenerator[dict | None, None]:
     if not isinstance(files, list):
         files = [files]
 
@@ -125,15 +124,16 @@ async def extract_files(
 
     sem = asyncio.Semaphore(20)
 
-    async def _extract(file: Path) -> str | None:
+    async def _extract(file: Path) -> dict | None:
         async with sem:
             return await extract_file_content(
                 file=file, keep_uploaded=keep_uploaded, client=client
             )
 
-    results = await asyncio.gather(*(_extract(f) for f in files))
+    tasks = [asyncio.create_task(_extract(f)) for f in files]
 
-    return list(results)
+    for task in asyncio.as_completed(tasks):
+        yield await task
 
 
 async def delete_file(file_id: str, *, client: AsyncOpenAI | None = None) -> int:

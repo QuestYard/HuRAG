@@ -265,5 +265,16 @@ class Document:
                 seg_map[chk.seg_id].chunks.append(chk)
             for seg in seg_map.values():
                 doc_map[seg.doc_id].segments.append(seg)
+            # load attachments
+            sql_att = f"""
+            SELECT id, title, document_id FROM attachments
+            WHERE document_id IN ({','.join(['%s'] * len(doc_map))})
+            """
+            await cur.execute(sql_att, tuple(doc_map))
+            atts = await cur.fetchall()
+            for att in atts:
+                doc_map[att["document_id"]].attachments.append(
+                    Attachment(id=att["id"], title=att["title"])
+                )
 
         return list(doc_map.values())
