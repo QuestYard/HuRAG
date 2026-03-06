@@ -1,14 +1,54 @@
 from __future__ import annotations
 from pathlib import Path
 from . import get_oa_client
+from .. import logger
 from ..types import FILE_EXTRACT
 
 from typing import TYPE_CHECKING
 
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception,
+)
+from openai import BadRequestError, RateLimitError, APITimeoutError
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
     from openai.types import FileObject, FilePurpose
+
+
+def is_retryable_error(exception: BaseException) -> bool:
+    if isinstance(exception, (RateLimitError, APITimeoutError, BadRequestError)):
+        return True
+    # if isinstance(exception, BadRequestError):
+    #     msg = str(exception)
+    #     # Check for specific Moonshot/Kimi "text extract error"
+    #     if "text extract error" in msg or "没有解析出内容" in msg:
+    #         return True
+    return False
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    retry=retry_if_exception(is_retryable_error),
+)
+async def _upload_file_with_retry(
+    client: AsyncOpenAI, file: Path, purpose: FilePurpose
+) -> FileObject:
+    return await client.files.create(file=file, purpose=purpose)
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    retry=retry_if_exception(is_retryable_error),
+)
+async def _get_content_with_retry(client: AsyncOpenAI, file_id: str) -> str:
+    response = await client.files.content(file_id=file_id)
+    return response.text
 
 
 async def upload_file(
@@ -20,8 +60,9 @@ async def upload_file(
     client = client or await get_oa_client(client_name="multimodal", multimodal=True)
 
     try:
-        return await client.files.create(file=file, purpose=purpose)
-    except Exception:
+        return await _upload_file_with_retry(client, file, purpose)
+    except Exception as e:
+        logger.error(f"{file.name} uploading failed: {e!r}")
         return None
 
 
@@ -57,14 +98,15 @@ async def extract_file_content(
     client = client or await get_oa_client(client_name="multimodal", multimodal=True)
 
     try:
-        file_object = await client.files.create(file=file, purpose=FILE_EXTRACT)
-        file_content = await client.files.content(file_id=file_object.id)
+        file_object = await _upload_file_with_retry(client, file, FILE_EXTRACT)
+        file_content = await _get_content_with_retry(client, file_object.id)
 
         if not keep_uploaded:
             await client.files.delete(file_id=file_object.id)
 
-        return file_content.text
-    except Exception:
+        return file_content
+    except Exception as e:
+        logger.error(f"{file.name} extracting content failed: {e!r}")
         return None
 
 

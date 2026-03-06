@@ -66,6 +66,7 @@ CREATE TABLE attachments (
     id UUID PRIMARY KEY,
     title VARCHAR(100) NOT NULL,
     document_id UUID NOT NULL,
+    UNIQUE KEY uniq_attachment (title, document_id),
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE segments (

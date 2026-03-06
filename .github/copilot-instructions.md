@@ -1,6 +1,12 @@
 # Copilot Instructions for HuRAG
 
-## Build, Test, and Lint
+## Project Overview
+
+HuRAG is a Temporal-Hierarchical GraphRAG (TH-GraphRAG) application designed for legal/regulatory documents. It features a dual-service architecture:
+-   **API Server (`hurag-server`):** FastAPI-based backend for RAG retrieval and LLM interaction.
+-   **WebUI (`hurag-webui`):** NiceGUI-based frontend for user interaction.
+
+## Build and Run
 
 This project uses `uv` for dependency management and execution.
 
@@ -8,52 +14,57 @@ This project uses `uv` for dependency management and execution.
     ```bash
     uv sync
     ```
-*   **Run API Server:**
-    ```bash
-    uv run hurag-server
-    ```
-*   **Run WebUI:**
-    ```bash
-    uv run hurag-webui
-    ```
+*   **Run Services:**
+    *   **API Server:** `uv run hurag-server` (Host/Port configured in `hurag.yaml` -> `api`)
+    *   **WebUI:** `uv run hurag-webui`
 *   **CLI Tools:**
-    *   `uv run hurag` (Knowledge Base CLI)
-    *   `uv run corpus` (Corpus CLI)
-    *   `uv run kgraph` (Knowledge Graph CLI)
-*   **Linting/Formatting:**
-    *   The project uses `pyright` for static type checking (configured in `pyrightconfig.json`).
-    *   Use `uv run pyright` to run type checks.
+    *   **Knowledge Base Management:** `uv run hurag` (Subcommands: `init`, `info`, `list`, `store`)
+    *   **Corpus Management:** `uv run corpus`
+    *   **Knowledge Graph:** `uv run kgraph`
+*   **Linting:**
+    *   Run static type checks: `uv run pyright`
 
-## High-Level Architecture
+## Architecture & Data Access
 
-HuRAG is a RAG application specialized for legal/regulatory documents with a focus on organizational structure and temporal validity.
+### Data Support System (DSS)
+The `src/hurag/dss` module handles all data access. **Do not access databases directly; use the provided wrappers.**
 
-*   **Core Services:**
-    *   **API Server (`hurag-server`):** FastAPI-based backend providing REST endpoints for RAG retrieval (`/v1/hurag/retrieve`) and chat (`/v1/llm/chat`).
-    *   **WebUI (`hurag-webui`):** NiceGUI-based frontend for user interaction.
-*   **Data Layer:**
-    *   **Relational DB (MariaDB/MySQL):** Stores metadata, corpus, and organizational structure.
-    *   **Vector DB (Milvus):** Stores document embeddings.
-*   **RAG Engine:**
-    *   **TH-GraphRAG:** Uses a temporal and hierarchical knowledge graph.
-    *   **Organization Tree:** Users are tied to nodes in an org tree, restricting search scope.
-    *   **Document Processing:** Supports PDF, Word, Excel, etc., via `MarkItDown`.
-*   **External Dependencies:**
-    *   Relies on an external `embedding-service` for embeddings/reranking.
-    *   Uses OpenAI-compatible APIs for LLM generation.
+*   **Relational (`dss.rss`):** Wraps `aiomysql` for MariaDB.
+    *   **Injection:** Use the `@with_rdb` decorator to inject `connection` and `cursor`.
+    *   **Usage:**
+        ```python
+        @with_rdb
+        async def my_func(conn, cur):
+            await cur.execute("SELECT * FROM ...")
+        ```
+*   **Vector (`dss.vss`):** Wraps `pymilvus` for Milvus.
+    *   **Injection:** Use the `@with_vdb` decorator to inject the `client`.
+    *   **Usage:**
+        ```python
+        @with_vdb(client_arg_name="cli")
+        async def my_func(cli):
+            await cli.search(...)
+        ```
+*   **Graph (`dss.gss`):** Orchestrates hybrid graph storage (Entities/Relations in MariaDB, Embeddings in Milvus).
 
-## Key Conventions
+### Knowledge Base Manager (`kbman`)
+High-level logic for managing the knowledge base resides in `src/hurag/kbman`. Use this module for operations like document deletion, metadata updates, or statistics.
 
-*   **Configuration:**
-    *   **`hurag.yaml`:** Main application config (DB connections, model tags, retrieval params).
-    *   **`.env`:** Secrets and environment-specific variables (API keys, model specific URLs).
-    *   **Model Mapping:** `hurag.yaml` defines model *tags* (e.g., "DEEPSEEK"), which map to environment variables in `.env` (e.g., `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY`).
-*   **Type Hinting:**
-    *   Strict type hinting is encouraged to satisfy `pyright`.
-    *   Use `TYPE_CHECKING` blocks for imports used only for typing to avoid circular dependencies.
-    *   Handle `None` values explicitly, especially from external API responses.
-*   **WebUI Pattern:**
-    *   **NiceGUI Isolation:** Global events share the same worker. Always check `ui.context.client` in event handlers to ensure data isolation between users.
-    *   **Matplotlib:** Can be disabled via `MATPLOTLIB="false"` env var for faster startup.
-*   **Database Injection:**
-    *   Functions using `@with_rdb` decorator should have `conn` and `cur` arguments typed as optional (`None`) or `Any` to satisfy static analysis, as they are injected at runtime.
+### Business Logic Layers
+*   **Document Ingestion (`knowledge_base.py`):** Handles document indexing and vectorization logic (used by `hurag store`).
+*   **Graph Logic (`knowledge_graph.py`):** Contains algorithms for entity extraction, normalization, and community detection (Leiden).
+
+## Configuration
+
+*   **`hurag.yaml`:** Main application configuration (DB connections, retrieval parameters, model tags).
+*   **`.env`:** Environment variables for secrets and model-specific configs.
+    *   **Model Mapping:** `hurag.yaml` defines model *tags* (e.g., `generation: DEEPSEEK`). The code looks up environment variables based on these tags (e.g., `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY`).
+
+## Coding Conventions
+
+*   **Async/Await:** All Database and IO operations are asynchronous. Ensure new functions utilizing `dss` are `async`.
+*   **Type Hinting:** Strict type hinting is required to satisfy `pyright`.
+    *   Use `TYPE_CHECKING` blocks for circular imports.
+    *   Explicitly handle `None` types.
+*   **WebUI Isolation:** NiceGUI events share the same worker. Always check `ui.context.client` in event handlers to ensure data isolation between users.
+*   **Logging:** Use the project's logger (`from .. import logger`).
