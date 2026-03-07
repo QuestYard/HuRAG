@@ -1,22 +1,21 @@
 # Content Storage Service
-# - The CRUD service for contents of multimodal documents and document attachments.
+# - The CRUD service for contents of multimodal documents.
 # - The base directory is configured in hurag.yaml as app.extra_docs_dir.
-# - The contents of multimodal documents stored in `<extra_docs_dir>/extra`.
-# - The contents of attachments stored in `<extra_docs_dir>/attachments`.
-# - Contents files named as `<uuid>.content`, text, utf-8.
+# - Content files saved in sub-directories under the base, we call them the folders.
+# - There are two reserved folders: 'extra' and 'attachments'.
+# - Contents files named as `<id>.content`, text, utf-8.
 from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass
 
-_base = None
+_base = None  # the base directory of the content storage.
 
 
 @dataclass
 class FileContent:
-    id: str | None = None
-    title: str | None = None
-    document_title: str | None = None
-    content: str | None = None
+    id: str
+    content: str
+    folder: str
 
 
 def _base_path() -> Path:
@@ -33,42 +32,42 @@ def _base_path() -> Path:
     return _base
 
 
-def _attachments_path() -> Path:
-    att_path = _base_path() / "attachments"
-    if att_path.exists() and not att_path.is_dir():
-        raise ValueError(f"Invalid attachments dir: {att_path.resolve().as_posix()}")
-    if not att_path.exists():
-        att_path.mkdir()
+def get_folder(folder: str) -> Path:
+    if not folder.strip():
+        raise ValueError("A non-empty content folder name must be provided.")
 
-    return att_path
+    folder_path = _base_path() / folder.strip()
+    if folder_path.exists() and not folder_path.is_dir():
+        raise ValueError(f"Invalid folder: {folder_path.resolve().as_posix()}")
 
-def _documents_path() -> Path:
-    doc_path = _base_path() / "attachments"
-    if doc_path.exists() and not doc_path.is_dir():
-        raise ValueError(f"Invalid attachments dir: {doc_path.resolve().as_posix()}")
-    if not doc_path.exists():
-        doc_path.mkdir()
+    if not folder_path.exists():
+        folder_path.mkdir()
 
-    return doc_path
+    return folder_path
 
-
-async def query_attachments(contents: FileContent | list[FileContent]):
-    ...
 
 def save_contents(
     contents: FileContent | list[FileContent],
     *,
-    replace_exists: bool = False,
-) -> list[FileContent]:
-    from ..utilities import generate_id
-    from . import rss
-    
-    att_dir = _attachments_path()
-    doc_dir = _documents_path()
+    overwrite_duplicates: bool = True,  # leave existing contents unchanged if False
+) -> list[Path]:
 
     if isinstance(contents, FileContent):
         contents = [contents]
 
-    atts = [c for c in contents if c.document_title and c.title]
-    docs = [c for c in contents if not c.document_title and c.title]
+    saved = [get_folder(c.folder) / f"{c.id}.content" for c in contents]
+    for path, c in zip(saved, contents):
+        if path.exists() and not overwrite_duplicates:
+            continue
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(c.content)
 
+    return saved
+
+
+def delete_contents(ids: str | list[str], folder: str) -> int:
+    ...
+
+
+def load_contents(ids: str | list[str], folder: str) -> list[FileContent | None]:
+    ...

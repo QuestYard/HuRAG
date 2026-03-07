@@ -22,11 +22,16 @@ async def build_index_for_user(
             - A list of session IDs corresponding to the indexed sessions.
     """
     sessions = await load_sessions_by_user(user_id)
+
+    # Fetch messages in parallel to avoid blocking the event loop
+    tasks = [load_messages_by_session(s.id) for s in sessions]
+    messages_list = await asyncio.gather(*tasks)
+
     session_docs = {
         s.id: f"{s.title}\n{
-            '\n'.join([m.content for m in await load_messages_by_session(s.id)])
+            '\n'.join([m.content for m in messages])
         }"
-        for s in sessions
+        for s, messages in zip(sessions, messages_list)
     }
     corpus = list(session_docs.values())
 

@@ -2,6 +2,7 @@ import pkuseg
 
 
 _seg = None
+_executor = None
 
 
 def _get_seg():
@@ -66,22 +67,30 @@ def parallel_tokenize(corpus: list[str], chunk_size: int = 100) -> list[list[str
     if len(corpus) < chunk_size:
         return tokenize(corpus)
 
-    from multiprocessing import Pool, cpu_count
+    from concurrent.futures import ProcessPoolExecutor
+    import multiprocessing
+
+    global _executor
+    if _executor is None:
+        # Limit max workers to avoid OOM (pkuseg models are large)
+        # Using 4 workers is usually sufficient for most user loads
+        max_workers = min(multiprocessing.cpu_count(), 4)
+        # Use spawn context to ensure thread safety on Linux
+        # Forking from a multi-threaded process (NiceGUI/Asyncio) is unsafe
+        ctx = multiprocessing.get_context("spawn")
+        _executor = ProcessPoolExecutor(
+            max_workers=max_workers, mp_context=ctx, initializer=_init_worker
+        )
 
     def chunk_gen():
         for i in range(0, len(corpus), chunk_size):
             yield corpus[i : i + chunk_size]
 
-    processes = min(
-        max(1, cpu_count() - 1),
-        len(corpus) // chunk_size + (len(corpus) % chunk_size != 0),
-    )
+    # Use the global executor to tokenize chunks in parallel
+    results = _executor.map(_tokenize_chunk, chunk_gen())
 
-    with Pool(processes=processes, initializer=_init_worker) as pool:
-        tokenized_chunks = pool.imap(_tokenize_chunk, chunk_gen())
+    final_result = []
+    for chunk_res in results:
+        final_result.extend(chunk_res)
 
-        result = []
-        for chunk_tokens in tokenized_chunks:
-            result.extend(chunk_tokens)
-
-    return result
+    return final_result

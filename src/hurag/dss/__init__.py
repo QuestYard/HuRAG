@@ -1,6 +1,7 @@
 from .. import logger
 from .rss import with_rdb
 from .vss import with_vdb
+from .css import FileContent
 
 
 @with_vdb(client_arg_name="vdb_client")
@@ -95,4 +96,5 @@ async def clear_graph(rdb_connection, rdb_cursor, vdb_client):
 __all__ = [
     "with_rdb",
     "with_vdb",
+    "FileContent",
 ]
