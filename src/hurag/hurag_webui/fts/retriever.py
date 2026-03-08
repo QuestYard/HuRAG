@@ -36,9 +36,10 @@ async def build_index_for_user(
     corpus = list(session_docs.values())
 
     def _index():
-        tokenized_corpus = parallel_tokenize(corpus, chunk_size=batch_size)
         retriever = bm25s.BM25()
-        retriever.index(tokenized_corpus)
+        if corpus:
+            tokenized_corpus = parallel_tokenize(corpus, chunk_size=batch_size)
+            retriever.index(tokenized_corpus)
         return retriever
 
     retriever = await asyncio.to_thread(_index)
