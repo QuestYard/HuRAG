@@ -190,11 +190,8 @@ def corpus_split(path: str) -> list[str]:
     return splitted
 
 
-def corpus_load(path: Path) -> list[Document]:
-    import json
+def corpus_load(path: Path, ins_markups: dict) -> list[Document]:
     from ..schemas import Document
 
-    with open(path / "corpus.json", "r", encoding="utf-8") as f:
-        markups = json.load(f).get("insert", {})
-    docs = [Document.from_corpus(path / fn, meta) for fn, meta in markups.items()]
+    docs = [Document.from_corpus(path / fn, meta) for fn, meta in ins_markups.items()]
     return docs

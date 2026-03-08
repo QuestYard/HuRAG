@@ -249,22 +249,23 @@ class Document:
             """
             await cur.execute(sql_seg, doc_ids)
             seg_rows = await cur.fetchall()
-            seg_map = {row["id"]: Segment(**row) for row in seg_rows}
-            seg_ids = tuple(seg_map)
-            sql_chk = f"""
-            SELECT id, segment_id as seg_id, text, seq_no
-            FROM chunks
-            WHERE segment_id IN ({",".join(["%s"] * len(seg_ids))})
-            ORDER BY seg_id, seq_no
-            """
-            await cur.execute(sql_chk, seg_ids)
-            chk_rows = await cur.fetchall()
-            chunks = [Chunk(**row) for row in chk_rows]
-            # assemble documents
-            for chk in chunks:
-                seg_map[chk.seg_id].chunks.append(chk)
-            for seg in seg_map.values():
-                doc_map[seg.doc_id].segments.append(seg)
+            if seg_rows:
+                seg_map = {row["id"]: Segment(**row) for row in seg_rows}
+                seg_ids = tuple(seg_map)
+                sql_chk = f"""
+                SELECT id, segment_id as seg_id, text, seq_no
+                FROM chunks
+                WHERE segment_id IN ({",".join(["%s"] * len(seg_ids))})
+                ORDER BY seg_id, seq_no
+                """
+                await cur.execute(sql_chk, seg_ids)
+                chk_rows = await cur.fetchall()
+                chunks = [Chunk(**row) for row in chk_rows]
+                # assemble documents
+                for chk in chunks:
+                    seg_map[chk.seg_id].chunks.append(chk)
+                for seg in seg_map.values():
+                    doc_map[seg.doc_id].segments.append(seg)
             # load attachments
             sql_att = f"""
             SELECT id, title, document_id FROM attachments

@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from pymilvus import AsyncMilvusClient
 
 from .. import logger
-from ..dss import with_rdb, with_vdb
+from ..dss import with_rdb, with_vdb, fss
 from ..types import DocumentOrder
 
 from dataclasses import dataclass
@@ -34,6 +34,22 @@ class DeletionResults:
     entities: int = 0
     relations: int = 0
     communities: int = 0
+    attachments: int = 0
+
+
+async def _delete_attachments(doc_id: str, cur: Cursor) -> int:
+    await cur.execute("SELECT id FROM attachments WHERE document_id = %s", (doc_id,))
+    att_ids = [x[0] for x in await cur.fetchall()]
+    if att_ids:
+        await cur.execute("DELETE FROM attachments WHERE document_id = %s", (doc_id,))
+        fss.delete_files(att_ids, fss.AT_FOLDER)
+
+    return len(att_ids)
+
+
+async def _delete_extra_document(id: str, cur: Cursor) -> None:
+    await cur.execute("DELETE FROM documents WHERE id = %s", (id,))
+    fss.delete_files(id, fss.MM_FOLDER)
 
 
 @with_vdb(client_arg_name="cli")
@@ -59,9 +75,15 @@ async def _delete_knowledge(
             seg_ids = [x[0] for x in await cur.fetchall()]
             await cur.execute("SELECT title FROM documents WHERE id = %s", (id,))
             resp = await cur.fetchall()
-            doc_title = resp[0][0] if resp else None
+            doc_title = resp[0][0]
+            ret.attachments = await _delete_attachments(id, cur)
+            if doc_title.startswith("*"):
+                await _delete_extra_document(id, cur)
+                await conn.commit()
+                return ret
         else:
             seg_ids = [id]
+
         ret.segments = len(seg_ids)
 
         phd = f"({','.join(['%s'] * len(seg_ids))})"

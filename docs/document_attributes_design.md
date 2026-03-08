@@ -373,7 +373,7 @@ HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类
 
   项目配置文件 `hurag.yaml` 的 `app.extra_docs_dir` 指定所有多模态文档（包括附件文档）内容文件的存放位置，为一个从项目目录（即 `hurag.yaml` 所在目录）开始的相对路径。
 
-  文档附件在经过大模型分析对齐后提取到的内容，将保存在该目录下的 `attachments` 子目录中，多模态文档的内容则保存在该目录下的 `extra` 子目录中。文件名为 `<doc_id>.content`。
+  文档附件在经过大模型分析对齐后提取到的内容，将保存在该目录下的 `attachments` 子目录中，多模态文档的内容则保存在该目录下的 `multimodals` 子目录中。文件名为 `<doc_id>.content`。
 
 
 ### 预标注

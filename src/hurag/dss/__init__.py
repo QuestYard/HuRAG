@@ -1,7 +1,7 @@
 from .. import logger
 from .rss import with_rdb
 from .vss import with_vdb
-from .css import FileContent
+from .fss import FileContent
 
 
 @with_vdb(client_arg_name="vdb_client")

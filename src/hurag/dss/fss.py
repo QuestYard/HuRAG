@@ -1,14 +1,17 @@
-# Content Storage Service
-# - The CRUD service for contents of multimodal documents.
+# File Storage Service
+# - The CRUD service for text files, e.g., content of multimodal documents.
 # - The base directory is configured in hurag.yaml as app.extra_docs_dir.
-# - Content files saved in sub-directories under the base, we call them the folders.
-# - There are two reserved folders: 'extra' and 'attachments'.
-# - Contents files named as `<id>.content`, text, utf-8.
+# - Files are saved in sub-directories under the base, we call them the folders.
+# - There are two reserved folders: 'multimodals' and 'attachments'.
+# - Files are named as `<id>.content`, text, utf-8.
 from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass
 
 _base = None  # the base directory of the content storage.
+
+MM_FOLDER = "multimodals"
+AT_FOLDER = "attachments"
 
 
 @dataclass
@@ -46,7 +49,7 @@ def get_folder(folder: str) -> Path:
     return folder_path
 
 
-def save_contents(
+def save_files(
     contents: FileContent | list[FileContent],
     *,
     overwrite_duplicates: bool = True,  # leave existing contents unchanged if False
@@ -65,9 +68,46 @@ def save_contents(
     return saved
 
 
-def delete_contents(ids: str | list[str], folder: str) -> int:
-    ...
+def delete_files(ids: str | list[str] | None, folder: str):
+    folder_path = get_folder(folder)
+
+    if not ids:  # remove the whole folder
+        paths = [folder_path]
+    else:
+        if isinstance(ids, str):
+            ids = [ids]
+        paths = [folder_path / f"{id}.content" for id in ids]
+
+    import shutil
+
+    for path in paths:
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
 
 
-def load_contents(ids: str | list[str], folder: str) -> list[FileContent | None]:
-    ...
+def load_files(ids: str | list[str] | None, folder: str) -> list[FileContent | None]:
+    folder_path = get_folder(folder)
+
+    if not ids:  # load the whole folder
+        paths = [
+            p
+            for p in folder_path.iterdir()
+            if p.is_file() and p.suffix.lower() == ".content"
+        ]
+    else:
+        if isinstance(ids, str):
+            ids = [ids]
+        paths = [folder_path / f"{id}.content" for id in ids]
+
+    ret = []
+    for path in paths:
+        if not path.exists():
+            ret.append(None)
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            fc = f.read()
+        ret.append(FileContent(id=path.stem, content=fc, folder=folder))
+
+    return ret

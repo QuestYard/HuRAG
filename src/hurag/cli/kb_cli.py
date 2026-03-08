@@ -177,16 +177,28 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         show_msg(f"指定的文集目录 {path} 不存在或不是一个目录", style="error")
         return
 
-    show_msg(f"加载文集 {path} 中的文档...", style="info")
+    show_msg(f"加载文集 {path} 中待入库的文档...", style="info")
+
+    import json
     from ..kbman import corpus_load
 
     try:
-        docs = corpus_load(corpus)
+        with open(corpus / "corpus.json", "r", encoding="utf-8") as f:
+            markups = json.load(f)
+        docs = corpus_load(corpus, markups.get("insert", {}))
         show_msg(f"加载完成，共 {len(docs)} 份文档待入库", style="info")
     except Exception as e:
         show_msg(f"加载文集 {path} 失败: {e}", style="error", err=e)
         return
 
+    # query existing documents
+    # TODO
+
+
+    # multimodal documents
+
+
+    # normal documents
     show_msg("向量化待入库文档...", style="info")
     from ..llm.embedder import embed_documents
     from rich.progress import (
