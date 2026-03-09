@@ -4,6 +4,7 @@ from .kb_manager import (
     kb_info,
     list_documents,
     update_metadata,
+    check_existance,
 )
 from .corpus import (
     doc_convert,
@@ -19,6 +20,7 @@ __all__ = [
     "kb_info",
     "list_documents",
     "update_metadata",
+    "check_existance",
     "doc_convert",
     "corpus_load",
     "corpus_markup",

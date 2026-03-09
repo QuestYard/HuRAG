@@ -22,11 +22,6 @@ if TYPE_CHECKING:
 def is_retryable_error(exception: BaseException) -> bool:
     if isinstance(exception, (RateLimitError, APITimeoutError, BadRequestError)):
         return True
-    # if isinstance(exception, BadRequestError):
-    #     msg = str(exception)
-    #     # Check for specific Moonshot/Kimi "text extract error"
-    #     if "text extract error" in msg or "没有解析出内容" in msg:
-    #         return True
     return False
 
 

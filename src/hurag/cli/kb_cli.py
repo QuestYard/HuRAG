@@ -1,3 +1,4 @@
+from annotated_types import doc
 import typer
 
 from . import (
@@ -124,7 +125,7 @@ async def list(
 
     doc_info = [
         (
-            f"{doc[0].strip('*')}（{doc[1]}）" if doc[1] else doc[0].strip("*"),
+            f"{doc[0].lstrip('*')}（{doc[1]}）" if doc[1] else doc[0].lstrip("*"),
             doc[2].strftime("%Y-%m-%d"),  # valid_from
             doc[3].strftime("%Y-%m-%d") if doc[3] else "",  # valid_to
             doc[4].split("/")[-1].rstrip("*"),  # pub_org
@@ -191,16 +192,12 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         show_msg(f"加载文集 {path} 失败: {e}", style="error", err=e)
         return
 
-    # query existing documents
-    # TODO
+    # query existing documents, set IDs.
+    from ..kbman import check_existance
+    await check_existance(docs)
+    new_multimodals = [doc for doc in docs if not doc.id and doc.is_multimodal]
+    new_normal_docs = [doc for doc in docs if not doc.id and not doc.is_multimodal]
 
-
-    # multimodal documents
-
-
-    # normal documents
-    show_msg("向量化待入库文档...", style="info")
-    from ..llm.embedder import embed_documents
     from rich.progress import (
         Progress,
         SpinnerColumn,
@@ -210,32 +207,82 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         TimeRemainingColumn,
         MofNCompleteColumn,
     )
+    from ..llm import extract_files
+    from ..dss import fss
+    from ..utilities import generate_id
 
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeRemainingColumn(elapsed_when_finished=True),
-            MofNCompleteColumn(),
-        ) as progress:
-            task = progress.add_task("文档文本向量化", total=len(docs))
-            embeddings = []
-            async for vecs, _ in embed_documents(docs, batch_type=1):
-                embeddings.append(vecs)
-                progress.update(task, advance=1)
-        show_msg(f"{len(embeddings)} 份文档向量化完成", style="info")
-    except Exception as e:
-        show_msg(f"文档向量化失败: {e}", style="error", err=e)
-        return
+    # multimodal documents
+    if new_multimodals:
+        show_msg("提取待入库多模态文档内容...", style="info")
+        # extract contents and save
+        # TODO:
+        fn_doc_map = {
+            fn: doc
+            for doc in new_multimodals
+            for fn, m in markups["insert"].items()
+            if doc.title == f"*{m['title']}"
+        }
+        for doc in new_multimodals:
+            doc.id = generate_id()
+        files = [corpus / fn for fn in fn_doc_map]
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeRemainingColumn(elapsed_when_finished=True),
+                MofNCompleteColumn(),
+            ) as progress:
+                task = progress.add_task("多模态文档内容提取", total=len(files))
+                contents = {}
+                async for ret in extract_files(files):
+                    # ret: {"path": src_file_path, "content": content}
+                    if ret is not None:
+                        contents[ret["path"].name] = ret["content"]
+                    progress.update(task, advance=1)
+            show_msg(f"{len(contents)} 份多模态文档提取内容完成", style="info")
+        except Exception as e:
+            show_msg(f"提取多模态文档失败: {e!r}", style="error", err=e)
+            return
+    else:
+        show_msg("文集中没有新增的多模态文档", style="warning")
 
-    show_msg("文档内容保存入数据库...", style="info")
-    from ..knowledge_base import indexing_documents
 
-    try:
-        ds, ss, cs = await indexing_documents(docs, embeddings)
-        show_msg(f"{ds} 份文档，共 {ss} 知识段、{cs} 文本块入库完成", style="info")
-    except Exception as e:
-        show_msg(f"文档内容保存入库失败: {e}", style="error", err=e)
-        return
+    # normal documents
+    if new_normal_docs:
+        show_msg("向量化待入库文本文档...", style="info")
+        from ..llm.embedder import embed_documents
+
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeRemainingColumn(elapsed_when_finished=True),
+                MofNCompleteColumn(),
+            ) as progress:
+                task = progress.add_task("文档文本向量化", total=len(new_normal_docs))
+                embeddings = []
+                async for vecs, _ in embed_documents(new_normal_docs, batch_type=1):
+                    embeddings.append(vecs)
+                    progress.update(task, advance=1)
+            show_msg(f"{len(embeddings)} 份文档向量化完成", style="info")
+        except Exception as e:
+            show_msg(f"文档向量化失败: {e!r}", style="error", err=e)
+            return
+
+        show_msg("文本文档内容保存入数据库...", style="info")
+        from ..indexer import indexing_documents
+
+        try:
+            ds, ss, cs = await indexing_documents(new_normal_docs, embeddings)
+            show_msg(f"{ds} 份文档，共 {ss} 知识段、{cs} 文本块入库完成", style="info")
+        except Exception as e:
+            show_msg(f"文档内容保存入库失败: {e}", style="error", err=e)
+            return
+    else:
+        show_msg("文集中没有新增的文本文档", style="warning")
+
+    # attachments

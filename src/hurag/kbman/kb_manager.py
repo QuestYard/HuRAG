@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from aiomysql import Connection, Cursor
     from pymilvus import AsyncMilvusClient
+    from ..schemas import Document
 
 from .. import logger
 from ..dss import with_rdb, with_vdb, fss
@@ -76,6 +77,15 @@ async def _delete_knowledge(
             await cur.execute("SELECT title FROM documents WHERE id = %s", (id,))
             resp = await cur.fetchall()
             doc_title = resp[0][0]
+            # update replaces and localizes
+            await cur.execute(
+                "UPDATE documents SET replaces = NULL WHERE replaces = %s",
+                (doc_title,),
+            )
+            await cur.execute(
+                "UPDATE documents SET localizes = NULL WHERE localizes = %s",
+                (doc_title,),
+            )
             ret.attachments = await _delete_attachments(id, cur)
             if doc_title.startswith("*"):
                 await _delete_extra_document(id, cur)
@@ -146,16 +156,6 @@ async def _delete_knowledge(
             phd = f"({','.join(['%s'] * len(community_ids))})"
             await cur.execute(
                 f"DELETE FROM communities WHERE id IN {phd}", community_ids
-            )
-        # update replaces and localizes if id_type is document
-        if doc_title:
-            await cur.execute(
-                "UPDATE documents SET replaces = NULL WHERE replaces = %s",
-                (doc_title,),
-            )
-            await cur.execute(
-                "UPDATE documents SET localizes = NULL WHERE localizes = %s",
-                (doc_title,),
             )
         await conn.commit()
     except Exception as e:
@@ -322,3 +322,18 @@ async def update_metadata(
         await conn.rollback()
         logger.error(f"Update metadata for {title} failed: {e!r}")
         raise
+
+
+async def check_existance(docs: list[Document]) -> int:
+    from ..dss import rss
+    rows = await rss.query(
+        f"""
+        SELECT id, title FROM documents WHERE title IN ({','.join(['%s'] * len(docs))})
+        """,
+        tuple(d.title for d in docs),
+    )
+    exists = {x[1]: x[0] for x in rows}
+    for doc in docs:
+        doc.id = exists.get(doc.title, None)
+
+    return len(exists)
