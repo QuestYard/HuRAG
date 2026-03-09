@@ -506,10 +506,14 @@ async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
     docs["dist"] = 0
     localizes = tuple(docs["localizes"])
     for idx, loc in enumerate(localizes):
-        if loc:
+        if pd.isna(loc):
+            continue
+        try:
             docs.at[docs.index[docs["title"] == loc].item(), "dist"] = (
                 docs.iloc[idx]["dist"] + 1
             )
+        except Exception:
+            pass
     docs["decrease_factor"] = np.log(_HBASE) / np.log(docs["dist"] + _HBASE)
     # find search scope of chunks
     scope = (
