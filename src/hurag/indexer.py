@@ -19,6 +19,40 @@ SQL_INS_DOC = [
 ]
 
 
+async def save_multimodal_docs(docs: list[dict]) -> int:
+    from .dss import rss, fss, FileContent, MM_FOLDER
+    from .utilities import generate_id
+
+    for doc in docs:
+        doc["doc"].id = generate_id()
+
+    sql = SQL_INS_DOC[0]
+    data = [
+        (
+            doc["doc"].id,
+            doc["doc"].title,
+            doc["doc"].sn,
+            doc["doc"].date,
+            doc["doc"].valid_from,
+            doc["doc"].valid_to,
+            doc["doc"].replaces,
+            doc["doc"].pub_path,
+            doc["doc"].localizes,
+            doc["doc"].authors,
+            False,
+        )
+        for doc in docs
+    ]
+    total = await rss.dml(sql, data)
+    fcs = [
+        FileContent(id=doc["doc"].id, folder=MM_FOLDER, content=doc["content"])
+        for doc in docs
+    ]
+    fss.save_files(fcs, overwrite_duplicates=False)
+
+    return total
+
+
 async def indexing_documents(
     docs: list[Document],
     embeddings: list[dict[EmbeddingType, Any]],

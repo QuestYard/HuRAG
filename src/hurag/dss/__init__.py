@@ -1,7 +1,7 @@
 from .. import logger
 from .rss import with_rdb
 from .vss import with_vdb
-from .fss import FileContent
+from .fss import FileContent, MM_FOLDER, AT_FOLDER
 
 
 @with_vdb(client_arg_name="vdb_client")
@@ -97,4 +97,6 @@ __all__ = [
     "with_rdb",
     "with_vdb",
     "FileContent",
+    "MM_FOLDER",
+    "AT_FOLDER",
 ]

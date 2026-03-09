@@ -1,4 +1,3 @@
-from annotated_types import doc
 import typer
 
 from . import (
@@ -208,22 +207,19 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         MofNCompleteColumn,
     )
     from ..llm import extract_files
-    from ..dss import fss
-    from ..utilities import generate_id
+    from ..indexer import save_multimodal_docs
 
     # multimodal documents
     if new_multimodals:
-        show_msg("提取待入库多模态文档内容...", style="info")
+        _total = len(new_multimodals)
+        show_msg(f"提取待入库多模态文档内容...", style="info")
         # extract contents and save
-        # TODO:
         fn_doc_map = {
-            fn: doc
+            fn: {"doc": doc, "content": None}
             for doc in new_multimodals
             for fn, m in markups["insert"].items()
             if doc.title == f"*{m['title']}"
         }
-        for doc in new_multimodals:
-            doc.id = generate_id()
         files = [corpus / fn for fn in fn_doc_map]
         try:
             with Progress(
@@ -234,20 +230,28 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
                 TimeRemainingColumn(elapsed_when_finished=True),
                 MofNCompleteColumn(),
             ) as progress:
-                task = progress.add_task("多模态文档内容提取", total=len(files))
-                contents = {}
+                task = progress.add_task("多模态文档内容提取", total=_total)
                 async for ret in extract_files(files):
                     # ret: {"path": src_file_path, "content": content}
                     if ret is not None:
-                        contents[ret["path"].name] = ret["content"]
+                        fn_doc_map[ret["path"].name]["content"] = ret["content"]
                     progress.update(task, advance=1)
-            show_msg(f"{len(contents)} 份多模态文档提取内容完成", style="info")
         except Exception as e:
             show_msg(f"提取多模态文档失败: {e!r}", style="error", err=e)
             return
+
+        show_msg("多模态文档内容保存入数据库...", style="info")
+        # save new multimodal documents
+        try:
+            _total = await save_multimodal_docs(
+                [v for v in fn_doc_map.values() if v["content"] is not None]
+            )
+            show_msg(f"{_total} 份新增多模态文档入库完成", style="info")
+        except Exception as e:
+            show_msg(f"保存新增多模态文档失败: {e!r}", style="error", err=e)
+            return
     else:
         show_msg("文集中没有新增的多模态文档", style="warning")
-
 
     # normal documents
     if new_normal_docs:
