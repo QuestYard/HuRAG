@@ -212,7 +212,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
     # multimodal documents
     if new_multimodals:
         _total = len(new_multimodals)
-        show_msg(f"提取待入库多模态文档内容...", style="info")
+        show_msg("提取待入库多模态文档内容...", style="info")
         # extract contents and save
         fn_doc_map = {
             fn: {"doc": doc, "content": None}
@@ -237,10 +237,10 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
                         fn_doc_map[ret["path"].name]["content"] = ret["content"]
                     progress.update(task, advance=1)
         except Exception as e:
-            show_msg(f"提取多模态文档失败: {e!r}", style="error", err=e)
+            show_msg(f"提取多模态文档内容失败: {e!r}", style="error", err=e)
             return
 
-        show_msg("多模态文档内容保存入数据库...", style="info")
+        show_msg("新增多模态文档内容保存入数据库...", style="info")
         # save new multimodal documents
         try:
             _total = await save_multimodal_docs(
@@ -290,3 +290,84 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         show_msg("文集中没有新增的文本文档", style="warning")
 
     # attachments
+    show_msg("检查需要新增的文档附件...", style="info")
+    fn_doc_att_map = {
+        (Path(Path(fn).stem) / att.title).as_posix(): {
+            "doc_id": doc.id,
+            "att": att,
+            "content": None,
+        }
+        for doc in docs
+        for att in doc.attachments
+        for fn, m in markups["insert"].items()
+        if att.title and doc.title and doc.title.lstrip() == m["title"]
+    }
+
+    from ..kbman import check_attachments_existance
+    await check_attachments_existance(list(fn_doc_att_map.values()))
+    new_atts = {k: v for k, v in fn_doc_att_map.items() if v["att"].id is None}
+
+    if new_atts:
+        _total = len(new_atts)
+        show_msg("提取新增文档附件的内容...", style="info")
+        # extract content of attachments
+        files = [corpus / fn for fn in new_atts]
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeRemainingColumn(elapsed_when_finished=True),
+                MofNCompleteColumn(),
+            ) as progress:
+                task = progress.add_task("文档附件内容提取", total=_total)
+                async for ret in extract_files(files):
+                    # ret: {"path": src_file_path, "content": content}
+                    if ret is not None:
+                        _rpath = ret["path"].relative_to(corpus).as_posix()
+                        new_atts[_rpath]["content"] = ret["content"]
+                    progress.update(task, advance=1)
+        except Exception as e:
+            show_msg(f"提取文档附件内容失败: {e!r}", style="error", err=e)
+            return
+
+        show_msg("新增文档附件内容保存入数据库...", style="info")
+        from ..indexer import save_attachments
+
+        try:
+            _total = await save_attachments(
+                [v for v in new_atts.values() if v["content"] is not None]
+            )
+            show_msg(f"{_total} 份新增文档附件入库完成", style="info")
+        except Exception as e:
+            show_msg(f"保存新增文档附件失败: {e!r}", style="error", err=e)
+            return
+    else:
+        show_msg("文集中没有需要新增的文档附件", style="info")
+
+    # update
+    if markups["update"]:
+        show_msg("修改文档元数据...", style="info")
+        from ..kbman import update_metadata
+
+        _total = len(markups["update"])
+        try:
+            for title, new_meta in markups["update"]:
+                _rows = await update_metadata(title=title, new_meta=new_meta)
+                _updated = ",".join([f"{k} 修改为 {v}" for k, v in new_meta.items()])
+                _affected = f"共影响 {_rows} 份文档"
+                show_msg(
+                    f"{title} 元数据修改完成: {_updated}, {_affected}", style="info"
+                )
+        except Exception as e:
+            show_msg(f"修改文档元数据失败: {e!r}", style="error", err=e)
+            return
+
+    # delete
+    if markups["delete"]:
+        show_msg("删除文档及文档附件...", style="info")
+        from ..kbman import delete_documents_by_title, delete_attachments_by_title
+
+        docs_to_del = [x for x in markups["delete"] if isinstance(x, str)]
+        # TODO

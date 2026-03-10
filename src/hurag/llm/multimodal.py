@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from . import get_oa_client
 from .. import logger
-from ..types import FILE_EXTRACT
+from typing import cast
 
 from typing import TYPE_CHECKING, AsyncGenerator
 
@@ -18,6 +18,11 @@ if TYPE_CHECKING:
     from openai import AsyncOpenAI
     from openai.types import FileObject, FilePurpose
 
+
+# Moonshot file purpose
+FILE_EXTRACT = cast(FilePurpose, "file-extract")
+IMAGE = cast(FilePurpose, "image")
+VIDEO = cast(FilePurpose, "video")
 
 def is_retryable_error(exception: BaseException) -> bool:
     if isinstance(exception, (RateLimitError, APITimeoutError, BadRequestError)):

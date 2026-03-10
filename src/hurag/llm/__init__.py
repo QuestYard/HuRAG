@@ -28,6 +28,9 @@ from .multimodal import (
     delete_file,
     list_files,
     clean_files,
+    FILE_EXTRACT,
+    IMAGE,
+    VIDEO,
 )
 from .prompts import (
     PROMPTS,
@@ -62,6 +65,9 @@ __all__ = [
     "delete_file",
     "list_files",
     "clean_files",
+    "FILE_EXTRACT",
+    "IMAGE",
+    "VIDEO",
     "PROMPTS",
     "create_entity_extraction_prompt",
     "create_entity_gleaning_prompt",

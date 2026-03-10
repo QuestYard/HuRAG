@@ -217,7 +217,12 @@ def openai_client(
     async def _get_openai() -> openai.AsyncOpenAI:
         from .llm import get_oa_client
 
-        client = await get_oa_client(base_url, api_key, timeout, client_name)
+        client = await get_oa_client(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=timeout,
+            client_name=client_name,
+        )
         return client
 
     return _get_openai

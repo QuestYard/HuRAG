@@ -19,9 +19,34 @@ SQL_INS_DOC = [
 ]
 
 
+async def save_attachments(atts: list[dict]) -> int:
+    from .dss import rss, fss, FileContent, AT_FOLDER
+    from .utilities import generate_id
+
+    if not atts:
+        return 0
+
+    for att in atts:
+        att["att"].id = generate_id()
+
+    sql = "INSERT INTO attachments (id, title, document_id) VALUES (%s, %s, %s)"
+    data = [(att["att"].id, att["att"].title, att["doc_id"]) for att in atts]
+    total = await rss.dml(sql, data)
+    fcs = [
+        FileContent(id=att["att"].id, folder=AT_FOLDER, content=att["content"])
+        for att in atts
+    ]
+    fss.save_files(fcs, overwrite_duplicates=False)
+
+    return total
+
+
 async def save_multimodal_docs(docs: list[dict]) -> int:
     from .dss import rss, fss, FileContent, MM_FOLDER
     from .utilities import generate_id
+
+    if not docs:
+        return 0
 
     for doc in docs:
         doc["doc"].id = generate_id()
@@ -166,6 +191,3 @@ async def indexing_documents(
     logger.info(f"{ds} documents containing {ss} segments and {cs} chunks are stored.")
 
     return (ds, ss, cs)
-
-
-

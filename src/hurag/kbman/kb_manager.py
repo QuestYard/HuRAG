@@ -192,6 +192,14 @@ async def delete_segment(id: str) -> DeletionResults:
     return await _delete_knowledge(id, id_type="segment")
 
 
+async def delete_attachments_by_title(titles: tuple[str, str]) -> int:
+    ...
+
+
+async def delete_documents_by_title(title: str | list[str]) -> list[DeletionResults]:
+    ...
+
+
 async def kb_info() -> list[tuple]:
     from ..dss import rss
 
@@ -325,6 +333,9 @@ async def update_metadata(
 
 
 async def check_existance(docs: list[Document]) -> int:
+    if not docs:
+        return 0
+
     from ..dss import rss
     rows = await rss.query(
         f"""
@@ -336,4 +347,26 @@ async def check_existance(docs: list[Document]) -> int:
     for doc in docs:
         doc.id = exists.get(doc.title, None)
 
+    return len(exists)
+
+
+async def check_attachments_existance(atts: list[dict]) -> int:
+    """
+    atts: [{"att": Attachment, "doc_id": document_id}, ...]
+    """
+    if not atts:
+        return 0
+
+    from ..dss import rss
+    total = len(atts)
+    rows = await rss.query(
+        f"""
+        SELECT id, title, document_id FROM attachments
+        WHERE (title, document_id) IN ({','.join(['%s'] * total)})
+        """,
+        tuple((a["att"].title, a["doc_id"]) for a in atts),
+    )
+    exists = {(x[1], x[2]): x[0] for x in rows}
+    for att in atts:
+        att["att"].id = exists.get((att["att"].title, att["doc_id"]), None)
     return len(exists)
