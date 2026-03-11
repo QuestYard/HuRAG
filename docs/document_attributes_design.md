@@ -311,7 +311,7 @@ HuRAG 支持 TXT, Markdown, CSV 三类文档的向量化加载，其余文件类
     },
     "delete": [
         "title_of_the_doc_to_delete",
-        ("title_of_a_doc", "title_of_the_attachment_to_delete"),
+        ["title_of_a_doc", "title_of_the_attachment_to_delete"],
         ...
     ]
 }

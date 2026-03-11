@@ -96,7 +96,7 @@ async def info():
 
 @app.command("list", epilog=HURAG_EPILOG)
 @async_cmd
-async def list(
+async def kb_list(
     keyword: str | None = typer.Option(
         None,
         "--keyword",
@@ -304,6 +304,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
     }
 
     from ..kbman import check_attachments_existance
+
     await check_attachments_existance(list(fn_doc_att_map.values()))
     new_atts = {k: v for k, v in fn_doc_att_map.items() if v["att"].id is None}
 
@@ -344,7 +345,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
             show_msg(f"保存新增文档附件失败: {e!r}", style="error", err=e)
             return
     else:
-        show_msg("文集中没有需要新增的文档附件", style="info")
+        show_msg("文集中没有需要新增的文档附件", style="warning")
 
     # update
     if markups["update"]:
@@ -353,7 +354,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
 
         _total = len(markups["update"])
         try:
-            for title, new_meta in markups["update"]:
+            for title, new_meta in markups["update"].items():
                 _rows = await update_metadata(title=title, new_meta=new_meta)
                 _updated = ",".join([f"{k} 修改为 {v}" for k, v in new_meta.items()])
                 _affected = f"共影响 {_rows} 份文档"
@@ -363,6 +364,8 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         except Exception as e:
             show_msg(f"修改文档元数据失败: {e!r}", style="error", err=e)
             return
+    else:
+        show_msg("文集中没有指定修改文档元数据", style="warning")
 
     # delete
     if markups["delete"]:
@@ -370,4 +373,18 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         from ..kbman import delete_documents_by_title, delete_attachments_by_title
 
         docs_to_del = [x for x in markups["delete"] if isinstance(x, str)]
-        # TODO
+        atts_to_del = [x for x in markups["delete"] if not isinstance(x, str)]
+        try:
+            _del_doc_ret = await delete_documents_by_title(docs_to_del)
+            _atts = await delete_attachments_by_title(atts_to_del)
+            _del_doc_ret = [x for x in _del_doc_ret if x.id is not None]
+            _total = len(_del_doc_ret)
+            show_msg(f"删除文档完成，共删除知识文档 {_total} 份，文档附件 {_atts} 份")
+        except Exception as e:
+            show_msg(f"删除文档失败: {e!r}", style="error", err=e)
+            return
+    else:
+        show_msg("文集中没有指定删除文档或附件", style="warning")
+
+    show_msg(f"文集 {corpus.as_posix()} 加载完成", style="success")
+    return

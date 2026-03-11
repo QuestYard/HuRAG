@@ -13,10 +13,10 @@ from tenacity import (
     retry_if_exception,
 )
 from openai import BadRequestError, RateLimitError, APITimeoutError
+from openai.types import FileObject, FilePurpose
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
-    from openai.types import FileObject, FilePurpose
 
 
 # Moonshot file purpose

@@ -51,6 +51,7 @@ async def get_oa_client(
     base_url: str | None = None,
     api_key: str | None = None,
     timeout: float = 60.0,
+    *,
     multimodal: bool = False,
     client_name: str = "extraction",
 ) -> AsyncOpenAI:
@@ -121,8 +122,9 @@ def with_oa_client(
     *,
     base_url=None,
     api_key=None,
-    client_name=None,
     timeout=180.0,
+    multimodal=False,
+    client_name=None,
     client_arg_name="oaclient",
 ) -> Callable[..., Any]:
     """
@@ -132,12 +134,13 @@ def with_oa_client(
         func: Callable | None -- the function to decorate.
         base_url: str -- base URL for OpenAI API.
         api_key: str -- API key for OpenAI API.
+        timeout: float -- request timeout in seconds.
+        multimodal: bool -- wheather to use longer timeout.
         client_name: str -- name act as the key in _clients dict. If client_name is
             not provided, then base_url and api_key must be provided and a temperary
             client will be created. Otherwise, get_oa_client will be called to get or
             create a permenant client. base_url and api_key can be None if a client
-            with the given client_name is "extraction" or "generation".
-        timeout: float -- request timeout in seconds.
+            with the given client_name is "extraction", "generation" or "multimodal".
         client_arg_name: str -- the name of the parameter to pass the client as.
 
     Returns:
@@ -152,6 +155,7 @@ def with_oa_client(
                     base_url=base_url,
                     api_key=api_key,
                     timeout=timeout,
+                    multimodal=multimodal,
                     client_name=client_name,
                 )
                 if client_name
@@ -159,6 +163,7 @@ def with_oa_client(
                     base_url=base_url or "",
                     api_key=api_key or "",
                     timeout=timeout,
+                    multimodal=multimodal,
                 )
             )
             kwargs[client_arg_name] = _cli

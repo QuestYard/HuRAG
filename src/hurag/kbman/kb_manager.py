@@ -192,12 +192,63 @@ async def delete_segment(id: str) -> DeletionResults:
     return await _delete_knowledge(id, id_type="segment")
 
 
-async def delete_attachments_by_title(titles: tuple[str, str]) -> int:
-    ...
+async def delete_attachments_by_title(
+    titles: list[tuple[str, str]] | tuple[str, str]
+) -> int:
+    """
+    Delete attachments without deleting the main documents.
+
+    Args:
+        titles: [(doc_title, att_title), ...]
+    """
+    if not titles:
+        return 0
+
+    if not isinstance(titles, list):
+        titles = [titles]
+
+    from ..dss import rss
+    ids = [
+        x[0] for x in await rss.query(
+            f"""
+            SELECT a.id FROM attachments AS a
+            JOIN documents AS d ON a.document_id = d.id
+            WHERE (d.title, a.title) IN ({','.join(['%s'] * len(titles))})
+            """,
+            tuple(titles),
+        )
+    ]
+    if not ids:
+        return 0
+
+    ret = await rss.dml(
+        f"DELETE FROM attachments WHERE id IN ({','.join(['%s'] * len(ids))})",
+        tuple(ids),
+    )
+    fss.delete_files(ids, fss.AT_FOLDER)
+
+    return ret
 
 
-async def delete_documents_by_title(title: str | list[str]) -> list[DeletionResults]:
-    ...
+async def delete_documents_by_title(titles: str | list[str]) -> list[DeletionResults]:
+    if not titles:
+        return []
+
+    if not isinstance(titles, list):
+        titles = [titles]
+
+    from ..dss import rss
+    ids = [
+        x[0] for x in await rss.query(
+            f"""
+            SELECT id FROM documents WHERE title IN ({','.join(['%s'] * len(titles))})
+            """,
+            tuple(titles),
+        )
+    ]
+    ret = [await delete_document(id) for id in ids]
+
+    return ret
 
 
 async def kb_info() -> list[tuple]:
@@ -369,4 +420,5 @@ async def check_attachments_existance(atts: list[dict]) -> int:
     exists = {(x[1], x[2]): x[0] for x in rows}
     for att in atts:
         att["att"].id = exists.get((att["att"].title, att["doc_id"]), None)
+
     return len(exists)
