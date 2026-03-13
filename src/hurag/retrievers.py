@@ -160,6 +160,13 @@ async def retrieve(
     max_nodes: int | None = None,
 ) -> list[tuple[Knowledge, float]]:
     """
+    RetrieveMode of "agentic" and "none" will be implemented in another application
+    named Alaya, which is the agentic rag application based on HuRAG.
+
+    To support Alaya for agentic rag, hurag-server will provide new APIs for tool
+    calling. New retrieval logics needed by Alaya's tools will be implemented in
+    hurag-server modules.
+
     Arguments:
         query: current user query.
         history: history queries, history responses are not needed.
@@ -169,7 +176,6 @@ async def retrieve(
             "graph": (deprecated) only graph search with top_k_graph segments;
             "global": nodes and edges in the whole graph;
             "community": nodes and edges inside communities;
-            "agentic": retrieve knowledge via some agentic skill.
         query_info: returned values of prepare_for_searching.
         user_path: the organization path of current user.
         top_k: number of knowledges in final results in K-RAG search,
