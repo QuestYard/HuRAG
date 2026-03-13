@@ -212,6 +212,7 @@ def openai_client(
     base_url: str | None = None,
     api_key: str | None = None,
     timeout: float = 180.0,
+    multimodal: bool = False,
     client_name: str = "generation",
 ):
     async def _get_openai() -> openai.AsyncOpenAI:
@@ -221,6 +222,7 @@ def openai_client(
             base_url=base_url,
             api_key=api_key,
             timeout=timeout,
+            multimodal=multimodal,
             client_name=client_name,
         )
         return client
@@ -231,6 +233,11 @@ def openai_client(
 HuragGenerationClient = Annotated["openai.AsyncOpenAI", Depends(openai_client())]
 HuragExtractionClient = Annotated[
     "openai.AsyncOpenAI", Depends(openai_client(client_name="extraction"))
+]
+HuragMultiModalClient = Annotated[
+    "openai.AsyncOpenAI", Depends(
+        openai_client(multimodal=True, client_name="extraction")
+    )
 ]
 
 
@@ -248,8 +255,16 @@ async def extraction_model_name() -> str | None:
     return os.getenv(f"{conf.llm.extraction}_MODEL")
 
 
+async def multimodal_model_name() -> str | None:
+    import os
+    from . import conf
+
+    return os.getenv(f"{conf.llm.multimodal}_MODEL")
+
+
 HuragGenerationModel = Annotated[str, Depends(generation_model_name)]
 HuragExtractionModel = Annotated[str, Depends(extraction_model_name)]
+HuragMultiModalModel = Annotated[str, Depends(multimodal_model_name)]
 
 # --- Exposed Items ---
 
@@ -259,6 +274,8 @@ __all__ = [
     "HuragVdbClientDep",
     "HuragGenerationClient",
     "HuragExtractionClient",
+    "HuragMultiModalClient",
     "HuragGenerationModel",
     "HuragExtractionModel",
+    "HuragMultiModalModel",
 ]

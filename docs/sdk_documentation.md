@@ -301,6 +301,7 @@ def with_oa_client(
     api_key=None,
     client_name=None,
     timeout=180.0,
+    multimodal=False,
     client_arg_name="oaclient",
 ) -> Callable[..., Any]:
 ```
@@ -311,6 +312,7 @@ def with_oa_client(
 - `api_key`: OpenAI API 的密钥。
 - `client_name`: 可复用的 AsyncOpenAI 客户端的标签名。如果提供，则会获取或创建一个可复用的客户端，否则创建一个临时客户端，此时必须提供有效的 `base_url` 和 `api_key` 两个参数，且该临时客户端在被装饰函数退出后立即被关闭和清理，今后不能复用。如果提供的标签名为保留的 `extraction` 或者 `generation`，则不需要提供 `base_url` 和 `api_key`，这两个参数会从配置信息中读取；如果提供了其他标签名，除非能够确定对应的可复用客户端已经创建过，否则也应当提供 `base_url` 和 `api_key`。
 - `timeout`: 请求超时时间（秒），用于设置 `read` 超时，默认为 180.0。
+- `multimodal`: 是否用于多模态模型，若是则会在创建客户端时采用较长的超时设置，默认为 `False`。
 - `client_arg_name`: 注入到被装饰函数中的参数名称，默认为 `"oaclient"`。
 
 **使用示例**
@@ -360,6 +362,7 @@ CLI 中调用 LLM，可以使用 `cli.async_cmd` 装饰器，该装饰器同时�
 
 - **HuragGenerationClient**: 注入 generation 客户端
 - **HuragExtractionClient**: 注入 extraction 客户端
+- **HuragMultiModalClient**: 注入 multimodal 客户端
 - **`openai_client`**: 函数依赖，用于注入自定义配置的客户端。
 
 **使用示例：**
@@ -385,8 +388,8 @@ params = {
     "base_url": "https://base_url.com",
     "api_key": "the-token",
     "timeout": 120.0,
-    "max_retries": 3,
-    "client_name": "other_client",    # 此参数值不能为 "extraction" 或 "generation"
+    "multimodal": False,
+    "client_name": "other_client",    # 此参数值不能为 "extraction", "generation" 或 "multimodal"
 }
 
 @app.get("/openai_client")
