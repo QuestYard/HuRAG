@@ -1,5 +1,5 @@
 from .document import Document, Segment, Chunk, Attachment
-from .graph import Entity, Relation, Graph
+from .graph import Entity, Relation, Graph, Community
 from .knowledge import Knowledge, KnowledgeMetadata
 
 __all__ = [
@@ -10,6 +10,7 @@ __all__ = [
     "Entity",
     "Relation",
     "Graph",
+    "Community",
     "Knowledge",
     "KnowledgeMetadata",
 ]

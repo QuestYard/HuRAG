@@ -636,3 +636,9 @@ class Graph:
             nodes=list(nodes.values()),
             edges=list(edges.values()),
         )
+
+
+@dataclass
+class Community:
+    id: int
+    summary: str

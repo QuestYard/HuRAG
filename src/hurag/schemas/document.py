@@ -113,6 +113,9 @@ class Document:
                     Attachment(title=att.name)
                     for att in att_path.iterdir()
                     if att.is_file()
+                    and not att.name.startswith(".")
+                    and not att.name.startswith("~$")
+                    and not att.name in ["desktop.ini", "Thumbs.db"]
                 ],
                 key=lambda x: x.title or "",
             )
@@ -269,7 +272,7 @@ class Document:
             # load attachments
             sql_att = f"""
             SELECT id, title, document_id FROM attachments
-            WHERE document_id IN ({','.join(['%s'] * len(doc_map))})
+            WHERE document_id IN ({",".join(["%s"] * len(doc_map))})
             """
             await cur.execute(sql_att, tuple(doc_map))
             atts = await cur.fetchall()

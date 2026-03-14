@@ -19,4 +19,9 @@
   #      一步得到的 entity_segments 进行去重，得到 relation_segments;
   #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
   #    - rerank 最终的 segments，返回前 segment_top_k 个。
+from .utils import list_documents, list_communities
 
+__all__ = [
+    "list_documents",
+    "list_communities",
+]
