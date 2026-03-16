@@ -20,8 +20,11 @@
   #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
   #    - rerank 最终的 segments，返回前 segment_top_k 个。
 from .utils import list_documents, list_communities
+from .multimodal import load_attachments, load_multimodal_docs
 
 __all__ = [
     "list_documents",
     "list_communities",
+    "load_attachments",
+    "load_multimodal_docs",
 ]
