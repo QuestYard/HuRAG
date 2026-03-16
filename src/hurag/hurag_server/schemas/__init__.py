@@ -9,6 +9,12 @@ from .rag_schemas import (
     KnowledgeMetadataSchema,
     KnowledgeSchema,
 )
+from .tools_schemas import (
+    CommunitySchema,
+    DocumentSchema,
+    AttachmentSchema,
+)
+
 
 __all__ = [
     "MessageSchema",
@@ -18,4 +24,7 @@ __all__ = [
     "KnowledgeRequest",
     "KnowledgeMetadataSchema",
     "KnowledgeSchema",
+    "CommunitySchema",
+    "DocumentSchema",
+    "AttachmentSchema",
 ]

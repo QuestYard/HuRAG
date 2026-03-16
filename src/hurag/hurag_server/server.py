@@ -8,6 +8,7 @@ from .. import logger, conf, __version__ as hurag_version
 from .api.v1.messages import router as info_router
 from .api.v1.llm import router as llm_router
 from .api.v1.hurag import router as hurag_router
+from .api.v1.tools import router as tools_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ app = FastAPI(
         {"name": "项目信息", "description": "获取项目相关的一些常用信息"},
         {"name": "大模型", "description": "与HuRAG使用的大模型进行交互"},
         {"name": "知识库", "description": "在HuRAG的知识库中进行检索查询"},
+        {"name": "工具库", "description": "Agent tools 可调用的工具"},
     ],
     lifespan=lifespan,
 )
@@ -50,6 +52,7 @@ app = FastAPI(
 app.include_router(info_router)
 app.include_router(llm_router)
 app.include_router(hurag_router)
+app.include_router(tools_router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

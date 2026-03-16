@@ -397,6 +397,9 @@ async def check_existance(docs: list[Document]) -> int:
     exists = {x[1]: x[0] for x in rows}
     for doc in docs:
         doc.id = exists.get(doc.title, None)
+        if doc.id is not None:
+            for att in doc.attachments:
+                att.document_id = doc.id
 
     return len(exists)
 

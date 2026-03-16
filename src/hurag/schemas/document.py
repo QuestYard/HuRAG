@@ -49,6 +49,7 @@ class Segment:
 class Attachment:
     id: str | None = field(default=None)
     title: str | None = field(default=None, compare=False)
+    document_id: str | None = field(default=None, compare=False)
 
 
 @dataclass
@@ -278,7 +279,11 @@ class Document:
             atts = await cur.fetchall()
             for att in atts:
                 doc_map[att["document_id"]].attachments.append(
-                    Attachment(id=att["id"], title=att["title"])
+                    Attachment(
+                        id=att["id"],
+                        title=att["title"],
+                        document_id=att["document_id"],
+                    )
                 )
 
         return list(doc_map.values())
