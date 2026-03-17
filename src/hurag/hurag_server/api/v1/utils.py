@@ -1,5 +1,5 @@
-from ..schemas import Document, Attachment, Community
-from ..dss import with_rdb
+from ....schemas import Document, Attachment, Community
+from ....dss import with_rdb
 
 @with_rdb(connection_arg_name="conn", cursor_arg_name="cur", dict_cursor=True)
 async def list_documents(org_path: str | None, conn, cur) -> list[Document]:

@@ -13,6 +13,8 @@ from .tools_schemas import (
     CommunitySchema,
     DocumentSchema,
     AttachmentSchema,
+    FileContentSchema,
+    VectorSearchRequest,
 )
 
 
@@ -27,4 +29,6 @@ __all__ = [
     "CommunitySchema",
     "DocumentSchema",
     "AttachmentSchema",
+    "FileContentSchema",
+    "VectorSearchRequest",
 ]

@@ -45,3 +45,19 @@ class DocumentSchema(BaseModel):
             return value.lstrip("*")
 
         return value
+
+class FileContentSchema(BaseModel):
+    id: str = Field(description="文档唯一ID", examples=["UUID7-ID"])
+    title: str = Field(
+        description="标题，附件文档包含正文标题",
+        examples=["《民法典》", "《XX管理制度》附件1_XX表模板"],
+    )
+    content: str = Field(description="文档内容", examples=["文档内容"])
+
+
+class VectorSearchRequest(BaseModel):
+    query: str = Field(examples=["政府采购行为的定义是什么？"])
+    top_k: int = Field(default=10, description="返回的最大知识段落数")
+    rerank: bool = Field(default=False, description="检索结果是否重排序")
+    document_ids: list[str] = Field(default_factory=list, description="搜索的文档范围")
+    user_org_path: str = Field(examples=["总部/大区/某市公司"])
