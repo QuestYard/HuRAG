@@ -61,6 +61,7 @@ async def rerank_knowledge(
 async def prepare_for_searching(
     query: str,
     *,
+    join_keywords: bool = False,
     history: list[str] | None = None,
     oaclient: AsyncOpenAI,
 ) -> QueryInfo:
@@ -136,6 +137,10 @@ async def prepare_for_searching(
 
     timings = t_timing.result()
     keywords = t_keywords.result()
+    if join_keywords:
+        keywords["high_level_keywords"] = [", ".join(keywords["high_level_keywords"])]
+        keywords["low_level_keywords"] = [", ".join(keywords["low_level_keywords"])]
+
     embeddings, _ = await embed_query(
         [query] + keywords["high_level_keywords"] + keywords["low_level_keywords"]
     )
@@ -234,37 +239,36 @@ async def retrieve(
 @with_oa_client(client_name="extraction")
 async def agentic_search(
     query: str,
-    top_k: int,
-    rerank: bool,
-    document_ids: list[str],
-    user_org_path: str,
+    *,
+    rerank: bool = False,
+    user_org_path: str | None = None,
     oaclient: AsyncOpenAI,
-) -> tuple[list[Entity], list[Relation], list[Knowledge]]:
-    import json_repair
-    from .llm import (
-        chat_completion,
-        create_keywords_extraction_prompt,
+):
+# ) -> tuple[list[Entity], list[Relation], list[Knowledge]]:
+    logger.info(f"[QUERY]: {query} [MODE]: agentic")
+
+    # 0. preparation
+    from .dss import rss, vss, gss
+
+    top_k_e = conf.retrieval.entity_top_k
+    top_k_r = conf.retrieval.relation_top_k
+    top_k_s = conf.retrieval.segment_top_k
+    user_org_path = user_org_path or conf.app.org_path
+
+    # 1. 提取 low level keywords 和 high level keywords，分别用 ", " 连接为字符串;
+    query_info =  await prepare_for_searching(query, join_keywords=True)
+
+    # 2. 使用 low level keywords 字符串搜索最相似的 entity_top_k 个 entities
+    #    及其直接关联的 relations，得到 local entities (相似度排序) 和
+    #    local relations (先 degree，后 relation weight 排序);
+    local_entities = await vss.search(
+        collection_name="nodes",
+        vecs={
+            "dense": [query_info.embeddings["dense_vecs"][2]],
+            "sparse": query_info.embeddings["sparse_vecs"][2],
+        },
+        top_k=top_k_e,
     )
 
-    model = os.getenv(f"{conf.llm.extraction}_MODEL", "")
-
-    resp = await chat_completion(
-        client=oaclient,
-        model=model,
-        prompt=create_keywords_extraction_prompt(query),
-    )
-    resp = extract_from_chat(resp)["content"]
-    try:
-        keywords = json_repair.loads(resp)
-        if not keywords or not isinstance(keywords, dict):
-            keywords = {"high_level_keywords": [], "low_level_keywords": []}
-    except Exception as e:
-        logger.error(f"JSON parsing error while extract keywords: {e}")
-        logger.error(f"LLM respond: {resp}")
-        keywords = {"high_level_keywords": [], "low_level_keywords": []}
-
-    global_kw = ", ".join(keywords.get("high_level_keywords", []))
-    local_kw = ", ".join(keywords.get("low_level_keywords", []))
-
-    ...
-    return [], [], []
+    return query_info, local_entities
+    # return [], [], []

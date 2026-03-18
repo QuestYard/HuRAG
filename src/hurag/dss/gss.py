@@ -8,6 +8,74 @@ if TYPE_CHECKING:
     from igraph.clustering import VertexClustering
 
 
+async def node_degrees(ids: list[str]) -> dict[str, int]:
+    from . import rss
+
+    if not ids:
+        return {}
+
+    degrees = {
+        x[0]: x[1]
+        for x in await rss.query(
+            f"""
+            SELECT
+                e.id,
+                COUNT(t.node_id)
+            FROM entities e
+            LEFT JOIN (
+                SELECT source_id AS node_id FROM relations
+                UNION ALL
+                SELECT target_id AS node_id FROM relations
+            ) t ON e.id = t.node_id
+            WHERE e.id IN ({','.join(['%s'] * len(ids))})
+            GROUP BY e.id
+            """,
+            tuple(ids),
+        )
+    }
+
+    return degrees
+
+
+async def edge_degrees(ids: str | list[str]) -> dict[str, int]:
+    from . import rss
+
+    if not ids:
+        return {}
+
+    degrees = {
+        x[0]: x[1]
+        for x in await rss.query(
+            f"""
+            SELECT 
+                r.id AS edge_id,
+                (COALESCE(s_deg.degree, 0) + COALESCE(t_deg.degree, 0)) AS edge_degree
+            FROM relations r
+            LEFT JOIN (
+                SELECT node_id, COUNT(*) as degree FROM (
+                    SELECT source_id AS node_id FROM relations
+                    UNION ALL
+                    SELECT target_id AS node_id FROM relations
+                ) all_nodes 
+                GROUP BY node_id
+            ) s_deg ON r.source_id = s_deg.node_id
+            LEFT JOIN (
+                SELECT node_id, COUNT(*) as degree FROM (
+                    SELECT source_id AS node_id FROM relations
+                    UNION ALL
+                    SELECT target_id AS node_id FROM relations
+                ) all_nodes 
+                GROUP BY node_id
+            ) t_deg ON r.target_id = t_deg.node_id
+            WHERE r.id IN ({','.join(['%s'] * len(ids))})
+            """,
+            tuple(ids),
+        )
+    }
+
+    return degrees
+
+
 async def upsert_graph(
     g: Graph,
     embeddings: list[dict[EmbeddingType, Any]],
