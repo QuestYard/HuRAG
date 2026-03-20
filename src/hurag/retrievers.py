@@ -236,13 +236,11 @@ async def retrieve(
 #      一步得到的 entity_segments 进行去重，得到 relation_segments;
 #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
 #    - rerank 最终的 segments，返回前 segment_top_k 个。
-@with_oa_client(client_name="extraction")
 async def agentic_search(
     query: str,
     *,
     rerank: bool = False,
     user_org_path: str | None = None,
-    oaclient: AsyncOpenAI,
 ):
 # ) -> tuple[list[Entity], list[Relation], list[Knowledge]]:
     logger.info(f"[QUERY]: {query} [MODE]: agentic")
@@ -261,7 +259,7 @@ async def agentic_search(
     # 2. 使用 low level keywords 字符串搜索最相似的 entity_top_k 个 entities
     #    及其直接关联的 relations，得到 local entities (相似度排序) 和
     #    local relations (先 degree，后 relation weight 排序);
-    local_entities = await vss.search(
+    local_nodes = await vss.search(
         collection_name="nodes",
         vecs={
             "dense": [query_info.embeddings["dense_vecs"][2]],
@@ -269,6 +267,96 @@ async def agentic_search(
         },
         top_k=top_k_e,
     )
+    local_entities = sorted(local_nodes, key=lambda k: local_nodes[k], reverse=True)
 
+    conn_edges = await gss.edge_degrees(await gss.one_hop_edges(list(local_entities)))
+    local_relations = sorted(conn_edges, key=lambda k:conn_edges[k], reverse=True)
+
+    # 3. 使用 high level keywords 字符串搜索最相似的 relation_top_k 个 relations
+    #    及其两个端点上的 entities，得到 global entities (按 relations 序先 src 后 tgt)
+    #    和 global relations (相似度排序);
+    global_edges = await vss.search(
+        collection_name="edges",
+        vecs={
+            "dense": [query_info.embeddings["dense_vecs"][1]],
+            "sparse": query_info.embeddings["sparse_vecs"][1],
+        },
+        top_k=top_k_r,
+    )
+    global_relations = sorted(global_edges, key=lambda k: global_edges[k], reverse=True)
+    global_entities = await gss.one_hop_nodes(global_relations)
+
+    # 4. 使用 query 搜索最相似的 segment_top_k 个 query_segments (相似度序);
+    from .knowledge_base import _th_scope
+
+    _, scope = await _th_scope(query_info.timings, user_org_path)
+    query_segments = await vector_search(
+        query_info.embeddings,
+        scope=scope,
+        top_k=top_k_s,
+    )
+
+    # 5. 使用 Round-robin 归并 local entities 和 global entities，得到 final entities：
+    #    - 按照先 local 后 global 的次序，从向量相似度由高到低逐个抽取；
+    #    - 如有重复直接跳过。
+    ...
+
+# 6. 使用 Round-robin 归并 local 和 global relations 为 final relations;
+# 7. 归并根据 query 搜索得到的 segments 和 final entities, final relations 上引用
+#    的 segments：
+#    - 在 final entities 所引用的所有 segments 中搜索最多 2 倍于实体数的与 query
+#      最相似的 entity_segments;
+#    - 在 final relations 所引用的所有 segments 中做同样的搜索，在搜索前先依照上
+#      一步得到的 entity_segments 进行去重，得到 relation_segments;
+#    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
+#    - rerank 最终的 segments，返回前 segment_top_k 个。
     return query_info, local_entities
     # return [], [], []
+
+
+async def vector_search(
+    query_or_embeddings: str | dict,
+    *, 
+    scope: list[str] | None = None,
+    top_k: int | None = None,
+    rrf_k: float | None = None,
+) -> list[str]: 
+    if not query_or_embeddings:
+        return []
+
+    from .dss import vss, rss
+    from .llm import embed_query
+
+    if top_k is None:
+        top_k = int(conf.retrieval.top_k)
+    if rrf_k is None:
+        rrf_k = float(conf.retrieval.rrf_k)
+
+    if isinstance(query_or_embeddings, str):
+        embeddings = (await embed_query(query_or_embeddings))[0]
+    else:
+        embeddings = query_or_embeddings
+
+    chunks = await vss.search(
+        collection_name="chunks",
+        scope=scope,
+        vecs={
+            "dense": [embeddings["dense_vecs"][0]],
+            "sparse": embeddings["sparse_vecs"][0],
+        },
+        top_k=top_k * 2,
+        rrf_k=rrf_k,
+    )
+    chk_ids = sorted(chunks, key=lambda k: chunks[k], reverse=True)
+
+    placeholder = ",".join(["%s"] * len(chk_ids))
+    chk_seg = {
+        x[0]: x[1]
+        for x in await rss.query(
+            f"SELECT id, segment_id FROM chunks WHERE id IN ({placeholder})",
+            tuple(chk_ids),
+        )
+    }
+    segments = list(dict.fromkeys(chk_seg[chk_id] for chk_id in chk_ids))
+
+    return segments[:top_k]

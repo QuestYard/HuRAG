@@ -8,24 +8,99 @@ if TYPE_CHECKING:
     from igraph.clustering import VertexClustering
 
 
-async def node_degrees(ids: list[str]) -> dict[str, int]:
+async def one_hop_edges(ids: list[str]) -> list[str]:
+    """
+    Get the one-hop edges of a list of nodes, i.e., all the edges connected
+    directly to these nodes.
+
+    Args:
+        ids: list[str], a list of node IDs
+
+    Returns:
+        a list of edge IDs
+    """
+    if not ids:
+        return []
+
     from . import rss
 
+    cond = ",".join(["%s"] * len(ids))
+    edges = [
+        x[0]
+        for x in await rss.query(
+            f"""
+            SELECT DISTINCT id FROM (
+                SELECT id FROM relations WHERE source_id IN ({cond})
+                UNION ALL
+                SELECT id FROM relations WHERE target_id IN ({cond})
+            ) AS combined_edges
+            """,
+            tuple(ids + ids),
+        )
+    ]
+
+    return edges
+
+
+async def one_hop_nodes(ids: list[str]) -> list[tuple[str, str]]:
+    """
+    Get the one-hop nodes of a list of edges, i.e., all the nodes connected
+    directly to these edges.
+
+    Arg:
+        ids: list[str], a list of edge IDs
+
+    Returns:
+        a list of tuple (src_id, tgt_id)
+    """
+    if not ids:
+        return []
+
+    from . import rss
+
+    cond = ",".join(["%s"] * len(ids))
+    nodes = {
+        x[0]: (x[1], x[2])
+        for x in await rss.query(
+            f"SELECT id, source_id, target_id FROM relations WHERE id IN ({cond})",
+            tuple(ids),
+        )
+    }
+
+    return [nodes[x] for x in ids]
+
+
+async def node_degrees(ids: list[str]) -> dict[str, tuple[int, float]]:
+    """
+    Get the degree of a list of nodes.
+    The degree of an edges is a tuple containing two numbers (vertice_deg, weight):
+        - vertice_deg: int, the sum of degrees of the source and the target nodes;
+        - weight: float, the strength of the edge.
+
+    Args:
+        ids: list[str], a list of node IDs
+
+    Returns:
+        a dict of { node_id: degree }
+    """
     if not ids:
         return {}
 
+    from . import rss
+
     degrees = {
-        x[0]: x[1]
+        x[0]: (x[1], x[2])
         for x in await rss.query(
             f"""
             SELECT
                 e.id,
-                COUNT(t.node_id)
+                COUNT(t.node_id),
+                strength
             FROM entities e
             LEFT JOIN (
-                SELECT source_id AS node_id FROM relations
+                SELECT source_id AS node_id, strength FROM relations
                 UNION ALL
-                SELECT target_id AS node_id FROM relations
+                SELECT target_id AS node_id, strength FROM relations
             ) t ON e.id = t.node_id
             WHERE e.id IN ({','.join(['%s'] * len(ids))})
             GROUP BY e.id
@@ -37,11 +112,20 @@ async def node_degrees(ids: list[str]) -> dict[str, int]:
     return degrees
 
 
-async def edge_degrees(ids: str | list[str]) -> dict[str, int]:
-    from . import rss
+async def edge_degrees(ids: list[str]) -> dict[str, int]:
+    """
+    Get the degree of a list of edges, i.e., the sum of degrees of source and target.
 
+    Args:
+        ids: list[str], a list of node IDs
+
+    Returns:
+        a dict of { edge_id: degree }
+    """
     if not ids:
         return {}
+
+    from . import rss
 
     degrees = {
         x[0]: x[1]
