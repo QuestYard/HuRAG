@@ -70,12 +70,9 @@ async def one_hop_nodes(ids: list[str]) -> list[tuple[str, str]]:
     return [nodes[x] for x in ids]
 
 
-async def node_degrees(ids: list[str]) -> dict[str, tuple[int, float]]:
+async def node_degrees(ids: list[str]) -> dict[str, int]:
     """
-    Get the degree of a list of nodes.
-    The degree of an edges is a tuple containing two numbers (vertice_deg, weight):
-        - vertice_deg: int, the sum of degrees of the source and the target nodes;
-        - weight: float, the strength of the edge.
+    Get the degree of a list of nodes, including in and out.
 
     Args:
         ids: list[str], a list of node IDs
@@ -89,18 +86,17 @@ async def node_degrees(ids: list[str]) -> dict[str, tuple[int, float]]:
     from . import rss
 
     degrees = {
-        x[0]: (x[1], x[2])
+        x[0]: x[1]
         for x in await rss.query(
             f"""
             SELECT
                 e.id,
-                COUNT(t.node_id),
-                strength
+                COUNT(t.node_id)
             FROM entities e
             LEFT JOIN (
-                SELECT source_id AS node_id, strength FROM relations
+                SELECT source_id AS node_id FROM relations
                 UNION ALL
-                SELECT target_id AS node_id, strength FROM relations
+                SELECT target_id AS node_id FROM relations
             ) t ON e.id = t.node_id
             WHERE e.id IN ({','.join(['%s'] * len(ids))})
             GROUP BY e.id
@@ -112,15 +108,19 @@ async def node_degrees(ids: list[str]) -> dict[str, tuple[int, float]]:
     return degrees
 
 
-async def edge_degrees(ids: list[str]) -> dict[str, int]:
+async def edge_degrees(ids: list[str]) -> dict[str, tuple[int, float]]:
     """
-    Get the degree of a list of edges, i.e., the sum of degrees of source and target.
+    Get the degree of a list of edges.
+
+    The degree of an edges is a tuple containing two numbers (vertice_deg, weight):
+        - vertice_deg: int, the sum of degrees of the source and the target nodes;
+        - weight: float, the strength of the edge.
 
     Args:
         ids: list[str], a list of node IDs
 
     Returns:
-        a dict of { edge_id: degree }
+        a dict of tuple (vertice_deg, weight)
     """
     if not ids:
         return {}
@@ -128,12 +128,13 @@ async def edge_degrees(ids: list[str]) -> dict[str, int]:
     from . import rss
 
     degrees = {
-        x[0]: x[1]
+        x[0]: (x[1], x[2])
         for x in await rss.query(
             f"""
             SELECT 
                 r.id AS edge_id,
-                (COALESCE(s_deg.degree, 0) + COALESCE(t_deg.degree, 0)) AS edge_degree
+                (COALESCE(s_deg.degree, 0) + COALESCE(t_deg.degree, 0)) AS edge_degree,
+                r.strength
             FROM relations r
             LEFT JOIN (
                 SELECT node_id, COUNT(*) as degree FROM (

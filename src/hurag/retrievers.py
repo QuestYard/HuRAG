@@ -4,7 +4,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from .llm import AsyncEmbeddingClient
     from openai import AsyncOpenAI
-    from .schemas import Knowledge, Entity, Relation
+    from .schemas import Knowledge
 
 import os
 from datetime import datetime
@@ -299,19 +299,40 @@ async def agentic_search(
     # 5. 使用 Round-robin 归并 local entities 和 global entities，得到 final entities：
     #    - 按照先 local 后 global 的次序，从向量相似度由高到低逐个抽取；
     #    - 如有重复直接跳过。
+    from itertools import zip_longest
+
+    pairs = zip_longest(local_entities, global_entities)
+
+    def _round_robin():
+        for l_ent, g_ents in pairs:
+            if l_ent is not None:
+                yield l_ent
+
+            if g_ents is not None:
+                for g_ent in g_ents:
+                    yield g_ent
+
+    final_entities = list(dict.fromkeys(_round_robin()))
+
+    # 6. 使用 Round-robin 归并 local 和 global relations 为 final relations;
+    pairs = zip_longest(local_relations, global_relations)
+    merged = (rel for pair in pairs for rel in pair if rel is not None)
+    final_relations = list(dict.fromkeys(merged))
+
+    # 7. 归并根据 query 搜索得到的 segments 和 final entities, final relations 上引用
+    #    的 segments：
+    #    - 在 final entities 所引用的所有 segments 中搜索最多 2 倍于实体数的与 query
+    #      最相似的 entity_segments;
+    #    - 在 final relations 所引用的所有 segments 中做同样的搜索，在搜索前先依照上
+    #      一步得到的 entity_segments 进行去重，得到 relation_segments;
+    #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
+    #    - rerank 最终的 segments，返回前 segment_top_k 个。
+
+    # TODO
     ...
 
-# 6. 使用 Round-robin 归并 local 和 global relations 为 final relations;
-# 7. 归并根据 query 搜索得到的 segments 和 final entities, final relations 上引用
-#    的 segments：
-#    - 在 final entities 所引用的所有 segments 中搜索最多 2 倍于实体数的与 query
-#      最相似的 entity_segments;
-#    - 在 final relations 所引用的所有 segments 中做同样的搜索，在搜索前先依照上
-#      一步得到的 entity_segments 进行去重，得到 relation_segments;
-#    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
-#    - rerank 最终的 segments，返回前 segment_top_k 个。
-    return query_info, local_entities
-    # return [], [], []
+    # return query_info, local_relations, global_relations, final_relations
+    return [], [], []
 
 
 async def vector_search(

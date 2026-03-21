@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import datetime
 
@@ -57,7 +58,18 @@ class FileContentSchema(BaseModel):
 
 class VectorSearchRequest(BaseModel):
     query: str = Field(examples=["政府采购行为的定义是什么？"])
-    top_k: int = Field(default=10, description="返回的最大知识段落数")
-    rerank: bool = Field(default=False, description="检索结果是否重排序")
+    user_org_path: str | None = Field(default=None, examples=["总部/大区/某市公司"])
     document_ids: list[str] = Field(default_factory=list, description="搜索的文档范围")
-    user_org_path: str = Field(examples=["总部/大区/某市公司"])
+    rerank: bool = Field(default=False, description="检索结果是否重排序")
+    top_k: int | None = Field(default=None, description="返回的最大知识段落数", gt=0)
+    rrf_k: float | None = Field(default=None, description="混合向量搜索RRF参数", gt=0)
+
+
+class GraphSearchRequest(BaseModel):
+    query: str = Field(examples=["政府采购行为的定义是什么？"])
+    keywords: dict[Literal["high_level", "low_level"], list[str]] = Field(
+        default_factory=dict,
+        description="用户直接提供的关键字，不提供则使用 LLM 提取",
+        examples=[{"high_level": [], "low_level": []}],
+    )
+    user_org_path: str | None = Field(default=None, examples=["总部/大区/某市公司"])

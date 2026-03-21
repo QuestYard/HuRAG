@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ...schemas import (
-    CommunitySchema,
+    # CommunitySchema,
     DocumentSchema,
     FileContentSchema,
     KnowledgeSchema,
@@ -12,36 +12,36 @@ from ...schemas import (
 router = APIRouter(prefix="/v1/tools", tags=["工具库"])
 
 
-@router.get("/list_communities", response_model=list[CommunitySchema])
-async def list_comms() -> list[CommunitySchema]:
-    """
-    获取当前知识图谱中所有知识社区的列表。
-
-    ## 请求参数
-
-    无
-
-    ## 返回值
-
-    所有知识社区的列表，每个社区包括两个字段：`id`, `summary`。
-
-    ```
-    [
-        {
-            "id": int,          # 社区唯一ID
-            "summary": str      # 社区摘要
-        },
-        ...
-    ]
-    ```
-    """
-    from .utils import list_communities
-
-    try:
-        comms = await list_communities()
-        return [CommunitySchema.model_validate(comm) for comm in comms]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @router.get("/list_communities", response_model=list[CommunitySchema])
+# async def list_comms() -> list[CommunitySchema]:
+#     """
+#     获取当前知识图谱中所有知识社区的列表。
+# 
+#     ## 请求参数
+# 
+#     无
+# 
+#     ## 返回值
+# 
+#     所有知识社区的列表，每个社区包括两个字段：`id`, `summary`。
+# 
+#     ```
+#     [
+#         {
+#             "id": int,          # 社区唯一ID
+#             "summary": str      # 社区摘要
+#         },
+#         ...
+#     ]
+#     ```
+#     """
+#     from .utils import list_communities
+# 
+#     try:
+#         comms = await list_communities()
+#         return [CommunitySchema.model_validate(comm) for comm in comms]
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/list_documents", response_model=list[DocumentSchema])
@@ -186,8 +186,8 @@ async def read_doc(id: str) -> FileContentSchema:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/knowledge_search", response_model=list[KnowledgeSchema])
-async def vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema]:
+@router.post("/vector_search", response_model=list[KnowledgeSchema])
+async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema]:
     """
     在向量知识库根据用户查询执行语义相关度搜索。
 
@@ -195,20 +195,26 @@ async def vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema]:
     ```
     {
         "query": str,                       # 用户查询
-        "top_k": int,                       # 返回的最大知识段落数, 默认10条
-        "rerank": bool,                     # 是否执行重排序，默认 False
-        "document_ids": list[str]           # 搜索的文档范围，默认为空列表，即全库搜索
-        "user_org_path": str                # 用户所在组织机构路径
+        "user_org_path": str | None = None  # 用户所在组织机构路径，默认为 None
+        "document_ids": list[str] = list()  # 搜索的文档范围，默认为空列表
+        "rerank": bool = False,             # 是否执行重排序，默认 False
+        "top_k": int | None = None          # 返回命中段数，默认 None
+        "rrf_k": float | None = None        # 双向量混合搜索RRF参数，默认 None
     }
     ```
-    当请求参数中 `document_ids` 不是空列表时，`user_org_path` 参数将不起作用；否则，
-    如果 `document_ids` 为空，则会根据请求参数中的 `user_org_path` 确定搜索范围。
-
-    默认不对向量搜索的结果进行重排序，若 `rerank` 参数设置为 True，则取向量搜索结果的前
-    `2 * top_k` 条进行重排，最终返回前 `top_k` 条。
-
-    重排序可能对搜索速度造成明显影响。
     
+    - `user_org_path`: 用于确定请求用户能见的文档范围，默认为 None，即不提供，
+      此时将使用 `hurag.yaml` 中配置的 `app.org_path` 来作为当前用户的组织机构路径，
+      即默认为部署 HuRAG 的组织。
+
+    - `document_ids`: 用户直接指定的搜索文档范围，若为空列表，则根据 `user_org_path`
+      确定文档范围；否则直接使用该范围进行搜索。
+
+    - `rerank`: 是否对搜索结果重排序，默认不进行重排序，若为 True，则向量搜索取的前
+      `2 * top_k` 条进行重排，最终返回前 `top_k` 条。
+      重排序可能对搜索速度造成明显影响。
+
+    - `top_k`, `rrf_k`: 搜索算法参数，若不提供，则使用 `hurag.yaml` 中配置的参数值。
 
     ## 返回值
 
@@ -242,8 +248,48 @@ async def vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema]:
         "authors": str | None,          # 作者，若无则为 None
     }
     """
-    from ....retrievers import agentic_search
+    from .... import conf
+    from ....knowledge_base import _th_scope, load_knowledge_by_segment_ids
+    from ....retrievers import vector_search
 
-    await agentic_search(**(req.model_dump()))
-    ...
-    return []
+    user_path = req.user_org_path or str(conf.app.org_path)
+    scope = []
+
+    try:
+        if req.document_ids:
+            from ....dss import rss
+            scope = [
+                x[0]
+                for x in await rss.query(
+                    f"""
+                    SELECT s.id FROM segments s
+                    JOIN documents d ON s.document_id = d.id
+                    WHERE d.id IN ({','.join(['%s'] * len(req.document_ids))})
+                    """,
+                    tuple(req.document_ids),
+                )
+            ]
+
+        if not req.document_ids or not scope:
+            from datetime import datetime
+            _, scope = await _th_scope([datetime.today()], user_path)
+
+        top_k = req.top_k if req.top_k is not None else int(conf.retrieval.top_k)
+        segs = await vector_search(
+            req.query,
+            scope=scope,
+            top_k=top_k * 2 if req.rerank else top_k,
+            rrf_k=req.rrf_k,
+        )
+        kns = await load_knowledge_by_segment_ids(segs)
+
+        if req.rerank:
+            from ....retrievers import rerank_knowledge
+            rr = (await rerank_knowledge(req.query, kns))[:top_k]
+            responses = [KnowledgeSchema.model_validate(kn[0]) for kn in rr]
+        else:
+            rr = list(dict.fromkeys(kns[k] for k in segs))
+            responses = [KnowledgeSchema.model_validate(kn) for kn in rr]
+        return responses
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
