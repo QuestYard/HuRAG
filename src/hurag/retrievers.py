@@ -4,7 +4,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from .llm import AsyncEmbeddingClient
     from openai import AsyncOpenAI
-    from .schemas import Knowledge
+    from .schemas import Knowledge, Entity, Relation
 
 import os
 from datetime import datetime
@@ -215,7 +215,7 @@ async def retrieve(
     )
 
 
-# agentic 检索算法：
+# graph search 检索算法：
 # 1. 提取 low level keywords 和 high level keywords，分别用 ", " 连接为字符串;
 # 2. 使用 low level keywords 字符串搜索最相似的 entity_top_k 个 entities
 #    及其直接关联的 relations，得到 local entities (相似度排序) 和
@@ -235,14 +235,13 @@ async def retrieve(
 #    - 在 final relations 所引用的所有 segments 中做同样的搜索，在搜索前先依照上
 #      一步得到的 entity_segments 进行去重，得到 relation_segments;
 #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
-#    - rerank 最终的 segments，返回前 segment_top_k 个。
-async def agentic_search(
+#    - (if needed) rerank 最终的 segments，返回前 segment_top_k 个。
+async def graph_search(
     query: str,
     *,
     rerank: bool = False,
     user_org_path: str | None = None,
-):
-# ) -> tuple[list[Entity], list[Relation], list[Knowledge]]:
+) -> tuple[list[Entity], list[Relation], list[Knowledge]]:
     logger.info(f"[QUERY]: {query} [MODE]: agentic")
 
     # 0. preparation
@@ -326,13 +325,70 @@ async def agentic_search(
     #    - 在 final relations 所引用的所有 segments 中做同样的搜索，在搜索前先依照上
     #      一步得到的 entity_segments 进行去重，得到 relation_segments;
     #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
-    #    - rerank 最终的 segments，返回前 segment_top_k 个。
+    #    - (if needed) rerank 最终的 segments，返回前 segment_top_k 个。
+
+    entity_segments = []
+    relation_segments = []
+    if final_entities:
+        entity_cites_scope = [
+            x[0]
+            for x in await rss.query(
+                f"""
+                SELECT c.id FROM chunks c
+                JOIN segments s ON s.id = c.segment_id
+                JOIN entity_cite ec ON ec.segment_id = s.id
+                JOIN entities e ON e.id = ec.entity_id
+                WHERE e.id IN ({','.join(['%s'] * len(final_entities))})
+                """,
+                tuple(final_entities),
+            )
+        ]
+        entity_segments = await vector_search(
+            query,
+            scope=entity_cites_scope,
+            top_k=len(final_entities) * 2,
+        )
+
+    if final_relations:
+        relation_cites_scope = [
+            x[0]
+            for x in await rss.query(
+                f"""
+                SELECT c.id FROM chunks c
+                JOIN segments s ON s.id = c.segment_id
+                JOIN relation_cite rc ON rc.segment_id = s.id
+                JOIN relations r ON r.id = rc.relation_id
+                WHERE r.id IN ({','.join(['%s'] * len(final_relations))})
+                """,
+                tuple(final_relations),
+            )
+        ]
+        relation_segments = await vector_search(
+            query,
+            scope=relation_cites_scope,
+            top_k=len(final_relations) * 2,
+        )
+
+    final_segments = dict.fromkeys(query_segments)
+    final_segments.update(dict.fromkeys(entity_segments))
+    final_segments.update(dict.fromkeys(relation_segments))
+    final_segments = list(final_segments)
+
+    # 8. load knowledge, entities, relations
+    from .knowledge_base import load_knowledge_by_segment_ids
+    kns = await load_knowledge_by_segment_ids(final_segments)
+
+    if rerank:
+        rr = (await rerank_knowledge(query, kns))[:top_k_s]
+        result_kns = [x[0] for x in rr]
+    else:
+        result_kns = list(dict.fromkeys(kns[k] for k in final_segments[:top_k_s]))
 
     # TODO
-    ...
+    result_entities = []
+    result_relations = []
 
-    # return query_info, local_relations, global_relations, final_relations
-    return [], [], []
+    return result_entities, result_relations, result_kns
 
 
 async def vector_search(
