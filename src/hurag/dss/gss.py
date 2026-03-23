@@ -8,6 +8,55 @@ if TYPE_CHECKING:
     from igraph.clustering import VertexClustering
 
 
+async def load_nodes(ids: list[str]) -> list[dict]:
+    """
+    Load nodes from database, without cited segment IDs
+    """
+    if not ids:
+        return []
+
+    from . import rss
+
+    nodes = await rss.query(
+        f"SELECT * FROM entities WHERE id IN ({','.join(['%s'] * len(ids))})",
+        tuple(ids),
+        as_dict=True,
+    )
+
+    return nodes
+
+
+async def load_edges(ids: list[str]) -> list[dict]:
+    """
+    Load edges from database, without cited segment IDs
+    """
+    if not ids:
+        return []
+
+    from . import rss
+
+    edges = await rss.query(
+        f"""
+        SELECT
+            r.id,
+            se.name AS source,
+            te.name AS target,
+            r.type,
+            r.description,
+            r.strength
+        FROM relations r
+        JOIN entities se ON r.source_id = se.id
+        JOIN entities te ON r.target_id = te.id
+        WHERE
+            r.id IN ({','.join(['%s'] * len(ids))})
+        """,
+        tuple(ids),
+        as_dict=True,
+    )
+
+    return edges
+
+
 async def one_hop_edges(ids: list[str]) -> list[str]:
     """
     Get the one-hop edges of a list of nodes, i.e., all the edges connected

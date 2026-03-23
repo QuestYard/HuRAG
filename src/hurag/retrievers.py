@@ -4,7 +4,6 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from .llm import AsyncEmbeddingClient
     from openai import AsyncOpenAI
-    from .schemas import Knowledge, Entity, Relation
 
 import os
 from datetime import datetime
@@ -13,6 +12,7 @@ from dataclasses import dataclass, field
 from . import conf, logger
 from .types import RetrieveMode
 from .llm import with_es_client, with_oa_client, extract_from_chat
+from .schemas import Knowledge, Entity, Relation
 
 
 @dataclass
@@ -253,6 +253,9 @@ async def graph_search(
     user_org_path = user_org_path or conf.app.org_path
 
     # 1. 提取 low level keywords 和 high level keywords，分别用 ", " 连接为字符串;
+    if not query:
+        return [], [], []
+
     query_info =  await prepare_for_searching(query, join_keywords=True)
 
     # 2. 使用 low level keywords 字符串搜索最相似的 entity_top_k 个 entities
@@ -300,7 +303,7 @@ async def graph_search(
     #    - 如有重复直接跳过。
     from itertools import zip_longest
 
-    pairs = zip_longest(local_entities, global_entities)
+    pairs = zip_longest(local_entities, global_entities, fillvalue=None)
 
     def _round_robin():
         for l_ent, g_ents in pairs:
@@ -314,7 +317,7 @@ async def graph_search(
     final_entities = list(dict.fromkeys(_round_robin()))
 
     # 6. 使用 Round-robin 归并 local 和 global relations 为 final relations;
-    pairs = zip_longest(local_relations, global_relations)
+    pairs = zip_longest(local_relations, global_relations, fillvalue=None)
     merged = (rel for pair in pairs for rel in pair if rel is not None)
     final_relations = list(dict.fromkeys(merged))
 
@@ -380,13 +383,18 @@ async def graph_search(
 
     if rerank:
         rr = (await rerank_knowledge(query, kns))[:top_k_s]
-        result_kns = [x[0] for x in rr]
+        result_kns: list[Knowledge] = [x[0] for x in rr]
     else:
         result_kns = list(dict.fromkeys(kns[k] for k in final_segments[:top_k_s]))
 
-    # TODO
-    result_entities = []
-    result_relations = []
+    result_entities = [
+        Entity(**p)
+        for p in await gss.load_nodes(final_entities[:top_k_e])
+    ]
+    result_relations = [
+        Relation(**p)
+        for p in await gss.load_edges(final_relations[:top_k_r])
+    ]
 
     return result_entities, result_relations, result_kns
 
