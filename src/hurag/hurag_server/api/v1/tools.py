@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException
 
 from ...schemas import (
-    # CommunitySchema,
     DocumentSchema,
     FileContentSchema,
     KnowledgeSchema,
     VectorSearchRequest,
+    GraphSearchRequest,
+    GraphSearchResponse,
 )
 
 
@@ -226,7 +227,7 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
             "segment_id": str,              # 知识段id
             "content": str,                 # 知识段文本
             "metadata": dict,               # 知识所在文档元数据
-            "score": float                  # 语义相似度评分
+            "score": float                  # (弃用)语义相似度评分
         },
         ...
     ]
@@ -293,3 +294,11 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
         return responses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/graph_search", response_model=GraphSearchResponse)
+async def fully_graph_search(req: GraphSearchRequest) -> GraphSearchResponse:
+    """
+    TODO: docs
+    """
+    ...

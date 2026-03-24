@@ -8,6 +8,9 @@ from .rag_schemas import (
     KnowledgeRequest,
     KnowledgeMetadataSchema,
     KnowledgeSchema,
+    EntitySchema,
+    RelationSchema,
+    GraphSearchResponse,
 )
 from .tools_schemas import (
     CommunitySchema,
@@ -15,6 +18,7 @@ from .tools_schemas import (
     AttachmentSchema,
     FileContentSchema,
     VectorSearchRequest,
+    GraphSearchRequest,
 )
 
 
@@ -26,9 +30,15 @@ __all__ = [
     "KnowledgeRequest",
     "KnowledgeMetadataSchema",
     "KnowledgeSchema",
+    "EntitySchema",
+    "RelationSchema",
+    "GraphSearchResponse",
     "CommunitySchema",
     "DocumentSchema",
     "AttachmentSchema",
     "FileContentSchema",
     "VectorSearchRequest",
+    "GraphSearchRequest",
+    "EntitySchema",
+    "RelationSchema",
 ]

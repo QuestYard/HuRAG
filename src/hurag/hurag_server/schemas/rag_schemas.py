@@ -43,3 +43,37 @@ class KnowledgeSchema(BaseModel):
     content: str = Field(description="文本内容，表示检索到的知识片段正文")
     metadata: KnowledgeMetadataSchema = Field(description="段落所属文档的元信息")
     score: float = Field(default=0.0, description="检索返回的相关度匹配得分")
+
+
+class EntitySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(description="知识实体唯一标识符")
+    name: str = Field(description="知识实体名称")
+    type: str = Field(description="知识实体类型")
+    description: str = Field(description="知识实体描述")
+
+
+class RelationSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(description="知识关系唯一标识符")
+    source: str = Field(description="知识关系源实体名称")
+    target: str = Field(description="知识关系目标实体名称")
+    type: str = Field(description="知识关系类型")
+    description: str = Field(description="知识关系描述")
+    strength: float = Field(description="关系强度")
+
+
+class GraphSearchResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    entities: list[EntitySchema] = Field(
+        default_factory=list, description="检索结果中的知识实体列表"
+    )
+    relations: list[RelationSchema] = Field(
+        default_factory=list, description="检索结果中的知识关系列表"
+    )
+    knowledge: list[KnowledgeSchema] = Field(
+        default_factory=list, description="检索结果中的知识段落列表"
+    )
