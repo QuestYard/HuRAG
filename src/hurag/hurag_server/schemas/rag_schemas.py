@@ -74,6 +74,6 @@ class GraphSearchResponse(BaseModel):
     relations: list[RelationSchema] = Field(
         default_factory=list, description="检索结果中的知识关系列表"
     )
-    knowledge: list[KnowledgeSchema] = Field(
+    segments: list[KnowledgeSchema] = Field(
         default_factory=list, description="检索结果中的知识段落列表"
     )

@@ -228,20 +228,23 @@ async def graph_search(
     *,
     rerank: bool = False,
     user_org_path: str | None = None,
+    top_k_entities: int | None = None,
+    top_k_relations: int | None = None,
+    top_k_segments: int | None = None,
 ) -> tuple[list[Entity], list[Relation], list[Knowledge]]:
-    logger.info(f"[QUERY]: {query} [MODE]: agentic")
-
     # 0. preparation
     from .dss import rss, vss, gss
 
-    top_k_e = conf.retrieval.entity_top_k
-    top_k_r = conf.retrieval.relation_top_k
-    top_k_s = conf.retrieval.segment_top_k
+    top_k_e = top_k_entities or conf.retrieval.entity_top_k
+    top_k_r = top_k_relations or conf.retrieval.relation_top_k
+    top_k_s = top_k_segments or conf.retrieval.segment_top_k
     user_org_path = user_org_path or conf.app.org_path
 
     # 1. 提取 low level keywords 和 high level keywords，分别用 ", " 连接为字符串;
     if not query:
         return [], [], []
+
+    logger.info(f"[QUERY]: {query} [MODE]: agentic_graph")
 
     query_info =  await prepare_for_searching(query, join_keywords=True)
 
@@ -405,8 +408,10 @@ async def vector_search(
         rrf_k = float(conf.retrieval.rrf_k)
 
     if isinstance(query_or_embeddings, str):
+        logger.info(f"[QUERY]: {query_or_embeddings} [MODE]: agentic_vector")
         embeddings = (await embed_query(query_or_embeddings))[0]
     else:
+        logger.info(f"[QUERY]: EMBEDDINGS [MODE]: agentic_vector")
         embeddings = query_or_embeddings
 
     chunks = await vss.search(

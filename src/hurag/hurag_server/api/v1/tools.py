@@ -4,6 +4,8 @@ from ...schemas import (
     DocumentSchema,
     FileContentSchema,
     KnowledgeSchema,
+    EntitySchema,
+    RelationSchema,
     VectorSearchRequest,
     GraphSearchRequest,
     GraphSearchResponse,
@@ -224,16 +226,16 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
     ```
     [
         {
-            "segment_id": str,              # 知识段id
-            "content": str,                 # 知识段文本
-            "metadata": dict,               # 知识所在文档元数据
-            "score": float                  # (弃用)语义相似度评分
+            "segment_id": str,                      # 知识段id
+            "content": str,                         # 知识段文本
+            "metadata": KnowledgeMetadataSchema,    # 知识所在文档元数据
+            "score": float                          # (弃用)语义相似度评分
         },
         ...
     ]
     ```
 
-    其中 `metadata` 以字典形式返回该段落所在文档的元数据，包括以下字段：
+    其中 `KnowledgeMetadataSchema` 为该段落所在文档的元数据，包括以下字段：
 
     ```
     {
@@ -249,6 +251,9 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
         "authors": str | None,          # 作者，若无则为 None
     }
     """
+    if not req.query:
+        return []
+
     from .... import conf
     from ....knowledge_base import _th_scope, load_knowledge_by_segment_ids
     from ....retrievers import vector_search
@@ -299,6 +304,105 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
 @router.post("/graph_search", response_model=GraphSearchResponse)
 async def fully_graph_search(req: GraphSearchRequest) -> GraphSearchResponse:
     """
-    TODO: docs
+    在整个知识图谱中根据用户查询执行图谱搜索。
+
+    ## 请求参数
+    ```
+    {
+        "query": str,                           # 用户查询
+        "user_org_path": str | None = None      # 用户所在组织机构路径，默认为 None
+        "rerank": bool = False,                 # 是否执行重排序，默认 False
+        "top_k_entities": int | None = None     # 返回实体数，默认 None
+        "top_k_relations": int | None = None    # 返回关系数，默认 None
+        "top_k_segments": int | None = None     # 返回命中段数，默认 None
+    }
+    ```
+    
+    - `user_org_path`: 用于确定请求用户能见的文档范围，默认为 None，即不提供，
+      此时将使用 `hurag.yaml` 中配置的 `app.org_path` 来作为当前用户的组织机构路径，
+      即默认为部署 HuRAG 的组织。
+
+    - `rerank`: 是否对搜索结果重排序，默认 False，重排只针对知识段落，实体与关系不重排。
+
+    - `top_k_entities`, `top_k_relations`, `top_k_segments`: 
+      搜索算法参数，若不提供，则使用 `hurag.yaml` 中配置的参数值。
+
+    ## 返回值
+
+    包含 `entities`, `relations`, `knowledge` 三个键的字典，值均为对应搜索结果的列表。
+
+    ```
+    {
+        "entities": [EntitySchema, ...],        # 搜索到的前 top_k_entities 个知识实体 
+        "relations": [RelationSchema, ...],     # 搜索到的前 top_k_relations 对知识关系
+        "segments": [KnowledgeSchema, ...]     # 搜索到的前 top_k_segments 段知识段落
+    }
+    ```
+
+    其中:
+
+    - `EntitySchema` 包括以下字段：
+
+    ```
+    {
+        "id": str,                      # 实体ID
+        "name": str,                    # 实体名称
+        "type": str,                    # 实体类型
+        "description": str              # 实体描述
+    }
+
+    - `RelationSchema` 包括以下字段：
+
+    ```
+    {
+        "id": str,                      # 关系ID
+        "source": str,                  # 关系源节点实体名称
+        "target": str,                  # 关系目标节点实体名称
+        "type": str,                    # 关系类型
+        "description": str,             # 关系描述
+        "strength": float               # 关系强度（即权重）
+    }
+
+    - `KnowledgeSchema` 包括以下字段：
+
+    ```
+    {
+        "segment_id": str,                      # 知识段ID
+        "content": str,                         # 知识段文本
+        "metadata": KnowledgeMetadataSchema,    # 知识所在文档元数据
+        "score": float                          # (弃用)语义相似度评分
+    }
+    ```
+
+    其中 `KnowledgeMetadataSchema` 为该段落所在文档的元数据，包括以下字段：
+
+    ```
+    {
+        "id": str,                      # 文档唯一标识符
+        "title": str,                   # 文档标题
+        "sn": str | None,               # 法令号或文号，非正式发布的法令和文件为 None
+        "date": datetime,               # 发布日期
+        "valid_from": datetime,         # 生效日期
+        "valid_to": datetime | None,    # 废止日期，未废止则为 None
+        "replaces": str | None,         # 上一版本标题，若无则为 None
+        "pub_path": str,                # 发布机构的组织机构路径
+        "localizes": str | None,        # 上位文件标题，若无则为 None
+        "authors": str | None,          # 作者，若无则为 None
+    }
+    ```
     """
-    ...
+    if not req.query:
+        return GraphSearchResponse()
+
+    from ....retrievers import graph_search
+
+    try:
+        e, r, s = await graph_search(**(req.model_dump()))
+        response = GraphSearchResponse(
+            entities=[EntitySchema.model_validate(x) for x in e],
+            relations=[RelationSchema.model_validate(x) for x in r],
+            segments=[KnowledgeSchema.model_validate(x) for x in s],
+        )
+        return response
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
