@@ -24,7 +24,7 @@ log:
 # 应用相关配置
 app:
   org_path:           # 机构全路径，如 "/总部/大区/分公司"，默认"未知机构"
-  extra_docs_dir:     # 存放非向量化知识文档的相对路径，相对于当前项目路径
+  extra_docs_dir:     # 必配项，存放非向量化知识文档的相对路径，相对于当前项目路径
 
 # 检索召回相关配置
 retrieval:
@@ -37,9 +37,9 @@ retrieval:
   max_comms:          # 图搜索算法最大社区数，默认 3
   max_nodes:          # 图搜索算法最大返回节点数，默认 1000
   # 以下配置项用于 agentic 检索算法
-  entity_top_k:       # agentic retrieval 最大召回知识实体数量，默认 40
-  relation_top_k:     # agentic retrieval 最大召回知识关系数量，默认 40
-  segment_top_k:      # agentic retrieval 最大召回知识段落数量，默认 20
+  top_k_e:            # agentic retrieval 最大召回知识实体数量，默认 20
+  top_k_r:            # agentic retrieval 最大召回知识关系数量，默认 20
+  top_k_s:            # agentic retrieval 最大召回知识段落数量，默认 10
 
 # LLM 配置，在 .env 中配置与此处名称对应的大模型访问参数环境变量
 llm:

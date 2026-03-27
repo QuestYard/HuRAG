@@ -26,6 +26,7 @@ def _base_path() -> Path:
 
     if _base is None:
         from .. import conf
+
         _base = Path.cwd() / conf.app.extra_docs_dir
         if _base.exists() and not _base.is_dir():
             raise ValueError(f"Invalid extra_docs_dir: {_base.resove().as_posix()}")

@@ -19,15 +19,15 @@ router = APIRouter(prefix="/v1/tools", tags=["工具库"])
 # async def list_comms() -> list[CommunitySchema]:
 #     """
 #     获取当前知识图谱中所有知识社区的列表。
-# 
+#
 #     ## 请求参数
-# 
+#
 #     无
-# 
+#
 #     ## 返回值
-# 
+#
 #     所有知识社区的列表，每个社区包括两个字段：`id`, `summary`。
-# 
+#
 #     ```
 #     [
 #         {
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/v1/tools", tags=["工具库"])
 #     ```
 #     """
 #     from .utils import list_communities
-# 
+#
 #     try:
 #         comms = await list_communities()
 #         return [CommunitySchema.model_validate(comm) for comm in comms]
@@ -205,7 +205,7 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
         "rrf_k": float | None = None        # 双向量混合搜索RRF参数，默认 None
     }
     ```
-    
+
     - `user_org_path`: 用于确定请求用户能见的文档范围，默认为 None，即不提供，
       此时将使用 `hurag.yaml` 中配置的 `app.org_path` 来作为当前用户的组织机构路径，
       即默认为部署 HuRAG 的组织。
@@ -264,13 +264,14 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
     try:
         if req.document_ids:
             from ....dss import rss
+
             scope = [
                 x[0]
                 for x in await rss.query(
                     f"""
                     SELECT s.id FROM segments s
                     JOIN documents d ON s.document_id = d.id
-                    WHERE d.id IN ({','.join(['%s'] * len(req.document_ids))})
+                    WHERE d.id IN ({",".join(["%s"] * len(req.document_ids))})
                     """,
                     tuple(req.document_ids),
                 )
@@ -278,6 +279,7 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
 
         if not req.document_ids or not scope:
             from datetime import datetime
+
             _, scope = await _th_scope([datetime.today()], user_path)
 
         top_k = req.top_k if req.top_k is not None else int(conf.retrieval.top_k)
@@ -291,6 +293,7 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
 
         if req.rerank:
             from ....retrievers import rerank_knowledge
+
             rr = (await rerank_knowledge(req.query, kns))[:top_k]
             responses = [KnowledgeSchema.model_validate(kn[0]) for kn in rr]
         else:
@@ -317,14 +320,14 @@ async def fully_graph_search(req: GraphSearchRequest) -> GraphSearchResponse:
         "top_k_segments": int | None = None     # 返回命中段数，默认 None
     }
     ```
-    
+
     - `user_org_path`: 用于确定请求用户能见的文档范围，默认为 None，即不提供，
       此时将使用 `hurag.yaml` 中配置的 `app.org_path` 来作为当前用户的组织机构路径，
       即默认为部署 HuRAG 的组织。
 
     - `rerank`: 是否对搜索结果重排序，默认 False，重排只针对知识段落，实体与关系不重排。
 
-    - `top_k_entities`, `top_k_relations`, `top_k_segments`: 
+    - `top_k_entities`, `top_k_relations`, `top_k_segments`:
       搜索算法参数，若不提供，则使用 `hurag.yaml` 中配置的参数值。
 
     ## 返回值
@@ -333,9 +336,9 @@ async def fully_graph_search(req: GraphSearchRequest) -> GraphSearchResponse:
 
     ```
     {
-        "entities": [EntitySchema, ...],        # 搜索到的前 top_k_entities 个知识实体 
+        "entities": [EntitySchema, ...],        # 搜索到的前 top_k_entities 个知识实体
         "relations": [RelationSchema, ...],     # 搜索到的前 top_k_relations 对知识关系
-        "segments": [KnowledgeSchema, ...]     # 搜索到的前 top_k_segments 段知识段落
+        "segments": [KnowledgeSchema, ...]      # 搜索到的前 top_k_segments 段知识段落
     }
     ```
 

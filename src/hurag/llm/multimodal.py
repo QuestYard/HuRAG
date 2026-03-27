@@ -24,6 +24,7 @@ FILE_EXTRACT = cast(FilePurpose, "file-extract")
 IMAGE = cast(FilePurpose, "image")
 VIDEO = cast(FilePurpose, "video")
 
+
 def is_retryable_error(exception: BaseException) -> bool:
     if isinstance(exception, (RateLimitError, APITimeoutError, BadRequestError)):
         return True
@@ -87,6 +88,7 @@ async def upload_files(
 
     for task in asyncio.as_completed(tasks):
         yield await task
+
 
 async def extract_file_content(
     file: Path,

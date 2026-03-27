@@ -28,9 +28,7 @@ async def build_index_for_user(
     messages_list = await asyncio.gather(*tasks)
 
     session_docs = {
-        s.id: f"{s.title}\n{
-            '\n'.join([m.content for m in messages])
-        }"
+        s.id: f"{s.title}\n{'\n'.join([m.content for m in messages])}"
         for s, messages in zip(sessions, messages_list)
     }
     corpus = list(session_docs.values())

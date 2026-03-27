@@ -193,7 +193,7 @@ async def delete_segment(id: str) -> DeletionResults:
 
 
 async def delete_attachments_by_title(
-    titles: list[tuple[str, str]] | tuple[str, str]
+    titles: list[tuple[str, str]] | tuple[str, str],
 ) -> int:
     """
     Delete attachments without deleting the main documents.
@@ -208,12 +208,14 @@ async def delete_attachments_by_title(
         titles = [titles]
 
     from ..dss import rss
+
     ids = [
-        x[0] for x in await rss.query(
+        x[0]
+        for x in await rss.query(
             f"""
             SELECT a.id FROM attachments AS a
             JOIN documents AS d ON a.document_id = d.id
-            WHERE (d.title, a.title) IN ({','.join(['%s'] * len(titles))})
+            WHERE (d.title, a.title) IN ({",".join(["%s"] * len(titles))})
             """,
             tuple(titles),
         )
@@ -238,10 +240,12 @@ async def delete_documents_by_title(titles: str | list[str]) -> list[DeletionRes
         titles = [titles]
 
     from ..dss import rss
+
     ids = [
-        x[0] for x in await rss.query(
+        x[0]
+        for x in await rss.query(
             f"""
-            SELECT id FROM documents WHERE title IN ({','.join(['%s'] * len(titles))})
+            SELECT id FROM documents WHERE title IN ({",".join(["%s"] * len(titles))})
             """,
             tuple(titles),
         )
@@ -388,9 +392,10 @@ async def check_existance(docs: list[Document]) -> int:
         return 0
 
     from ..dss import rss
+
     rows = await rss.query(
         f"""
-        SELECT id, title FROM documents WHERE title IN ({','.join(['%s'] * len(docs))})
+        SELECT id, title FROM documents WHERE title IN ({",".join(["%s"] * len(docs))})
         """,
         tuple(d.title for d in docs),
     )
@@ -412,11 +417,12 @@ async def check_attachments_existance(atts: list[dict]) -> int:
         return 0
 
     from ..dss import rss
+
     total = len(atts)
     rows = await rss.query(
         f"""
         SELECT id, title, document_id FROM attachments
-        WHERE (title, document_id) IN ({','.join(['%s'] * total)})
+        WHERE (title, document_id) IN ({",".join(["%s"] * total)})
         """,
         tuple((a["att"].title, a["doc_id"]) for a in atts),
     )

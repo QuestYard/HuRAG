@@ -33,16 +33,20 @@ def create_oa_client(
     import httpx
     from openai import AsyncOpenAI
 
-    _httpx = httpx.AsyncClient(
-        timeout=httpx.Timeout(connect=20.0, read=timeout, write=timeout, pool=60.0),
-        limits=httpx.Limits(
-            max_connections=200,
-            max_keepalive_connections=100,
-            keepalive_expiry=120.0,
-        ),
-    ) if multimodal else httpx.AsyncClient(
-        timeout=httpx.Timeout(connect=10.0, read=timeout, write=30.0, pool=10.0),
-        limits=httpx.Limits(keepalive_expiry=60.0),
+    _httpx = (
+        httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=20.0, read=timeout, write=timeout, pool=60.0),
+            limits=httpx.Limits(
+                max_connections=200,
+                max_keepalive_connections=100,
+                keepalive_expiry=120.0,
+            ),
+        )
+        if multimodal
+        else httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=timeout, write=30.0, pool=10.0),
+            limits=httpx.Limits(keepalive_expiry=60.0),
+        )
     )
     return AsyncOpenAI(base_url=base_url, api_key=api_key, http_client=_httpx)
 

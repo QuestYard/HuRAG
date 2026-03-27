@@ -48,7 +48,7 @@ async def load_edges(ids: list[str]) -> list[dict]:
         JOIN entities se ON r.source_id = se.id
         JOIN entities te ON r.target_id = te.id
         WHERE
-            r.id IN ({','.join(['%s'] * len(ids))})
+            r.id IN ({",".join(["%s"] * len(ids))})
         """,
         tuple(ids),
         as_dict=True,
@@ -147,7 +147,7 @@ async def node_degrees(ids: list[str]) -> dict[str, int]:
                 UNION ALL
                 SELECT target_id AS node_id FROM relations
             ) t ON e.id = t.node_id
-            WHERE e.id IN ({','.join(['%s'] * len(ids))})
+            WHERE e.id IN ({",".join(["%s"] * len(ids))})
             GROUP BY e.id
             """,
             tuple(ids),
@@ -201,7 +201,7 @@ async def edge_degrees(ids: list[str]) -> dict[str, tuple[int, float]]:
                 ) all_nodes 
                 GROUP BY node_id
             ) t_deg ON r.target_id = t_deg.node_id
-            WHERE r.id IN ({','.join(['%s'] * len(ids))})
+            WHERE r.id IN ({",".join(["%s"] * len(ids))})
             """,
             tuple(ids),
         )

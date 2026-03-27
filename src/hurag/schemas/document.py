@@ -116,7 +116,7 @@ class Document:
                     if att.is_file()
                     and not att.name.startswith(".")
                     and not att.name.startswith("~$")
-                    and not att.name in ["desktop.ini", "Thumbs.db"]
+                    and att.name not in ["desktop.ini", "Thumbs.db"]
                 ],
                 key=lambda x: x.title or "",
             )

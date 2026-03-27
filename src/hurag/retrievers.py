@@ -235,9 +235,9 @@ async def graph_search(
     # 0. preparation
     from .dss import rss, vss, gss
 
-    top_k_e = top_k_entities or conf.retrieval.entity_top_k
-    top_k_r = top_k_relations or conf.retrieval.relation_top_k
-    top_k_s = top_k_segments or conf.retrieval.segment_top_k
+    top_k_e = top_k_entities or conf.retrieval.top_k_e
+    top_k_r = top_k_relations or conf.retrieval.top_k_r
+    top_k_s = top_k_segments or conf.retrieval.top_k_s
     user_org_path = user_org_path or conf.app.org_path
 
     # 1. 提取 low level keywords 和 high level keywords，分别用 ", " 连接为字符串;
@@ -246,9 +246,9 @@ async def graph_search(
 
     logger.info(f"[QUERY]: {query} [MODE]: agentic_graph")
 
-    query_info =  await prepare_for_searching(query, join_keywords=True)
+    query_info = await prepare_for_searching(query, join_keywords=True)
 
-    # 2. 使用 low level keywords 字符串搜索最相似的 entity_top_k 个 entities
+    # 2. 使用 low level keywords 字符串搜索最相似的 top_k_e 个 entities
     #    及其直接关联的 relations，得到 local entities (相似度排序) 和
     #    local relations (先 degree，后 relation weight 排序);
     local_nodes = await vss.search(
@@ -262,9 +262,9 @@ async def graph_search(
     local_entities = sorted(local_nodes, key=lambda k: local_nodes[k], reverse=True)
 
     conn_edges = await gss.edge_degrees(await gss.one_hop_edges(list(local_entities)))
-    local_relations = sorted(conn_edges, key=lambda k:conn_edges[k], reverse=True)
+    local_relations = sorted(conn_edges, key=lambda k: conn_edges[k], reverse=True)
 
-    # 3. 使用 high level keywords 字符串搜索最相似的 relation_top_k 个 relations
+    # 3. 使用 high level keywords 字符串搜索最相似的 top_k_r 个 relations
     #    及其两个端点上的 entities，得到 global entities (按 relations 序先 src 后 tgt)
     #    和 global relations (相似度排序);
     global_edges = await vss.search(
@@ -278,7 +278,7 @@ async def graph_search(
     global_relations = sorted(global_edges, key=lambda k: global_edges[k], reverse=True)
     global_entities = await gss.one_hop_nodes(global_relations)
 
-    # 4. 使用 query 搜索最相似的 segment_top_k 个 query_segments (相似度序);
+    # 4. 使用 query 搜索最相似的 top_k_s 个 query_segments (相似度序);
     from .knowledge_base import _th_scope
 
     _, scope = await _th_scope(query_info.timings, user_org_path)
@@ -318,7 +318,7 @@ async def graph_search(
     #    - 在 final relations 所引用的所有 segments 中做同样的搜索，在搜索前先依照上
     #      一步得到的 entity_segments 进行去重，得到 relation_segments;
     #    - 使用 Round-robin 归并 query_segments, entity_segments, relation_segments
-    #    - (if needed) rerank 最终的 segments，返回前 segment_top_k 个。
+    #    - (if needed) rerank 最终的 segments，返回前 top_k_s 个。
 
     entity_segments = []
     relation_segments = []
@@ -331,7 +331,7 @@ async def graph_search(
                 JOIN segments s ON s.id = c.segment_id
                 JOIN entity_cite ec ON ec.segment_id = s.id
                 JOIN entities e ON e.id = ec.entity_id
-                WHERE e.id IN ({','.join(['%s'] * len(final_entities))})
+                WHERE e.id IN ({",".join(["%s"] * len(final_entities))})
                 """,
                 tuple(final_entities),
             )
@@ -351,7 +351,7 @@ async def graph_search(
                 JOIN segments s ON s.id = c.segment_id
                 JOIN relation_cite rc ON rc.segment_id = s.id
                 JOIN relations r ON r.id = rc.relation_id
-                WHERE r.id IN ({','.join(['%s'] * len(final_relations))})
+                WHERE r.id IN ({",".join(["%s"] * len(final_relations))})
                 """,
                 tuple(final_relations),
             )
@@ -369,6 +369,7 @@ async def graph_search(
 
     # 8. load knowledge, entities, relations
     from .knowledge_base import load_knowledge_by_segment_ids
+
     kns = await load_knowledge_by_segment_ids(final_segments)
 
     if rerank:
@@ -378,12 +379,10 @@ async def graph_search(
         result_kns = list(dict.fromkeys(kns[k] for k in final_segments[:top_k_s]))
 
     result_entities = [
-        Entity(**p)
-        for p in await gss.load_nodes(final_entities[:top_k_e])
+        Entity(**p) for p in await gss.load_nodes(final_entities[:top_k_e])
     ]
     result_relations = [
-        Relation(**p)
-        for p in await gss.load_edges(final_relations[:top_k_r])
+        Relation(**p) for p in await gss.load_edges(final_relations[:top_k_r])
     ]
 
     return result_entities, result_relations, result_kns
@@ -391,11 +390,11 @@ async def graph_search(
 
 async def vector_search(
     query_or_embeddings: str | dict,
-    *, 
+    *,
     scope: list[str] | None = None,
     top_k: int | None = None,
     rrf_k: float | None = None,
-) -> list[str]: 
+) -> list[str]:
     if not query_or_embeddings:
         return []
 
@@ -411,7 +410,7 @@ async def vector_search(
         logger.info(f"[QUERY]: {query_or_embeddings} [MODE]: agentic_vector")
         embeddings = (await embed_query(query_or_embeddings))[0]
     else:
-        logger.info(f"[QUERY]: EMBEDDINGS [MODE]: agentic_vector")
+        logger.info("[QUERY]: EMBEDDINGS [MODE]: agentic_vector")
         embeddings = query_or_embeddings
 
     chunks = await vss.search(

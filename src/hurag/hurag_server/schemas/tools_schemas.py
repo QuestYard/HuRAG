@@ -37,7 +37,6 @@ class DocumentSchema(BaseModel):
         default_factory=list, description="附件列表"
     )
 
-
     @field_validator("title", "replaces", "localizes", mode="before")
     @classmethod
     def clean_multimodal_prefix(cls, value: str | None) -> str | None:
@@ -45,6 +44,7 @@ class DocumentSchema(BaseModel):
             return value.lstrip("*")
 
         return value
+
 
 class FileContentSchema(BaseModel):
     id: str = Field(description="文档唯一ID", examples=["UUID7-ID"])

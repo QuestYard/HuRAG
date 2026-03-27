@@ -235,9 +235,8 @@ HuragExtractionClient = Annotated[
     "openai.AsyncOpenAI", Depends(openai_client(client_name="extraction"))
 ]
 HuragMultiModalClient = Annotated[
-    "openai.AsyncOpenAI", Depends(
-        openai_client(multimodal=True, client_name="extraction")
-    )
+    "openai.AsyncOpenAI",
+    Depends(openai_client(multimodal=True, client_name="extraction")),
 ]
 
 

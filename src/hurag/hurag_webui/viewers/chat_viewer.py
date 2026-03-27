@@ -15,7 +15,7 @@ from datetime import datetime
 _CTX_SIZE_MAP = {
     "tiny": (4, -2),  # 4 docs, 1 history round
     "medium": (5, -10),  # 5 docs, 5 history rounds
-    "large": (None, None),  # unlimited
+    "large": (None, -20),  # unlimited docs, 10 history rounds
 }
 
 

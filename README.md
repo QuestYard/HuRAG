@@ -23,6 +23,7 @@ HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应
 
 ## 项目新闻
 
+- [x] 2026-03-26: v0.4.0 版发布，增加了多模态文档的支持，文档可以增加附件，参考港大 LightRAG 项目调整了搜索算法，增加用于工具调用的 API 端点。
 - [x] 2026-02-09: v0.3.0 版发布，集成了原 HuRAG WebUI 项目和 Embedding Service 的客户端 SDK，精简了 WebUI 支持的对话模式。
 - [x] 2026-01-27: v0.2.0 版发布，内部资源统一采用池化管理，Embedding 和 Reranker 模型统一为调用 EmbeddingService API，不再内置模型调用。
 - [x] 2026-01-13: API Server 重构完毕，与测试阶段的 HuRAG WebUI 前段适配完成。第一阶段开发结束，将启动新版 WebUI 重构。

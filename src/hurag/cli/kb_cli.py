@@ -193,6 +193,7 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
 
     # query existing documents, set IDs.
     from ..kbman import check_existance
+
     await check_existance(docs)
     new_multimodals = [doc for doc in docs if not doc.id and doc.is_multimodal]
     new_normal_docs = [doc for doc in docs if not doc.id and not doc.is_multimodal]

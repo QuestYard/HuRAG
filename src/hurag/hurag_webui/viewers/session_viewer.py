@@ -282,15 +282,15 @@ async def session_browser(user_id: str, events: ClientEvents):
                 "mx-auto text-gray-500 py-4 text-caption"
             )
         await asyncio.sleep(0.05)  # allow UI to update
-        
+
         if indexing_task and not indexing_task.done():
             # Wait for the background indexing to complete if not already done
             await indexing_task
-            
+
         # Fallback just in case, though task should have populated them
         if retriever is None or session_ids is None:
             retriever, session_ids = await build_index_for_user(user_id)
-            
+
         results = search_sessions(
             retriever, session_ids, keyword, top_k=len(session_ids)
         )

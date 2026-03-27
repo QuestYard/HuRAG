@@ -1,4 +1,4 @@
-__version__ = "0.3.2"
+__version__ = "0.4.1"
 __author__ = "Libin, QuestYard HuRAG Team"
 __description__ = "HuRAG, A TH-GraphRAG Application From QuestYard."
 __url__ = "https://github.com/QuestYard/HuRAG"
@@ -35,19 +35,31 @@ def load_config() -> Any:
         if isinstance(config, list):
             raise ValueError("Config file must be a dictionary, not a list")
 
-        if (
-            config.milvus.token is None
-            or config.milvus.db_name is None
-            or config.mariadb.user is None
-            or config.mariadb.password is None
-            or config.mariadb.database is None
-            or config.llm.generation is None
-        ):
-            raise ValueError(
-                "Missing required configurations: milvus.token, milvus.db_name, "
-                "mariadb.user, mariadb.password, mariadb.database, llm.generation "
-                "must be provided."
-            )
+        if config.milvus.token is None:
+            raise ValueError("Missing required configuration: milvus.token")
+        if config.milvus.db_name is None:
+            raise ValueError("Missing required configuration: milvus.db_name")
+        if config.mariadb.user is None:
+            raise ValueError("Missing required configuration: mariadb.user")
+        if config.mariadb.password is None:
+            raise ValueError("Missing required configuration: mariadb.password")
+        if config.mariadb.database is None:
+            raise ValueError("Missing required configuration: mariadb.database")
+        if config.app.extra_docs_dir is None:
+            raise ValueError("Missing required configuration: app.extra_docs_dir")
+        if config.llm.generation is None:
+            raise ValueError("Missing required configuration: llm.generation")
+        if config.llm.extraction is None:
+            raise ValueError("Missing required configuration: llm.extraction")
+        if config.llm.multimodal is None:
+            raise ValueError("Missing required configuration: llm.multimodal")
+        if config.webui_db.user is None:
+            raise ValueError("Missing required configuration: webui_db.user")
+        if config.webui_db.password is None:
+            raise ValueError("Missing required configuration: webui_db.password")
+        if config.webui_db.database is None:
+            raise ValueError("Missing required configuration: webui_db.database")
+
         config.milvus.uri = config.milvus.uri or "http://localhost:19530"
         config.mariadb.host = config.mariadb.host or "localhost"
         config.mariadb.port = config.mariadb.port or 3306
@@ -63,10 +75,17 @@ def load_config() -> Any:
         config.retrieval.max_depth = config.retrieval.max_depth or 1
         config.retrieval.max_comms = config.retrieval.max_comms or 3
         config.retrieval.max_nodes = config.retrieval.max_nodes or 1000
-        config.llm.extraction = config.llm.extraction or config.llm.generation
+        config.retrieval.top_k_e = config.retrieval.top_k_e or 20
+        config.retrieval.top_k_r = config.retrieval.top_k_r or 20
+        config.retrieval.top_k_s = config.retrieval.top_k_s or 10
         config.llm.embedding = config.llm.embedding or "http://localhost:8765"
         config.api.host = config.api.host or "0.0.0.0"
         config.api.port = config.api.port or 5000
+        config.webui_db.host = config.mariadb.host or "localhost"
+        config.webui_db.port = config.mariadb.port or 3306
+        config.webui_app.ctx_size = config.webui_app.ctx_size or "large"
+        config.webui_app.host = config.webui_app.host or "0.0.0.0"
+        config.webui_app.port = config.webui_app.port or 8000
 
         return config
 
