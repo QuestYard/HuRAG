@@ -60,7 +60,7 @@ class VectorSearchRequest(BaseModel):
     user_org_path: str | None = Field(
         default=None,
         description="用户所在组织机构路径，不提供则使用服务端组织机构",
-        examples=["总部/大区/某市公司"],
+        examples=["/总部/大区/某市公司"],
     )
     document_ids: list[str] = Field(
         default_factory=list, description="搜索的文档范围，不提供则全库搜索"
@@ -79,7 +79,7 @@ class GraphSearchRequest(BaseModel):
     user_org_path: str | None = Field(
         default=None,
         description="用户所在组织机构路径，不提供则使用服务端组织机构",
-        examples=["总部/大区/某市公司"],
+        examples=["/总部/大区/某市公司"],
     )
     rerank: bool = Field(default=False, description="检索结果是否重排序")
     top_k_entities: int | None = Field(

@@ -66,4 +66,4 @@ webui_app:
   sso:                # 用户认证服务，若有则配置接口信息，默认采用简单模式则无需配置
   ctx_size:           # 3种生成模型上下文规模："tiny", "medium", "large"，默认 large
   host:               # WebUI App 监听地址，默认 0.0.0.0
-  port:               # API server 监听端口，默认 8000
+  port:               # WebUI App 监听端口，默认 8000

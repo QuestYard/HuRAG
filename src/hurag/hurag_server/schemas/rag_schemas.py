@@ -13,12 +13,12 @@ class QueryRequest(BaseModel):
         description="只需提供用户历史查询，无需大模型的历史答复。",
     )
     graph_search: bool | RetrieveMode = Field(default="mix")
-    user_path: str | None = Field(default=None, examples=["总部/大区/某市公司"])
+    user_path: str | None = Field(default=None, examples=["/总部/大区/某市公司"])
 
 
 class KnowledgeRequest(BaseModel):
     ids: list[str] = Field(examples=[["001", "002"]])
-    user_path: str | None = Field(default=None, examples=["总部/大区/某市公司"])
+    user_path: str | None = Field(default=None, examples=["/总部/大区/某市公司"])
 
 
 class KnowledgeMetadataSchema(BaseModel):

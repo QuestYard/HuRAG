@@ -401,7 +401,16 @@ async def _th_scope(timings, user_path) -> tuple[dict[str, dict], list[str]]:
             )
         ]
     )
-    return {row["id"]: row for row in docs.to_dict(orient="records")}, scope
+    records = [
+        {key: (None if pd.isna(value) else value) for key, value in row.items()}
+        for row in docs.to_dict(orient="records")
+    ]
+    final_docs: dict[str, dict] = {}
+    for row in records:
+        doc_id = row.get("id")
+        if isinstance(doc_id, str):
+            final_docs[doc_id] = row
+    return final_docs, scope
 
 
 # --- Tool Functions for API Server or MCP/Tool Calling

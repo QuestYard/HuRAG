@@ -2,6 +2,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
+def _normalize_missing_value(value):
+    if value is None:
+        return None
+    try:
+        if value != value:
+            return None
+    except Exception:
+        pass
+    return value
+
+
 @dataclass(kw_only=True, frozen=True)
 class KnowledgeMetadata:
     id: str | None = field(default=None)
@@ -17,7 +28,13 @@ class KnowledgeMetadata:
 
     @classmethod
     def from_dict(cls, data: dict):
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        return cls(
+            **{
+                k: _normalize_missing_value(v)
+                for k, v in data.items()
+                if k in cls.__dataclass_fields__
+            }
+        )
 
 
 @dataclass(kw_only=True, frozen=True)
