@@ -113,13 +113,15 @@ async def get_knowledge_by_ids(req: KnowledgeRequest):
 
     ```
     {
-        "ids": list[str],       # required, The ids of knowledge (segments)
-        "user_path": str|None,  # optional, default=None
+        "ids": list[str],         # required, The ids of knowledge (segments)
+        "user_path": str | None,  # optional, default=None
     }
     ```
 
     从知识库中检索请求参数指定的 `ids` 列表所指向的段落，并根据 `user_path`
     进行过滤后，装载为 `Knowledge` 对象并返回。
+
+    如果没有提供 `user_path`，则不对知识段进行可见性过滤。
 
     ## 返回值
 

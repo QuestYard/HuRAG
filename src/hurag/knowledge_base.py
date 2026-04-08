@@ -425,16 +425,14 @@ async def get_knowledge_by_segment_ids(
 
     Arguments:
         seg_ids (Collection[str]): required, the segment IDs to load as Knowledge.
-        user_path (str): required, the organization path of current user to determent
-            the documents to search in.
+        user_path (str): optional, the organization path of current user to determent
+            the documents to search in, or None to get knowledge without filtering.
 
     Return:
         A list of Knowledge objects corresponding to the input segment IDs.
     """
     from datetime import datetime
-    from . import conf
 
-    user_path = user_path or conf.app.org_path
+    docs = (await _th_scope([datetime.today()], user_path))[0] if user_path else None
 
-    docs, _ = await _th_scope([datetime.today()], user_path)
     return list((await load_knowledge_by_segment_ids(seg_ids, docs)).values())
