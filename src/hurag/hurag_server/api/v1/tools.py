@@ -189,6 +189,42 @@ async def read_doc(id: str) -> FileContentSchema:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/read_text_document", response_model=FileContentSchema)
+async def read_text_doc(id: str) -> FileContentSchema:
+    """
+    读取指定文本文档的全文。
+
+    ## 请求参数
+
+    - `id`: str, 文档的唯一标识ID
+
+    ## 返回值
+
+    ```
+    {
+        "id": str,          # 文档的唯一标识ID
+        "title": str,       # 文档标题
+        "content": str      # 文档的内容
+    }
+    ```
+    """
+    from ....dss import rss
+    from ....schemas import Document
+
+    try:
+        titles = await rss.query("SELECT title FROM documents WHERE id = %s", (id,))
+        if not titles:
+            raise HTTPException(
+                status_code=404, detail=f"Document with id '{id}' does not exist."
+            )
+        title = titles[0][0]
+
+        docs = await Document.from_db(ids=[id])
+        return FileContentSchema(id=id, title=title, content=docs[0].fulltext)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/vector_search", response_model=list[KnowledgeSchema])
 async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema]:
     """
