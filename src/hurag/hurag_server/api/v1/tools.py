@@ -389,6 +389,7 @@ async def fully_graph_search(req: GraphSearchRequest) -> GraphSearchResponse:
         "type": str,                    # 实体类型
         "description": str              # 实体描述
     }
+    ```
 
     - `RelationSchema` 包括以下字段：
 
@@ -401,6 +402,7 @@ async def fully_graph_search(req: GraphSearchRequest) -> GraphSearchResponse:
         "description": str,             # 关系描述
         "strength": float               # 关系强度（即权重）
     }
+    ```
 
     - `KnowledgeSchema` 包括以下字段：
 
