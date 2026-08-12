@@ -305,7 +305,8 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
                 x[0]
                 for x in await rss.query(
                     f"""
-                    SELECT s.id FROM segments s
+                    SELECT c.id FROM chunks c
+                    JOIN segments s ON c.segment_id = s.id
                     JOIN documents d ON s.document_id = d.id
                     WHERE d.id IN ({",".join(["%s"] * len(req.document_ids))})
                     """,
