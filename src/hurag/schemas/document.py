@@ -64,6 +64,8 @@ class Document:
     """
 
     id: str | None = field(default=None)
+    external_id: str | None = field(default=None)
+    category_id: str | None = field(default=None)
     title: str | None = field(default=None, compare=False)
     sn: str | None = field(default=None, compare=False)
     date: datetime | None = field(default=None, compare=False, repr=False)

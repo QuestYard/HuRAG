@@ -389,3 +389,51 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
 
     show_msg(f"文集 {corpus.as_posix()} 加载完成", style="success")
     return
+
+
+@app.command("categories", epilog=HURAG_EPILOG)
+@async_cmd
+async def cate_list(
+    path: str | None = typer.Option(
+        None,
+        "--path",
+        "-p",
+        help="指定要查看的类目路径，不提供则为所有第一级类目",
+    ),
+    include_docs: bool = typer.Option(
+        False,
+        "--include-docs",
+        "-d",
+        help="同时列出类目下的文档",
+    ),
+    recursive: bool = typer.Option(
+        False,
+        "--recursive",
+        "-r",
+        help="同时列出所有下级类目",
+    ),
+):
+    """列出后台知识库中的文档类目，可同时列出类目下的文档。"""
+
+    from ..kbman import list_categories
+
+    cata, docs = await list_categories(
+        path = path or "",
+        include_docs = include_docs,
+        recursive = recursive,
+    )
+
+    if not cata:
+        show_msg("未找到类目", style="warning")
+        return
+
+    for c in cata:
+        show_msg(f"{c.path} ({c.id} / {c.external_id or '无外部ID'})", style="info")
+        if not include_docs:
+            continue
+        c_d = docs.get(c.id)
+        if not c_d:
+            show_msg(f"  |-- <空类目>", style="warning")
+            continue
+        for d in c_d:
+            show_msg(f"  |-- {d.title} ({d.id} / {d.external_id or '无外部ID'})")

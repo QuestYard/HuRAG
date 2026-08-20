@@ -3,18 +3,40 @@ from ....dss import with_rdb
 
 
 @with_rdb(connection_arg_name="conn", cursor_arg_name="cur", dict_cursor=True)
-async def list_documents(org_path: str | None, conn, cur) -> list[Document]:
+async def list_documents(
+    org_path: str | None,
+    category_ids: list[str],
+    title_keywords: list[str],
+    conn,
+    cur,
+) -> list[Document]:
     sql = "SELECT * FROM documents"
+    conds = []
+    args = []
     if org_path is not None:
         path = org_path.split("/")
         paths = ["/".join(path[:i]) + "*" for i in range(2, len(path) + 1)]
         paths.append(org_path)
-        cond = f"""
-        WHERE pub_path IN ({", ".join(["%s"] * len(paths))}) OR pub_path NOT LIKE "/%%"
-        """
-        await cur.execute(sql + cond, tuple(paths))
-    else:
-        await cur.execute(sql)
+        placeholder = ", ".join(["%s"] * len(paths))
+        conds.append(
+            f"(pub_path IN ({placeholder}) OR pub_path NOT LIKE '/%%')"
+        )
+        args.extend(paths)
+    if category_ids:
+        conds.append(
+            f"category_id IN ({','.join(['%s'] * len(category_ids))})"
+        )
+        args.extend(category_ids)
+    if title_keywords:
+        keywords = "|".join(title_keywords)
+        conds.append(
+            f"title REGEXP '{keywords}'"
+        )
+    cond = " AND ".join(conds)
+    if cond:
+        sql = f"{sql} WHERE {cond}"
+
+    await cur.execute(sql, tuple(args))
 
     docs = await cur.fetchall()
     doc_map = {doc["id"]: Document(**doc) for doc in docs}

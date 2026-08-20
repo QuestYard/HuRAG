@@ -46,8 +46,20 @@ DROP TABLE IF EXISTS chunks;
 DROP TABLE IF EXISTS segments;
 DROP TABLE IF EXISTS attachments;
 DROP TABLE IF EXISTS documents;
+DROP TABLE IF EXISTS categories;
+CREATE TABLE categories (
+    id UUID PRIMARY KEY,
+    external_id VARCHAR(128),
+    path VARCHAR(255) NOT NULL,
+    description VARCHAR(500),
+    INDEX idx_external_id (external_id),
+    INDEX idx_description (description),
+    UNIQUE KEY uk_path (path)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE documents (
     id UUID PRIMARY KEY,
+    external_id VARCHAR(128),
+    category_id UUID NULL,
     title VARCHAR(100) UNIQUE NOT NULL,
     sn VARCHAR(50),
     date DATE NOT NULL,
@@ -60,7 +72,11 @@ CREATE TABLE documents (
     kg_built BOOLEAN NOT NULL,
     INDEX idx_valid_from (valid_from),
     INDEX idx_valid_to (valid_to),
-    INDEX idx_pub_path (pub_path)
+    INDEX idx_pub_path (pub_path),
+    INDEX idx_external_id (external_id),
+    INDEX idx_category_id (category_id),
+    CONSTRAINT fk_documents_category 
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE attachments (
     id UUID PRIMARY KEY,

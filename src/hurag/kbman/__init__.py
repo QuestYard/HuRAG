@@ -15,6 +15,12 @@ from .corpus import (
     corpus_markup,
     corpus_split,
 )
+from .categories import (
+    Category,
+    normalize_path,
+    upsert_categories,
+    list_categories,
+)
 
 
 __all__ = [
@@ -31,4 +37,8 @@ __all__ = [
     "corpus_load",
     "corpus_markup",
     "corpus_split",
+    "Category",
+    "normalize_path",
+    "upsert_categories",
+    "list_categories",
 ]

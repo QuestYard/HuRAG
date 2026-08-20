@@ -11,6 +11,14 @@ class CommunitySchema(BaseModel):
     )
 
 
+class CategorySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(description="文档类目唯一ID", examples=["UUID7-ID"])
+    path: str = Field(description="类目全路径名称", examples=["行业规章/综合管理"])
+    description: str | None = Field(default=None, description="类目简介")
+
+
 class AttachmentSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,18 +57,32 @@ class DocumentSchema(BaseModel):
 class FileContentSchema(BaseModel):
     id: str = Field(description="文档唯一ID", examples=["UUID7-ID"])
     title: str = Field(
-        description="标题，附件文档包含正文标题",
-        examples=["《民法典》", "《XX管理制度》附件1_XX表模板"],
+        description = "标题，附件文档包含正文标题",
+        examples = ["《民法典》", "《XX管理制度》附件1_XX表模板"],
     )
     content: str = Field(description="文档内容", examples=["文档内容"])
+
+
+class ListDocumentsRequest(BaseModel):
+    user_org_path: str = Field(
+        description="用户所在组织机构路径", examples=["/总部/大区/某市公司"]
+    )
+    category_ids: list[str] = Field(
+        default_factory=list, description="文档类目ID列表，不提供表示全部类目"
+    )
+    title_keywords: list[str] = Field(
+        default_factory=list,
+        description="文档标题关键字，用于模糊匹配，不提供则不做关键字匹配",
+        examples=[["竞争", "垄断"]],
+    )
 
 
 class VectorSearchRequest(BaseModel):
     query: str = Field(examples=["政府采购行为的定义是什么？"])
     user_org_path: str | None = Field(
-        default=None,
-        description="用户所在组织机构路径，不提供则使用服务端组织机构",
-        examples=["/总部/大区/某市公司"],
+        default = None,
+        description = "用户所在组织机构路径，不提供则使用服务端组织机构",
+        examples = ["/总部/大区/某市公司"],
     )
     document_ids: list[str] = Field(
         default_factory=list, description="搜索的文档范围，不提供则全库搜索"

@@ -14,9 +14,11 @@ from .rag_schemas import (
 )
 from .tools_schemas import (
     CommunitySchema,
+    CategorySchema,
     DocumentSchema,
     AttachmentSchema,
     FileContentSchema,
+    ListDocumentsRequest,
     VectorSearchRequest,
     GraphSearchRequest,
 )
@@ -34,9 +36,11 @@ __all__ = [
     "RelationSchema",
     "GraphSearchResponse",
     "CommunitySchema",
+    "CategorySchema",
     "DocumentSchema",
     "AttachmentSchema",
     "FileContentSchema",
+    "ListDocumentsRequest",
     "VectorSearchRequest",
     "GraphSearchRequest",
     "EntitySchema",

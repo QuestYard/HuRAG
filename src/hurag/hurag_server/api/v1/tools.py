@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException
 
 from ...schemas import (
+    CategorySchema,
     DocumentSchema,
     FileContentSchema,
     KnowledgeSchema,
     EntitySchema,
     RelationSchema,
+    ListDocumentsRequest,
     VectorSearchRequest,
     GraphSearchRequest,
     GraphSearchResponse,
@@ -47,25 +49,62 @@ router = APIRouter(prefix="/v1/tools", tags=["工具库"])
 #         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/list_documents", response_model=list[DocumentSchema])
-async def list_docs(user_org_path: str) -> list[DocumentSchema]:
+@router.get("/categories", response_model=list[CategorySchema])
+async def list_document_categories() -> list[CategorySchema]:
+    """
+    获取当前知识库中的文档类目清单。
+
+    ## 请求参数
+
+    无
+
+    ## 返回值
+
+    所有文档类目的列表，类目名以路径的形式返回。
+
+    ```
+    [
+        {
+            "id": str,                              # 类目唯一ID
+            "path": str,                            # 路径形式表示的类目名称
+            "description": str | None,              # 类目内容的简要描述
+        }
+    ]
+    ```
+    """
+    from ....kbman import list_categories
+    try:
+        catas, _ = await list_categories()
+        return [CategorySchema.model_validate(c) for c in catas]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/list_documents", response_model=list[DocumentSchema])
+async def list_docs(req: ListDocumentsRequest) -> list[DocumentSchema]:
     """
     获取当前知识库中所有知识文档的列表。
 
     ## 请求参数
 
-    - `user_org_path`: str, 用户所在组织机构的路径
+    ```
+    {
+        "user_org_path": str                # 用户所在组织机构路径，必须提供
+        "category_ids": list[str] = []      # 文档类目范围，默认为空列表
+        "title_keywords": list[str] = []    # 文档标题模糊查找关键字，默认为空列表
+    }
+    ```
 
-    根据用户所在组织机构路径，返回的文档列表中将过滤掉在该机构不生效的文档。
+    - `user_org_path`: 用于确定请求用户能见的文档范围，必须提供。
 
-    多模态文档可以获取全文内容供智能体使用，但不能使用向量化搜索来定位文本段落，
-    也不支持知识图谱搜索。
+    - `category_ids`: 文档类目范围，若为空列表，则表示所有类目。
 
-    非多模态文档不能获取全文，但可以通过语义相似度搜索文本段落，也支持知识图谱搜索。
+    - `title_keywords`: 文档标题模糊查找关键字，多个关键字为 OR 的关系，空列表则匹配
+      所有文档。
 
     ## 返回值
 
-    所有知识文档的列表，包括该文档所有附件的列表。
+    知识文档的列表，包括该文档所有附件的列表。
 
     ```
     [
@@ -101,7 +140,9 @@ async def list_docs(user_org_path: str) -> list[DocumentSchema]:
     from .utils import list_documents
 
     try:
-        docs = await list_documents(user_org_path)
+        docs = await list_documents(
+            req.user_org_path, req.category_ids, req.title_keywords
+        )
         return [DocumentSchema.model_validate(doc) for doc in docs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -231,6 +272,7 @@ async def hybrid_vector_search(req: VectorSearchRequest) -> list[KnowledgeSchema
     在向量知识库根据用户查询执行语义相关度搜索。
 
     ## 请求参数
+
     ```
     {
         "query": str,                       # 用户查询
