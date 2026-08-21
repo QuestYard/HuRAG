@@ -23,6 +23,8 @@ HuRAG的设计面向组织型用户，不仅仅用于个人用途。它可以应
 
 ## 项目新闻
 
+- [x] 2026-08-21: v0.6.0 版发布，增加了文档类目功能，文档库中的文档可以使用树形目录进行分类，增加了对应的 CLI 命令和工具 API。
+- [x] 2026-08-12: v0.5.0 版发布，修正了若干错误，增加了读取文档全文的工具 API，与 Agentic RAG 应用 Alaya 对接成功。
 - [x] 2026-03-26: v0.4.0 版发布，增加了多模态文档的支持，文档可以增加附件，参考港大 LightRAG 项目调整了搜索算法，增加用于工具调用的 API 端点。
 - [x] 2026-02-09: v0.3.0 版发布，集成了原 HuRAG WebUI 项目和 Embedding Service 的客户端 SDK，精简了 WebUI 支持的对话模式。
 - [x] 2026-01-27: v0.2.0 版发布，内部资源统一采用池化管理，Embedding 和 Reranker 模型统一为调用 EmbeddingService API，不再内置模型调用。
@@ -174,6 +176,14 @@ HuRAG API Server 提供以下 API 接口：
 - `/v1/llm/chat` : (POST) 聊天接口，提供基于 RAG 的聊天问答功能，支持 SSE 流式响应。
 - `/v1/hurag/retrieve` : (POST) 检索接口，提供基于 RAG 的文档检索功能。
 - `/v1/hurag/knowledge` : 知识查询接口，提供根据 ID 查询知识段的功能。
+- `/v1/tools/categories` : (GET) 获取文档库的类目清单。
+- `/v1/tools/list_documents` : (POST) 查阅文档清单，可根据用户权限、类目、标题关键字查找。
+- `/v1/tools/read_text_document` : (GET) 读取文本型文档全文。
+- `/v1/tools/read_multimodal_document` : (GET) 读取多模态文档内容。
+- `/v1/tools/read_attachment` : (GET) 读取文档附件内容。
+- `/v1/tools/vector_search` : (POST) 根据用户查询对文档文本进行语义搜索。
+- `/v1/tools/graph_search` : (POST) 根据用户查询进行知识图谱搜索。
+
 
 服务启动后，即可通过 `http://<server_host>:<port>/docs` 访问 HuRAG API 文档页面。
 
