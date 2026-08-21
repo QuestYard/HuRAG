@@ -17,6 +17,7 @@ class CategorySchema(BaseModel):
     id: str = Field(description="文档类目唯一ID", examples=["UUID7-ID"])
     path: str = Field(description="类目全路径名称", examples=["行业规章/综合管理"])
     description: str | None = Field(default=None, description="类目简介")
+    document_count: int = Field(default=0, description="类目下文档的数量")
 
 
 class AttachmentSchema(BaseModel):

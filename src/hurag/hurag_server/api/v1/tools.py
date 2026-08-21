@@ -68,14 +68,19 @@ async def list_document_categories() -> list[CategorySchema]:
             "id": str,                              # 类目唯一ID
             "path": str,                            # 路径形式表示的类目名称
             "description": str | None,              # 类目内容的简要描述
+            "document_count": int,                  # 类目下文档的数量
         }
     ]
     ```
     """
     from ....kbman import list_categories
     try:
-        catas, _ = await list_categories()
-        return [CategorySchema.model_validate(c) for c in catas]
+        catas, docs = await list_categories(include_docs=True)
+        cs = [CategorySchema.model_validate(c) for c in catas]
+        for c in cs:
+            c.document_count = len(docs.get(c.id, []))
+
+        return cs
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
