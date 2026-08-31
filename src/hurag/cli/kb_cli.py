@@ -443,3 +443,32 @@ async def cate_list(
             continue
         for d in c_d:
             show_msg(f"  |-- {d.title} ({d.id} / {d.external_id or '无外部ID'})")
+
+
+@app.command("sync-categories", epilog=HURAG_EPILOG)
+@async_cmd
+async def sync_cate(
+    file: str = typer.Argument(..., help="指定要同步的 CSV 数据文件")
+):
+    """从指定的 CSV 数据文件中同步类目和文档类目归属信息。"""
+    import csv
+    from pathlib import Path
+    from ..kbman import sync_from_csv
+
+    sync_file = Path(file).expanduser().resolve()
+
+    if not sync_file.exists() or not sync_file.is_file():
+        show_msg("未找到指定的数据文件", style="error")
+        return
+
+    if sync_file.suffix.lower() != ".csv":
+        show_msg("数据文件必须为 CSV 格式", style="error")
+        return
+
+    with open(sync_file, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+
+    results = await sync_from_csv(data)
+    for result in results:
+        show_msg(result[0], style=result[1])

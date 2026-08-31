@@ -79,6 +79,72 @@ async def get_category_id_by_path(
 
 
 @with_rdb(connection_arg_name="conn", cursor_arg_name="cur")
+async def sync_from_csv(
+    data: list[dict[str, str]],
+    conn: Connection,
+    cur: Cursor,
+) -> list[tuple[str, str]]:
+    assert conn is not None
+
+    from ..utilities import generate_id
+
+    results: list[tuple[str, str]] = []
+
+    for row in data:
+        _type = row.get("TYPE", None)
+        if not _type:
+            continue
+        if _type.lower() == "c":
+            _path = row.get("CATEGORY_PATH", "")
+            _desc = row.get("DOC_TITLE_OR_DESCRIPTION", "")
+
+            try:
+                _path = normalize_path(_path)
+            except ValueError:
+                results.append((f"新增类目 {_path} 路径不合法", "error"))
+                continue
+
+            _sql = """
+            INSERT INTO categories (id, path, description) VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE description = %s
+            """
+            _data = (generate_id(), _path, _desc, _desc)
+            await cur.execute(_sql, _data)
+            results.append((f"新增/修改类目 {_path} 完成", "info"))
+        elif _type.lower() == "d":
+            _path = row.get("CATEGORY_PATH", "")
+            _title = row.get("DOC_TITLE_OR_DESCRIPTION", "").strip()
+
+            try:
+                _path = normalize_path(_path)
+            except ValueError:
+                results.append((f"文档 {_title} 要设置的类目路径不合法", "error"))
+                continue
+
+            await cur.execute("SELECT id FROM documents WHERE title = %s", (_title,))
+            rows = await cur.fetchall()
+            if not rows:
+                results.append((f"文档 {_title} 不存在", "error"))
+                continue
+            _doc_id = rows[0][0]
+
+            await cur.execute("SELECT id FROM categories WHERE path = %s", (_path,))
+            rows = await cur.fetchall()
+            if not rows:
+                results.append((f"文档 {_title} 要设置的类目 {_path} 不存在", "error"))
+                continue
+            _cat_id = rows[0][0]
+
+            _sql = """
+            UPDATE documents SET category_id = %s WHERE id = %s
+            """
+            await cur.execute(_sql, (_cat_id, _doc_id))
+            results.append((f"设置文档 {_title} 的类目为 {_path}", "info"))
+
+    return results
+
+
+@with_rdb(connection_arg_name="conn", cursor_arg_name="cur")
 async def upsert_categories(
     categories: list[Category],
     conn: Connection,

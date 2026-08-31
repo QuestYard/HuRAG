@@ -19,6 +19,7 @@ from .categories import (
     Category,
     normalize_path,
     get_category_id_by_path,
+    sync_from_csv,
     upsert_categories,
     list_categories,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "Category",
     "normalize_path",
     "get_category_id_by_path",
+    "sync_from_csv",
     "upsert_categories",
     "list_categories",
 ]
