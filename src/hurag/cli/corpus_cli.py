@@ -135,7 +135,7 @@ def split(path: str = typer.Argument(..., help="需要分割文档的文集所�
             }
         except Exception as e:
             return {
-                "msg": f"文集 {path} 预标注失败：{e}",
+                "msg": f"文集 {path} 分割文档失败：{e}",
                 "style": "error",
                 "err": e,
             }

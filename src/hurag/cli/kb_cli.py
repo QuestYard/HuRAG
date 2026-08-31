@@ -177,6 +177,18 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
         show_msg(f"指定的文集目录 {path} 不存在或不是一个目录", style="error")
         return
 
+    show_msg(f"分割文集 {path} 中尚未分割的向量化文档...", style="info")
+
+    from ..kbman import corpus_split
+
+    try:
+        splitted = corpus_split(path)
+        for p in splitted:
+            show_msg(f"{p} 分割完成", style="info")
+    except Exception as e:
+        show_msg(f"分割文集 {path} 中的文档失败: {e}", style="error", err=e)
+        return
+
     show_msg(f"加载文集 {path} 中待入库的文档...", style="info")
 
     import json
@@ -404,7 +416,7 @@ async def cate_list(
         None,
         "--path",
         "-p",
-        help="指定要查看的类目路径，不提供则为所有第一级类目",
+        help="指定要查看的类目路径，不提供则为所有类目",
     ),
     include_docs: bool = typer.Option(
         False,
@@ -472,3 +484,47 @@ async def sync_cate(
     results = await sync_from_csv(data)
     for result in results:
         show_msg(result[0], style=result[1])
+
+
+@app.command("export-categories", epilog=HURAG_EPILOG)
+@async_cmd
+async def export_cate(
+    file: str = typer.Argument(..., help="指定要导出为的 CSV 文件")
+):
+    """将当前数据库中的类目和文档类目归属信息导出为 CSV 文件。"""
+    import csv
+    from pathlib import Path
+    from ..kbman import list_categories
+
+    cata, docs = await list_categories(include_docs=True)
+    cs = [
+        {
+            "TYPE": "C",
+            "CATEGORY_PATH": c.path,
+            "DOC_TITLE_OR_DESCRIPTION": c.description,
+        }
+        for c in cata
+    ]
+    ds = [
+        {
+            "TYPE": "D",
+            "CATEGORY_PATH": c.path,
+            "DOC_TITLE_OR_DESCRIPTION": d.title,
+        }
+        for c in cata
+        for d in docs[c.id]
+    ]
+
+
+    fieldnames = ["TYPE", "CATEGORY_PATH", "DOC_TITLE_OR_DESCRIPTION"]
+    exp = Path(file).expanduser().resolve()
+    try:
+        with open(exp, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(cs)
+            writer.writerows(ds)
+
+        show_msg(f"类目及文档类目归属清单已导出到文件 {exp.name}", style="info")
+    except Exception as e:
+        show_msg(f"导出类目信息失败: {e!r}")

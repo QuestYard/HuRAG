@@ -52,12 +52,14 @@ hurag list [--keyword <keyword>] [--order <title|date|org>]
 使用以下命令将一个已经标注好的文集中的文档存入知识库：
 
 ```bash
-hurag store <path>
+hurag store <corpus_path>
 ```
 
-- `<path>`: 必需参数，指定包含待入库文档的文集目录路径。
+- `<corpus_path>`: 必需参数，指定包含待入库文档的文集目录路径。
 
 *注意：如果文集中的文档与库内已有文档重名，则会跳过该文档不予加载。*
+
+*虽然文集加载时会自动对向量化文档进行分割，但更建议在加载前应先使用 `corpus split` 命令完成分割并检查分割结果。*
 
 ### 文档类目查看
 
@@ -76,16 +78,16 @@ hurag categories [--path <path>] [--include-docs] [--recursive]
 文档类目，包括库内文档所属类目的信息，今后都需要与外部知识库系统进行对接同步，目前尚不明确外部知识库的数据接口，因此提供一个临时的 CLI 命令 `sync-catagories` 用于测试环境。
 
 ```bash
-hurag sync-catagories <file_path>
+hurag sync-catagories <source_file>
 ```
 
-- `<file_path>`: 必须提供，指定一个规定格式的 CSV 文件，用于读取要同步入数据库的类目和文档信息。
+- `<source_file>`: 必须提供，指定一个规定格式的 CSV 文件，用于读取要同步入数据库的类目和文档信息。
 
 CSV 文件格式如下：
 
-| TYPE | CATEGORY_PATH | DOC_TITLE_OR_DESCRIPTION  |
-|:----:| ------------- | ---------------------- |
-| 类型 | 类目的全路径  | 文档标题或新的类目路径 |
+| TYPE | CATEGORY_PATH | DOC_TITLE_OR_DESCRIPTION |
+|:----:| ------------- | ------------------------ |
+| 类型 | 类目的全路径  | 文档标题或新的类目路径   |
 
 - `TYPE` 列表示该行的数据类型，"D" 表示文档，"C" 表示类目，根据 `TYPE` 的不同，后续处理方式有多种。
 - `TYPE = "D"` 的文档行，用于设置文档所属类目。`CATEGORY_PATH` 列填写该文档所属的类目路径，`DOC_TITLE_OR_DESCRIPTION` 列填写文档标题，即将标题为 `DOC_TITLE_OR_DESCRIPTION` 的文档所属的类目设置为 `CATEGORY_PATH`；如果该文档不存在或类目不存在，则跳过不做任何处理。
@@ -106,6 +108,18 @@ CSV 文件格式如下：
 1. 增加一个路径为 "法律法规" 的类目，类目简介为 "国家法律、政府法令、党内法规等"；
 2. 增加一个路径为 "行业规章/综合管理/投资" 的类目，类目简介为 "行业内部对规范投资行为制定实施的相关规章制度、规范、流程等"；
 3. 将文档《民法典》的类目设置为 "法律法规"；
+
+### 文档类目导出
+
+导出当前数据库中所有的文档类目及所有文档的类目归属信息，导出格式为与 `hurag sync-catagories` 命令所需的 CSV 文件格式完全相同。
+
+```bash
+hurag export-categories <target_file>
+```
+
+- `<target_file>`: 必须提供，指定一个 CSV 文件名用于导出，如果该文件已经存在，将被覆盖。
+
+可以在执行 `hurag sync-catagories` 前先进行导出，然后在导出的 CSV 文件基础上编辑要同步的信息。
 
 ## 文集管理
 
@@ -133,10 +147,10 @@ corpus convert --src <source_file> [--tgt <target_file>] [--enc]
 使用以下命令为文档库中的文档生成标注文件：
 
 ```bash
-corpus markup --path <corpus_path>
+corpus markup <corpus_path>
 ```
 
-- `--path <corpus_path>`: 必需参数，指定包含待标注文档的文集路径。
+- `<corpus_path>`: 必需参数，指定包含待标注文档的文集路径。
 
 该命令会在指定路径下生成 `corpus.json` 文件，记录文集中的所有文档及其元数据。
 
@@ -151,10 +165,10 @@ corpus markup --path <corpus_path>
 使用以下命令对归属于一个文集中的文档进行分割：
 
 ```bash
-corpus split --path <corpus_path>
+corpus split <corpus_path>
 ```
 
-- `--path <corpus_path>`: 必需参数，指定包含待分割文档的文集路径。
+- `<corpus_path>`: 必需参数，指定包含待分割文档的文集路径。
 
 该命令会对指定路径下后缀为 `.regu`, `.markdown`, `.text` 的文本文件进行分割操作，分割结果保存在与源文件相同的目录下。
 
