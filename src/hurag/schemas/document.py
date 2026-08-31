@@ -61,6 +61,8 @@ class Document:
         - `segments`: always [] for multimodal documents;
         - `kg_built`: always False for multimodal documents;
         - `attachments`: list[Attachment].
+
+    Support document categories since v0.6.0.
     """
 
     id: str | None = field(default=None)

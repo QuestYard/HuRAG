@@ -180,12 +180,18 @@ async def store(path: str = typer.Argument(..., help="需要入库的文集所�
     show_msg(f"加载文集 {path} 中待入库的文档...", style="info")
 
     import json
-    from ..kbman import corpus_load
+    from ..kbman import corpus_load, get_category_id_by_path
 
     try:
         with open(corpus / "corpus.json", "r", encoding="utf-8") as f:
             markups = json.load(f)
-        docs = corpus_load(corpus, markups.get("insert", {}))
+
+        _ins = markups.get("insert", {})
+        for d in _ins.values():
+            cate = d.pop("category", None)
+            d["category_id"] = await get_category_id_by_path(cate) if cate else None
+
+        docs = corpus_load(corpus, _ins)
         show_msg(f"加载完成，共 {len(docs)} 份文档待入库", style="info")
     except Exception as e:
         show_msg(f"加载文集 {path} 失败: {e}", style="error", err=e)

@@ -59,6 +59,26 @@ def normalize_path(path: str) -> str:
 
 
 @with_rdb(connection_arg_name="conn", cursor_arg_name="cur")
+async def get_category_id_by_path(
+    path: str,
+    conn: Connection,
+    cur: Cursor,
+) -> str | None:
+    assert conn is not None
+
+    try:
+        path = normalize_path(path)
+    except ValueError:
+        path = ""
+
+    sql = "SELECT id FROM categories WHERE path = %s"
+    await cur.execute(sql, (path,))
+    results = await cur.fetchall()
+
+    return results[0][0] if results else None
+
+
+@with_rdb(connection_arg_name="conn", cursor_arg_name="cur")
 async def upsert_categories(
     categories: list[Category],
     conn: Connection,

@@ -115,6 +115,7 @@ def corpus_markup(path: str) -> dict[str, Any]:
             "pub_path": meta.get("pub_path", conf.app.org_path),
             "localizes": meta.get("localizes", None),
             "authors": meta.get("authors", None),
+            "category": meta.get("category", None),  # 2026-08-31
         }
         markups["insert"][file.name] = markup
 

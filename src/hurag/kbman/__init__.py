@@ -18,6 +18,7 @@ from .corpus import (
 from .categories import (
     Category,
     normalize_path,
+    get_category_id_by_path,
     upsert_categories,
     list_categories,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "corpus_split",
     "Category",
     "normalize_path",
+    "get_category_id_by_path",
     "upsert_categories",
     "list_categories",
 ]

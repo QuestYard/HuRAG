@@ -11,8 +11,8 @@ SQL_INS_DOC = [
     """
     INSERT INTO documents (
         id, title, sn, date, valid_from, valid_to, replaces, pub_path, localizes,
-        authors, kg_built
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        authors, kg_built, category_id
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """,
     "INSERT INTO segments (id, document_id, seq_no) VALUES (%s, %s, %s)",
     "INSERT INTO chunks (id, segment_id, seq_no, text) VALUES (%s, %s, %s, %s)",
@@ -65,6 +65,7 @@ async def save_multimodal_docs(docs: list[dict]) -> int:
             doc["doc"].localizes,
             doc["doc"].authors,
             False,
+            doc["doc"].category_id,
         )
         for doc in docs
     ]
@@ -122,6 +123,7 @@ async def indexing_documents(
                 doc.localizes,
                 doc.authors,
                 doc.kg_built,
+                doc.category_id,
             )
             for doc in docs
         ]
